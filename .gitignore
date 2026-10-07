@@ -1,0 +1,48 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets and environment
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.crt
+*.jks
+*.pfx
+secrets/
+credentials/
+config.local*
+*.local
+
+# Rust build artifacts
+/target/
+**/target/
+**/debug/
+**/release/
+**/build/
+**/dist/
+**/out/
+
+# Node / frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+
+# Logs and caches
+*.log
+.cache/
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
