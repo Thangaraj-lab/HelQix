@@ -1,0 +1,12 @@
+[package]
+name = "helqix-causal"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 10 — deterministic causal analysis: cause/effect relationships, causal graph, propagation, root-cause analysis."
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+
+[features]
+default = []
