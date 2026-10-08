@@ -1,0 +1,7 @@
+.control-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--hq-border-subtle); }
+.control-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--hq-text-secondary); padding: 8px 14px; font-size: var(--hq-text-sm); font-weight: 600; cursor: pointer; }
+.control-tabs button[aria-selected="true"] { color: var(--hq-accent-strong); border-bottom-color: var(--hq-accent); }
+.action-form { display: grid; gap: var(--hq-sp-3); }
+.event-log { display: grid; gap: 2px; max-height: 220px; overflow-y: auto; font-size: var(--hq-text-sm); }
+.event-log__row { display: grid; grid-template-columns: 88px 1fr; gap: var(--hq-sp-2); padding: 4px 8px; border-radius: var(--hq-radius-sm); }
+.event-log__row:nth-child(odd) { background: var(--hq-bg-sunken); }

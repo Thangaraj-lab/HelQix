@@ -1,0 +1,6 @@
+.intent-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--hq-sp-5); align-items: start; }
+@media (max-width: 1000px) { .intent-grid { grid-template-columns: 1fr; } }
+.intent-editor textarea { min-height: 260px; }
+.struct-list { display: grid; gap: var(--hq-sp-4); }
+.struct-block { border-left: 2px solid var(--hq-accent); padding-left: var(--hq-sp-3); }
+.struct-block li { font-size: var(--hq-text-sm); color: var(--hq-text-secondary); margin: 4px 0; list-style: none; }

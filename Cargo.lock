@@ -10,5 +10,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "helqix-causal"
+version = "0.1.0"
+dependencies = [
+ "helqix-core",
+]
+
+[[package]]
 name = "helqix-core"
 version = "0.1.0"
+
+[[package]]
+name = "helqix-events"
+version = "0.1.0"
+dependencies = [
+ "helqix-core",
+]

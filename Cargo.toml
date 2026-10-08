@@ -3,4 +3,6 @@ resolver = "2"
 members = [
     "01-foundation/crates/helqix-core",
     "06-simulation/engines/helixsim",
+    "10-events-causality/crates/helqix-events",
+    "10-events-causality/crates/helqix-causal",
 ]

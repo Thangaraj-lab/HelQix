@@ -1,0 +1,127 @@
+/* Shared product primitives: buttons, inputs, badges, panels, tables, states. */
+
+.hq-button {
+  display: inline-flex; align-items: center; gap: var(--hq-sp-2);
+  padding: 8px 14px;
+  border-radius: var(--hq-radius-md);
+  border: 1px solid var(--hq-border-default);
+  background: var(--hq-bg-raised);
+  color: var(--hq-text-primary);
+  font-size: var(--hq-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--hq-transition-fast), border-color var(--hq-transition-fast);
+}
+.hq-button:hover:not(:disabled) { background: var(--hq-bg-interactive); border-color: var(--hq-border-strong); }
+.hq-button:active:not(:disabled) { transform: translateY(1px); }
+.hq-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.hq-button--primary { background: var(--hq-accent); border-color: var(--hq-accent); color: var(--hq-text-inverse); }
+.hq-button--primary:hover:not(:disabled) { background: var(--hq-accent-strong); border-color: var(--hq-accent-strong); }
+.hq-button--danger { border-color: var(--hq-failure); color: var(--hq-failure); background: transparent; }
+.hq-button--danger:hover:not(:disabled) { background: var(--hq-failure-dim); }
+.hq-button--ghost { border-color: transparent; background: transparent; color: var(--hq-text-secondary); }
+.hq-button--ghost:hover:not(:disabled) { color: var(--hq-text-primary); background: var(--hq-bg-interactive); }
+.hq-button--sm { padding: 4px 10px; font-size: var(--hq-text-xs); }
+
+.hq-input, .hq-select, .hq-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--hq-bg-sunken);
+  border: 1px solid var(--hq-border-default);
+  border-radius: var(--hq-radius-md);
+  color: var(--hq-text-primary);
+  font: inherit;
+  font-size: var(--hq-text-sm);
+}
+.hq-input:focus, .hq-select:focus, .hq-textarea:focus { border-color: var(--hq-accent); outline: none; }
+.hq-textarea { resize: vertical; min-height: 96px; font-family: var(--hq-font-mono); }
+.hq-field { display: flex; flex-direction: column; gap: var(--hq-sp-2); margin-bottom: var(--hq-sp-4); }
+.hq-field__error { color: var(--hq-failure); font-size: var(--hq-text-xs); }
+
+.hq-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--hq-radius-pill);
+  font-size: var(--hq-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.hq-badge__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.hq-badge--normal  { color: var(--hq-normal);  background: transparent; border-color: var(--hq-border-default); }
+.hq-badge--active  { color: var(--hq-accent);  background: var(--hq-accent-dim); border-color: rgba(53,182,166,.35); }
+.hq-badge--success { color: var(--hq-success); background: var(--hq-success-dim); border-color: rgba(63,178,111,.35); }
+.hq-badge--warning { color: var(--hq-warning); background: var(--hq-warning-dim); border-color: rgba(217,161,59,.35); }
+.hq-badge--failure { color: var(--hq-failure); background: var(--hq-failure-dim); border-color: rgba(214,90,90,.4); }
+.hq-badge--info    { color: var(--hq-info);    background: var(--hq-info-dim); border-color: rgba(77,143,214,.35); }
+
+.hq-panel {
+  background: var(--hq-bg-raised);
+  border: 1px solid var(--hq-border-subtle);
+  border-radius: var(--hq-radius-lg);
+  box-shadow: var(--hq-shadow-panel);
+}
+.hq-panel__header {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--hq-sp-3);
+  padding: var(--hq-sp-3) var(--hq-sp-4);
+  border-bottom: 1px solid var(--hq-border-subtle);
+}
+.hq-panel__body { padding: var(--hq-sp-4); }
+
+.hq-table { width: 100%; border-collapse: collapse; font-size: var(--hq-text-sm); }
+.hq-table th {
+  text-align: left; padding: 8px 12px;
+  color: var(--hq-text-secondary); font-size: var(--hq-text-xs);
+  text-transform: uppercase; letter-spacing: var(--hq-tracking-label);
+  border-bottom: 1px solid var(--hq-border-default);
+}
+.hq-table td { padding: 10px 12px; border-bottom: 1px solid var(--hq-border-subtle); }
+.hq-table tr:hover td { background: var(--hq-bg-interactive); }
+
+.hq-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--hq-sp-3); padding: var(--hq-sp-8) var(--hq-sp-4);
+  color: var(--hq-text-secondary); text-align: center;
+}
+.hq-empty__title { color: var(--hq-text-primary); font-size: var(--hq-text-lg); }
+
+.hq-banner {
+  display: flex; align-items: center; gap: var(--hq-sp-3);
+  padding: var(--hq-sp-3) var(--hq-sp-4);
+  border-radius: var(--hq-radius-md);
+  border: 1px solid var(--hq-border-default);
+  background: var(--hq-bg-raised);
+  font-size: var(--hq-text-sm);
+}
+.hq-banner--error   { border-color: rgba(214,90,90,.45); background: var(--hq-failure-dim); color: var(--hq-failure); }
+.hq-banner--warn    { border-color: rgba(217,161,59,.45); background: var(--hq-warning-dim); color: var(--hq-warning); }
+.hq-banner--info    { border-color: rgba(77,143,214,.45); background: var(--hq-info-dim); color: var(--hq-info); }
+
+.hq-skeleton {
+  background: linear-gradient(90deg, var(--hq-bg-raised) 25%, var(--hq-bg-interactive) 50%, var(--hq-bg-raised) 75%);
+  background-size: 200% 100%;
+  animation: hq-shimmer 1.4s infinite;
+  border-radius: var(--hq-radius-sm);
+}
+@keyframes hq-shimmer { to { background-position: -200% 0; } }
+
+.hq-modal-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(4, 6, 9, 0.7);
+  display: flex; align-items: center; justify-content: center;
+}
+.hq-modal {
+  width: min(520px, calc(100vw - 32px));
+  background: var(--hq-bg-overlay);
+  border: 1px solid var(--hq-border-default);
+  border-radius: var(--hq-radius-lg);
+  box-shadow: var(--hq-shadow-overlay);
+}
+.hq-modal__header { padding: var(--hq-sp-4); border-bottom: 1px solid var(--hq-border-subtle); }
+.hq-modal__body { padding: var(--hq-sp-4); }
+.hq-modal__footer { padding: var(--hq-sp-4); border-top: 1px solid var(--hq-border-subtle); display: flex; justify-content: flex-end; gap: var(--hq-sp-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

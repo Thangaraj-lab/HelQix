@@ -251,6 +251,21 @@ pub struct Vector3 {
 }
 
 impl Vector3 {
+    /// Crate-internal constructor for components already verified finite by
+    /// downstream HELIXSIM modules (forces, dynamics, integration). Finiteness
+    /// of every element is re-checked here as the single choke point.
+    ///
+    /// # Errors
+    ///
+    /// [`EnvironmentError::NonFiniteValue`] if any component is NaN or
+    /// infinite.
+    pub(crate) fn new_checked(
+        components: [f64; 3],
+        unit: SymbolicUnit,
+    ) -> Result<Self, EnvironmentError> {
+        Self::new(components, unit)
+    }
+
     /// Creates a validated vector.
     ///
     /// # Errors
@@ -412,7 +427,10 @@ impl Vector3 {
             .unit
             .checked_mul(other.unit)
             .ok_or(EnvironmentError::UnitOverflow)?;
-        Ok(Self { components: products, unit })
+        Ok(Self {
+            components: products,
+            unit,
+        })
     }
 
     /// Component-wise addition; requires equal unit signatures.
@@ -435,7 +453,11 @@ impl Vector3 {
     #[must_use]
     pub fn neg(&self) -> Self {
         Self {
-            components: [-self.components[0], -self.components[1], -self.components[2]],
+            components: [
+                -self.components[0],
+                -self.components[1],
+                -self.components[2],
+            ],
             unit: self.unit,
         }
     }
@@ -453,7 +475,10 @@ impl Vector3 {
         for (o, c) in out.iter_mut().zip(self.components) {
             *o = require_finite(c * factor)?;
         }
-        Ok(Self { components: out, unit: self.unit })
+        Ok(Self {
+            components: out,
+            unit: self.unit,
+        })
     }
 
     fn combine(
@@ -469,7 +494,10 @@ impl Vector3 {
         {
             *o = require_finite(op(*a, *b))?;
         }
-        Ok(Self { components: out, unit: self.unit })
+        Ok(Self {
+            components: out,
+            unit: self.unit,
+        })
     }
 }
 
@@ -527,7 +555,9 @@ impl Scalar {
     pub fn mul(&self, other: &Self) -> Result<Self, EnvironmentError> {
         Ok(Self::new_unchecked(
             require_finite(self.value * other.value)?,
-            self.unit.checked_mul(other.unit).ok_or(EnvironmentError::UnitOverflow)?,
+            self.unit
+                .checked_mul(other.unit)
+                .ok_or(EnvironmentError::UnitOverflow)?,
         ))
     }
 
@@ -544,7 +574,9 @@ impl Scalar {
         }
         Ok(Self::new_unchecked(
             require_finite(self.value / other.value)?,
-            self.unit.checked_div(other.unit).ok_or(EnvironmentError::UnitOverflow)?,
+            self.unit
+                .checked_div(other.unit)
+                .ok_or(EnvironmentError::UnitOverflow)?,
         ))
     }
 
@@ -559,7 +591,10 @@ impl Scalar {
     #[must_use]
     pub fn to_quantity(&self) -> Result<Quantity, EnvironmentError> {
         // Probe the registry for a coherent single-symbol match.
-        for symbol in ["m", "kg", "s", "A", "K", "mol", "cd", "Hz", "N", "Pa", "J", "W", "C", "V", "ohm", "one"] {
+        for symbol in [
+            "m", "kg", "s", "A", "K", "mol", "cd", "Hz", "N", "Pa", "J", "W", "C", "V", "ohm",
+            "one",
+        ] {
             if let Ok(unit) = helqix_core::Unit::parse(symbol) {
                 if SymbolicUnit::from_dimension(&unit.dimension()) == self.unit
                     && unit.scale_to_coherent() == 1.0
@@ -790,7 +825,11 @@ impl Environment {
         wind: Vector3,
     ) -> Result<Self, EnvironmentError> {
         wind.require_unit(Self::velocity_unit())?;
-        Ok(Self { gravity, medium, wind })
+        Ok(Self {
+            gravity,
+            medium,
+            wind,
+        })
     }
 
     /// Returns the gravitational field.
@@ -850,7 +889,7 @@ impl Environment {
 // ---------------------------------------------------------------------------
 
 /// Classifies a scalar, converting non-finite values into errors.
-fn require_finite(value: f64) -> Result<f64, EnvironmentError> {
+pub(crate) fn require_finite(value: f64) -> Result<f64, EnvironmentError> {
     match NonFiniteKind::classify(value) {
         Some(kind) => Err(EnvironmentError::NonFiniteValue(kind)),
         None => Ok(value),
@@ -873,7 +912,11 @@ pub enum EnvironmentError {
     /// Two operands did not share the same unit signature.
     InconsistentUnits { first: String, second: String },
     /// A quantity carried a unit of the wrong physical dimension.
-    InvalidDimension { expected: String, found: String, unit: String },
+    InvalidDimension {
+        expected: String,
+        found: String,
+        unit: String,
+    },
     /// A physically non-negative field received a negative value.
     NegativePhysicalValue { name: String, value: f64 },
     /// A compound unit signature exceeds the representable exponent range.
@@ -894,7 +937,11 @@ impl fmt::Display for EnvironmentError {
             Self::InconsistentUnits { first, second } => {
                 write!(f, "inconsistent units: `{first}` vs `{second}`")
             }
-            Self::InvalidDimension { unit, expected, found } => {
+            Self::InvalidDimension {
+                unit,
+                expected,
+                found,
+            } => {
                 write!(f, "unit `{unit}` measures {found}, expected {expected}")
             }
             Self::NegativePhysicalValue { name, value } => {
@@ -903,7 +950,10 @@ impl fmt::Display for EnvironmentError {
             Self::UnitOverflow => write!(f, "compound unit exponent overflow"),
             Self::ZeroDenominator => write!(f, "division by zero denominator"),
             Self::UnrepresentableUnit(unit) => {
-                write!(f, "unit `{unit}` has no single-symbol coherent registry entry")
+                write!(
+                    f,
+                    "unit `{unit}` has no single-symbol coherent registry entry"
+                )
             }
             Self::Quantity(error) => write!(f, "invalid quantity: {error}"),
         }
@@ -934,10 +984,7 @@ mod tests {
     #[test]
     fn vector_rejects_nan_component() {
         let error = Vector3::new([f64::NAN, 0.0, 0.0], ms()).unwrap_err();
-        assert_eq!(
-            error,
-            EnvironmentError::NonFiniteValue(NonFiniteKind::Nan)
-        );
+        assert_eq!(error, EnvironmentError::NonFiniteValue(NonFiniteKind::Nan));
     }
 
     #[test]
@@ -1101,7 +1148,8 @@ mod tests {
 
     #[test]
     fn repeated_evaluation_is_bit_identical() {
-        let gravity = GravityField::new(Vector3::new([0.1, -9.80665, 0.2], ms2()).unwrap()).unwrap();
+        let gravity =
+            GravityField::new(Vector3::new([0.1, -9.80665, 0.2], ms2()).unwrap()).unwrap();
         let rho = Scalar::new(1.225, MediumProperties::density_unit()).unwrap();
         let medium = MediumProperties::new(rho, None, None).unwrap();
         let wind = Vector3::new([3.0, -1.0, 0.5], ms()).unwrap();

@@ -1,0 +1,12 @@
+[package]
+name = "helqix-events"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 10 — deterministic event infrastructure: what happened, when, and how events are delivered."
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+
+[features]
+default = []

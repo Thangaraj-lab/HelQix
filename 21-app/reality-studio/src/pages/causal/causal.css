@@ -1,0 +1,10 @@
+.causal-layout { display: grid; grid-template-columns: minmax(0,1fr) var(--hq-inspector-width); gap: var(--hq-sp-3); align-items: start; }
+.causal-canvas { background: var(--hq-bg-sunken); border: 1px solid var(--hq-border-subtle); border-radius: var(--hq-radius-lg); overflow: auto; }
+.causal-node rect { fill: var(--hq-bg-raised); stroke: var(--hq-border-default); rx: 6; cursor: pointer; }
+.causal-node--failure rect { stroke: var(--hq-failure); }
+.causal-node--root rect { stroke: var(--hq-warning); }
+.causal-node--selected rect { stroke: var(--hq-accent-strong); filter: drop-shadow(0 0 8px rgba(53,182,166,.4)); }
+.causal-node text { fill: var(--hq-text-primary); font-size: 11px; }
+.causal-node .causal-node__sub { fill: var(--hq-text-muted); font-family: var(--hq-font-mono); font-size: 9.5px; }
+.causal-edge { stroke: var(--hq-border-strong); stroke-width: 1.5; marker-end: url(#hq-causal-arrow); }
+@media (max-width: 1000px) { .causal-layout { grid-template-columns: 1fr; } }
