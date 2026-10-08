@@ -1,0 +1,4 @@
+.failure-hero { display: flex; align-items: center; gap: var(--hq-sp-4); padding: var(--hq-sp-5); border-radius: var(--hq-radius-lg); margin-bottom: var(--hq-sp-4); }
+.failure-hero--healthy { background: var(--hq-success-dim); border: 1px solid rgba(63,178,111,.35); color: var(--hq-success); }
+.failure-hero--failed { background: var(--hq-failure-dim); border: 1px solid rgba(214,90,90,.4); color: var(--hq-failure); }
+.failure-hero h2 { font-size: var(--hq-text-xl); letter-spacing: .06em; }

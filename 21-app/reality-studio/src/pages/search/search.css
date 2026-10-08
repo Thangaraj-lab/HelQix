@@ -1,0 +1,5 @@
+.search-layout { display: grid; grid-template-columns: 340px minmax(0,1fr); gap: var(--hq-sp-3); align-items: start; }
+.progress-bar { height: 8px; background: var(--hq-bg-sunken); border-radius: 4px; overflow: hidden; border: 1px solid var(--hq-border-subtle); }
+.progress-bar__fill { height: 100%; background: var(--hq-accent); transition: width var(--hq-transition-base); }
+.var-row { display: grid; grid-template-columns: 1fr 60px 60px 60px; gap: 6px; align-items: center; margin-bottom: 6px; }
+@media (max-width: 1000px) { .search-layout { grid-template-columns: 1fr; } }

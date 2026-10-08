@@ -1,0 +1,44 @@
+/* HELQIX global base styles — reset, typography, focus, scrollbars. */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--hq-bg-base);
+  color: var(--hq-text-primary);
+  font-family: var(--hq-font-ui);
+  font-size: var(--hq-text-md);
+  line-height: var(--hq-leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; line-height: var(--hq-leading-tight); font-weight: 600; }
+p { margin: 0; }
+a { color: var(--hq-accent-strong); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button { font: inherit; }
+
+:focus-visible { outline: none; box-shadow: var(--hq-focus-ring); border-radius: var(--hq-radius-sm); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--hq-border-default); border-radius: 5px; border: 2px solid var(--hq-bg-base); }
+
+.mono { font-family: var(--hq-font-mono); font-variant-numeric: tabular-nums; }
+
+.label {
+  font-size: var(--hq-text-xs);
+  letter-spacing: var(--hq-tracking-label);
+  text-transform: uppercase;
+  color: var(--hq-text-secondary);
+  font-weight: 600;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

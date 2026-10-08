@@ -1,0 +1,9 @@
+.arch-layout { display: grid; grid-template-columns: minmax(0,1fr) var(--hq-inspector-width); gap: var(--hq-sp-3); height: calc(100vh - var(--hq-header-height) - var(--hq-sp-8)); }
+.arch-canvas { position: relative; overflow: hidden; background: var(--hq-bg-sunken); border: 1px solid var(--hq-border-subtle); border-radius: var(--hq-radius-lg); }
+.arch-canvas svg { width: 100%; height: 100%; display: block; }
+.arch-node rect { fill: var(--hq-bg-raised); stroke: var(--hq-border-default); rx: 6; cursor: pointer; transition: stroke var(--hq-transition-fast); }
+.arch-node:hover rect { stroke: var(--hq-accent); }
+.arch-node--selected rect { stroke: var(--hq-accent-strong); filter: drop-shadow(0 0 6px rgba(53,182,166,.35)); }
+.arch-node text { fill: var(--hq-text-primary); font-size: 12px; font-family: var(--hq-font-ui); pointer-events: none; }
+.arch-edge { stroke: var(--hq-border-strong); stroke-width: 1.4; fill: none; marker-end: url(#hq-arrow); }
+@media (max-width: 1000px) { .arch-layout { grid-template-columns: 1fr; height: auto; } .arch-canvas { min-height: 420px; } }
