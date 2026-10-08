@@ -18,7 +18,8 @@ import { formatLogicalTime } from "../../utils/format";
 import type { TimelineItem } from "../../api/types";
 import "./reality.css";
 
-const statusTone = (s: string) => (s === "running" ? "active" : s === "faulted" || s === "failed" ? "failure" : s === "paused" ? "warning" : "normal") as const;
+const statusTone = (s: string): "normal" | "active" | "success" | "warning" | "failure" | "info" =>
+  s === "running" ? "active" : s === "faulted" || s === "failed" ? "failure" : s === "paused" ? "warning" : "normal";
 
 export function RealityStudioPage() {
   const { projectId = "" } = useParams();

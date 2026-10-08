@@ -63,7 +63,7 @@ export function AppShell() {
 
   // Keep presentation context in sync with the route (project scope).
   const projectMatch = location.pathname.match(/^\/projects\/([^/]+)/);
-  const routeProjectId = projectMatch ? decodeURIComponent(projectMatch[1]) : null;
+  const routeProjectId = projectMatch?.[1] ? decodeURIComponent(projectMatch[1]) : null;
   useEffect(() => {
     if (routeProjectId && routeProjectId !== state.projectId) {
       dispatch({ type: "context/project", projectId: routeProjectId });

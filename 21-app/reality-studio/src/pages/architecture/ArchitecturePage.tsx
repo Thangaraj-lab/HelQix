@@ -24,7 +24,7 @@ function layout(model: EngineeringModel) {
   };
   const byDepth = new Map<number, string[]>();
   for (const c of model.components) {
-    const d = depthOf(c.parentId === null ? c.id : c.parentId !== null ? depthOf(c.parentId) + 1 : 0);
+    const d = depthOf(c.parentId);
     const list = byDepth.get(d) ?? [];
     list.push(c.id);
     byDepth.set(d, list);

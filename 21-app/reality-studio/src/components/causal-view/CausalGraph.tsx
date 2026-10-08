@@ -1,7 +1,7 @@
 /** Causal graph renderer — draws the Layer-10 event→effect structure verbatim. */
 import type { CausalGraphView, CausalNode } from "../../api/types";
 import { formatLogicalTime } from "../../utils/format";
-import "./causal.css";
+import "../../pages/causal/causal.css";
 
 interface Props { graph: CausalGraphView; selectedNodeId: string | null; onSelect(nodeId: string): void }
 

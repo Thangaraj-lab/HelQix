@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import type { FailureRecord } from "../../api/types";
 import { Badge } from "../common";
 import { formatLogicalTime } from "../../utils/format";
-import "./failure.css";
+import "../../pages/failure/failure.css";
 
 export function FailureHero({ hasFailure }: { hasFailure: boolean }) {
   return (

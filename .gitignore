@@ -1,8 +1,2 @@
-# Dependencies
-node_modules/
-
-# Build artifacts and caches
-dist/
-build/
-.vite/
-*.log
+# TypeScript build artifacts
+*.tsbuildinfo

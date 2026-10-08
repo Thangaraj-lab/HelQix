@@ -22,7 +22,7 @@ export function MetricChart({ series, limitMax }: { series: MetricSeries; limitM
     if (vMax - vMin < 1e-9) { vMin -= 1; vMax += 1; }
     const x = (t: number) => PAD + ((t - tMin) / (tMax - tMin)) * (W - PAD * 2);
     const y = (v: number) => H - PAD - ((v - vMin) / (vMax - vMin)) * (H - PAD * 2);
-    const path = samples.map((s, i) => `${i === 0 ? "M" : "L"}${x(ts[i] ?? 0).toFixed(1)},${y(vs[i] ?? 0).toFixed(1)}`).join(" ");
+    const path = samples.map((_, i) => `${i === 0 ? "M" : "L"}${x(ts[i] ?? 0).toFixed(1)},${y(vs[i] ?? 0).toFixed(1)}`).join(" ");
     const area = `${path} L${x(tMax).toFixed(1)},${H - PAD} L${x(tMin).toFixed(1)},${H - PAD} Z`;
     return { path, area, tMin, tMax, vMin, vMax };
   }, [series, limitMax]);
