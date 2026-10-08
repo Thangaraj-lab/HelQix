@@ -4,3 +4,9 @@
 
 /// Environmental conditions influencing simulation.
 pub mod environment;
+/// Physical force models.
+pub mod forces;
+/// Equations of motion (state → derivative).
+pub mod dynamics;
+/// Deterministic numerical integration schemes.
+pub mod integration;

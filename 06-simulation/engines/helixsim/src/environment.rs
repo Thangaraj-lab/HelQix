@@ -251,6 +251,18 @@ pub struct Vector3 {
 }
 
 impl Vector3 {
+    /// Crate-internal constructor for components already verified finite by
+    /// downstream HELIXSIM modules (forces, dynamics, integration). Finiteness
+    /// of every element is re-checked here as the single choke point.
+    ///
+    /// # Errors
+    ///
+    /// [`EnvironmentError::NonFiniteValue`] if any component is NaN or
+    /// infinite.
+    pub(crate) fn new_checked(components: [f64; 3], unit: SymbolicUnit) -> Result<Self, EnvironmentError> {
+        Self::new(components, unit)
+    }
+
     /// Creates a validated vector.
     ///
     /// # Errors
@@ -850,7 +862,7 @@ impl Environment {
 // ---------------------------------------------------------------------------
 
 /// Classifies a scalar, converting non-finite values into errors.
-fn require_finite(value: f64) -> Result<f64, EnvironmentError> {
+pub(crate) fn require_finite(value: f64) -> Result<f64, EnvironmentError> {
     match NonFiniteKind::classify(value) {
         Some(kind) => Err(EnvironmentError::NonFiniteValue(kind)),
         None => Ok(value),
