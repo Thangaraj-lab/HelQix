@@ -34,29 +34,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use crate::error::{ComponentError, PropertyError};
+use crate::error::{ComponentError, PropertyError, ReferenceKind};
 use crate::id::Identifier;
 use crate::property::{Property, PropertyDefinition, PropertySet};
 use crate::quantity::Quantity;
-
-/// The kind of named definition referenced by a component.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ReferenceKind {
-    /// A behaviour contract referenced by the component.
-    Behaviour,
-
-    /// An interface contract referenced by the component.
-    Interface,
-}
-
-impl fmt::Display for ReferenceKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Behaviour => f.write_str("behaviour"),
-            Self::Interface => f.write_str("interface"),
-        }
-    }
-}
 
 /// A Foundation-level engineering component definition.
 ///
@@ -67,7 +48,7 @@ impl fmt::Display for ReferenceKind {
 /// `BTreeMap` is used for deterministic property ordering, while references
 /// are kept in ordered sets to prevent duplicate references and provide
 /// reproducible iteration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Component {
     name: Identifier,
     properties: PropertySet,
@@ -284,7 +265,7 @@ impl Component {
 }
 
 /// Error returned by component property operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ComponentPropertyError {
     /// The property declaration or assignment was invalid.
     Property(PropertyError),
@@ -313,7 +294,7 @@ impl From<PropertyError> for ComponentPropertyError {
 }
 
 /// Errors produced when validating a component locally.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ComponentValidationError {
     /// One or more properties are invalid or incomplete.
     Property(PropertyError),
