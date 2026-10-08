@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = [
+    "01-foundation/crates/helqix-core",
+    "06-simulation/engines/helixsim",
+]

@@ -1,0 +1,8 @@
+[package]
+name = "helqix-core"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 01 — Foundation: identifiers, units, quantities, properties, components, behaviours, interfaces, constraints."
+license = "MIT"
+
+[dependencies]
