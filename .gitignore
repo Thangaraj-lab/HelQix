@@ -1,7 +1,1 @@
-# Rust build artifacts
-target/
-
-# Cargo lock file (optional, often kept in VCS for binaries/apps, ignored for libraries)
-# If this is a library workspace, you might want to ignore Cargo.lock, but typically it's tracked.
-# Based on standard practices for workspaces with 'target/' present:
-Cargo.lock
+(empty)

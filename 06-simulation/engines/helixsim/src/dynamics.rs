@@ -91,7 +91,10 @@ impl StateDerivative {
     pub fn new(d_position: Vector3, d_velocity: Vector3) -> Result<Self, DynamicsError> {
         d_position.require_unit(ForceUnit::VELOCITY)?;
         d_velocity.require_unit(ForceUnit::ACCELERATION)?;
-        Ok(Self { d_position, d_velocity })
+        Ok(Self {
+            d_position,
+            d_velocity,
+        })
     }
 
     /// `dx/dt` — equals the current velocity [m/s].
@@ -303,8 +306,7 @@ mod tests {
     #[test]
     fn derivative_is_deterministic() {
         let run = || {
-            let state =
-                TranslationalState::new(pos(0.1, 0.2, 0.3), vel(-1.5, 0.75, 12.0)).unwrap();
+            let state = TranslationalState::new(pos(0.1, 0.2, 0.3), vel(-1.5, 0.75, 12.0)).unwrap();
             state_to_derivative(&state, &force(3.3, -9.81, 0.005), 1.7).unwrap()
         };
         assert_eq!(run(), run());

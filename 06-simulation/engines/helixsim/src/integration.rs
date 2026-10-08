@@ -47,14 +47,22 @@ pub trait SlopeFunction {
     ///
     /// Propagated to the integrator and surfaced as
     /// [`IntegrationError::Slope`].
-    fn evaluate(&self, state: &TranslationalState) -> Result<StateDerivative, crate::dynamics::DynamicsError>;
+    fn evaluate(
+        &self,
+        state: &TranslationalState,
+    ) -> Result<StateDerivative, crate::dynamics::DynamicsError>;
 }
 
 impl<F> SlopeFunction for F
 where
-    F: for<'a> Fn(&'a TranslationalState) -> Result<StateDerivative, crate::dynamics::DynamicsError>,
+    F: for<'a> Fn(
+        &'a TranslationalState,
+    ) -> Result<StateDerivative, crate::dynamics::DynamicsError>,
 {
-    fn evaluate(&self, state: &TranslationalState) -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+    fn evaluate(
+        &self,
+        state: &TranslationalState,
+    ) -> Result<StateDerivative, crate::dynamics::DynamicsError> {
         self(state)
     }
 }
@@ -159,7 +167,10 @@ impl Delta {
     }
 }
 
-fn advance(state: &TranslationalState, delta: &Delta) -> Result<TranslationalState, IntegrationError> {
+fn advance(
+    state: &TranslationalState,
+    delta: &Delta,
+) -> Result<TranslationalState, IntegrationError> {
     let mut p = [0.0; 3];
     let mut v = [0.0; 3];
     for i in 0..3 {
@@ -254,9 +265,14 @@ mod tests {
     #[test]
     fn euler_is_exact_for_constant_velocity_zero_acceleration() {
         // f(s) = (v, 0): pure translation; Euler has no truncation error here.
-        let slope = |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            Ok(StateDerivative::new(s.velocity(), Vector3::new([0.0; 3], ForceUnit::ACCELERATION).unwrap()).unwrap())
-        };
+        let slope =
+            |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                Ok(StateDerivative::new(
+                    s.velocity(),
+                    Vector3::new([0.0; 3], ForceUnit::ACCELERATION).unwrap(),
+                )
+                .unwrap())
+            };
         let s0 = state(1.0, 2.0);
         let s1 = euler_step(&s0, &slope, 0.5).unwrap();
         assert_eq!(s1.position().components()[0], 2.0); // 1 + 2*0.5
@@ -270,9 +286,10 @@ mod tests {
         // derivative, which vanishes).
         let mass = 2.0;
         let force = Vector3::new([4.0, 0.0, 0.0], ForceUnit::NEWTON).unwrap();
-        let slope = |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            state_to_derivative(s, &force, mass)
-        };
+        let slope =
+            |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                state_to_derivative(s, &force, mass)
+            };
         let s0 = state(0.0, 1.0); // x0=0, v0=1 ; a = 2
         let h = 0.25;
         let s1 = rk4_step(&s0, &slope, h).unwrap();
@@ -286,9 +303,10 @@ mod tests {
         // Exponential-free quadratic system: Euler error O(h²), RK4 ~exact.
         let mass = 1.0;
         let force = Vector3::new([1.0, 0.0, 0.0], ForceUnit::NEWTON).unwrap();
-        let slope = |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            state_to_derivative(s, &force, mass)
-        };
+        let slope =
+            |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                state_to_derivative(s, &force, mass)
+            };
         let s0 = state(0.0, 0.0);
         let he = 1e-3;
         let euler = euler_step(&s0, &slope, he).unwrap();
@@ -307,9 +325,10 @@ mod tests {
     fn repeated_rk4_runs_are_bit_identical() {
         let mass = 3.0;
         let force = Vector3::new([0.123456789, -2.5, 9.80665], ForceUnit::NEWTON).unwrap();
-        let slope = |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            state_to_derivative(s, &force, mass)
-        };
+        let slope =
+            |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                state_to_derivative(s, &force, mass)
+            };
         let run = || {
             let mut s = state(10.0, -4.25);
             for _ in 0..100 {
@@ -322,9 +341,14 @@ mod tests {
 
     #[test]
     fn rejects_invalid_step_sizes() {
-        let slope = |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            Ok(StateDerivative::new(s.velocity(), Vector3::new([0.0; 3], ForceUnit::ACCELERATION).unwrap()).unwrap())
-        };
+        let slope =
+            |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                Ok(StateDerivative::new(
+                    s.velocity(),
+                    Vector3::new([0.0; 3], ForceUnit::ACCELERATION).unwrap(),
+                )
+                .unwrap())
+            };
         let s0 = state(0.0, 1.0);
         for h in [0.0, -0.5, f64::NAN, f64::INFINITY] {
             assert!(matches!(
@@ -345,18 +369,20 @@ mod tests {
         // Huge slope × huge step overflows → must error, never produce inf.
         let mass = 1e-300;
         let force = Vector3::new([f64::MAX, 0.0, 0.0], ForceUnit::NEWTON).unwrap();
-        let slope = |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            state_to_derivative(s, &force, mass)
-        };
+        let slope =
+            |s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                state_to_derivative(s, &force, mass)
+            };
         let s0 = state(0.0, 0.0);
         assert!(rk4_step(&s0, &slope, 1.0).is_err());
     }
 
     #[test]
     fn slope_function_errors_propagate() {
-        let slope = |_s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
-            Err(crate::dynamics::DynamicsError::InvalidMass(0.0))
-        };
+        let slope =
+            |_s: &TranslationalState| -> Result<StateDerivative, crate::dynamics::DynamicsError> {
+                Err(crate::dynamics::DynamicsError::InvalidMass(0.0))
+            };
         let err = euler_step(&state(0.0, 0.0), &slope, 0.1).unwrap_err();
         assert!(matches!(err, IntegrationError::Slope(_)));
     }

@@ -240,9 +240,7 @@ impl From<crate::environment::EnvironmentError> for ForceError {
         match error {
             E::NonFiniteValue(kind) => Self::NonFiniteValue(kind),
             E::InconsistentUnits { first, second } => Self::InconsistentUnits { first, second },
-            E::NegativePhysicalValue { name, value } => {
-                Self::NegativePhysicalValue { name, value }
-            }
+            E::NegativePhysicalValue { name, value } => Self::NegativePhysicalValue { name, value },
             // Remaining variants cannot arise from the operations used in
             // this module; each nevertheless denotes a numerically invalid
             // situation for force calculation, so they surface explicitly
