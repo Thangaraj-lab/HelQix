@@ -254,4 +254,4 @@ mod tests {
         assert!(state.clear_value().is_none());
         assert!(state.clear_value().is_none());
     }
-}s
+}

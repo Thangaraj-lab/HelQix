@@ -2,15 +2,16 @@ use std::collections::BTreeMap;
 
 use helqix_core::Identifier;
 
-use crate::component_state::ComponentState;
-use crate::validation::{StateValidationError, StateValidator};
+use crate::component_state::{ComponentState, ComponentStateError};
 
 /// The current deterministic state of a HELQIX engineering reality.
 ///
 /// `State` represents what is true at a particular point in the system.
 /// It does not execute actions, advance time, perform physics calculations,
 /// or determine how the state changes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+// `Eq` is intentionally not derived: the state ultimately contains f64-based
+// `Quantity` values (via `PropertyState`), which are only `PartialEq`.
+#[derive(Debug, Clone, PartialEq)]
 pub struct State {
     components: BTreeMap<Identifier, ComponentState>,
     revision: u64,
@@ -102,9 +103,22 @@ impl State {
         removed
     }
 
-    /// Validates the current state using the Layer 04 semantic validator.
+    /// Validates the structural invariants of the current state.
+    ///
+    /// The Layer 04 semantic validator (`StateValidator`) is a planned but
+    /// currently unimplemented boundary of this layer (its module file is an
+    /// empty placeholder). Until that contract exists, `validate` performs
+    /// only the structural checks Layer 04 guarantees today: component-state
+    /// self-consistency and duplicate-free registration. Semantic validation
+    /// will be attached here without changing this signature.
     pub fn validate(&self) -> Result<(), StateError> {
-        StateValidator::validate(self).map_err(StateError::Validation)
+        for component in self.components.values() {
+            component
+                .validate()
+                .map_err(|error| StateError::Component(error.clone()))?;
+        }
+
+        Ok(())
     }
 
     /// Returns the number of state revisions represented by this object.
@@ -129,7 +143,8 @@ pub enum StateError {
         name: Identifier,
     },
     RevisionOverflow,
-    Validation(StateValidationError),
+    /// A contained component state failed its structural validation.
+    Component(ComponentStateError),
 }
 
 impl std::fmt::Display for StateError {
@@ -141,8 +156,8 @@ impl std::fmt::Display for StateError {
             Self::RevisionOverflow => {
                 write!(formatter, "state revision overflow")
             }
-            Self::Validation(error) => {
-                write!(formatter, "state validation failed: {error}")
+            Self::Component(error) => {
+                write!(formatter, "component state invalid: {error}")
             }
         }
     }
@@ -151,7 +166,7 @@ impl std::fmt::Display for StateError {
 impl std::error::Error for StateError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Validation(error) => Some(error),
+            Self::Component(error) => Some(error),
             _ => None,
         }
     }

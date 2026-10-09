@@ -35,7 +35,7 @@ use crate::property_state::PropertyState;
 ///
 /// Property states are indexed by their canonical identifiers and stored in
 /// a `BTreeMap` to guarantee deterministic lookup and iteration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ComponentState {
     name: Identifier,
     properties: BTreeMap<Identifier, PropertyState>,

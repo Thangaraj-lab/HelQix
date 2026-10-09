@@ -36,12 +36,17 @@
 pub mod component_state;
 pub mod physical_state;
 pub mod property_state;
-pub mod spatial_state;
+// NOTE: `spatial_state`, `validation`, and the remaining Layer 04 module
+// files (`serialization`, `snapshot`, `state_store`, `transition`) are
+// currently empty placeholders. Their public contracts (e.g. `SpatialState`,
+// `StateValidator`) are planned but not yet implemented, so they are not
+// declared as modules here — declaring them would break compilation of the
+// whole layer. Re-add each `pub mod` + re-export as soon as its file is
+// implemented.
 pub mod state;
 pub mod state_diff;
 pub mod state_registry;
 pub mod state_snapshot;
-pub mod validation;
 
 // -----------------------------------------------------------------------------
 // Component State
@@ -71,17 +76,8 @@ pub use crate::property_state::{
 };
 
 // -----------------------------------------------------------------------------
-// Spatial State
+// Spatial State (placeholder module — not yet implemented; see note above)
 // -----------------------------------------------------------------------------
-
-pub use crate::spatial_state::{
-    SpatialState,
-    SpatialStateError,
-    SpatialVectorField,
-    UnitQuaternion,
-    Vector3,
-    VectorField,
-};
 
 // -----------------------------------------------------------------------------
 // State
@@ -120,10 +116,5 @@ pub use crate::state_snapshot::{
 };
 
 // -----------------------------------------------------------------------------
-// Validation
+// Validation (placeholder module — not yet implemented; see note above)
 // -----------------------------------------------------------------------------
-
-pub use crate::validation::{
-    StateValidationError,
-    StateValidator,
-};

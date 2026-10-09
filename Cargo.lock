@@ -26,3 +26,28 @@ version = "0.1.0"
 dependencies = [
  "helqix-core",
 ]
+
+[[package]]
+name = "helqix-evidence"
+version = "0.1.0"
+dependencies = [
+ "helqix-core",
+ "helqix-events",
+ "helqix-state",
+]
+
+[[package]]
+name = "helqix-state"
+version = "0.1.0"
+dependencies = [
+ "helqix-core",
+]
+
+[[package]]
+name = "helqix-verify"
+version = "0.1.0"
+dependencies = [
+ "helqix-core",
+ "helqix-events",
+ "helqix-state",
+]

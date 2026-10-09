@@ -1,0 +1,14 @@
+[package]
+name = "helqix-verify"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 13 — Verification semantics: requirements, constraint checks, verification results and the validator coordinator."
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-state = { path = "../../../04-state/crates/helqix-state" }
+helqix-events = { path = "../../../10-events-causality/crates/helqix-events" }
+
+[features]
+default = []
