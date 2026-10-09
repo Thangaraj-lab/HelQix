@@ -9,11 +9,14 @@ import "./shell.css";
 interface NavItem { readonly to: string; readonly label: string; readonly icon: string }
 interface NavGroup { readonly label: string; readonly items: NavItem[] }
 
+/** Full-chrome nav is for the Studio workflow pages; Home renders its own minimal header. */
+const CHROMELESS_PATHS = ["/home"];
+
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "Workspace",
     items: [
-      { to: "/workspace", label: "Home", icon: "▦" },
+      { to: "/home", label: "Home", icon: "▦" },
       { to: "/projects", label: "Projects", icon: "⌗" },
     ],
   },
@@ -71,6 +74,16 @@ export function AppShell() {
   }, [routeProjectId, state.projectId, dispatch]);
 
   const engineeringBase = routeProjectId ? `/projects/${routeProjectId}` : null;
+
+  if (CHROMELESS_PATHS.includes(location.pathname)) {
+    return (
+      <div className="app-shell app-shell--chromeless">
+        <main className="app-shell__main">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

@@ -1,5 +1,7 @@
 .app-shell { display: grid; grid-template-columns: var(--hq-nav-width) 1fr; grid-template-rows: var(--hq-header-height) 1fr; height: 100vh; }
 .app-shell--nav-collapsed { grid-template-columns: 56px 1fr; }
+.app-shell--chromeless { display: block; }
+.app-shell--chromeless .app-shell__main { height: 100vh; }
 
 .hq-header {
   grid-column: 1 / -1;
