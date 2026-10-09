@@ -1,2 +1,5 @@
-# TypeScript build artifacts
-*.tsbuildinfo
+# Rust build artifacts
+target/
+
+# Cargo lock file (optional, but often ignored in libraries; keep if application)
+# Cargo.lock
