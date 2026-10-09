@@ -31,7 +31,8 @@ import type {
 } from "./types";
 
 /* Projects / Realities */
-export const listProjects = () => request<ProjectSummary[]>(endpoints.projects);
+export const listProjects = () =>
+  request<ProjectSummary[]>(endpoints.projects, { tolerateUnavailable: true });
 export const getProject = (id: string) =>
   request<ProjectSummary>(endpoints.project(id), { tolerateUnavailable: true });
 export const createProject = (body: CreateProjectRequest) =>

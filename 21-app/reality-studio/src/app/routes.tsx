@@ -7,6 +7,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { SignupPage } from "../pages/SignupPage";
 import { PasswordRecoveryPage } from "../pages/PasswordRecoveryPage";
 import { WorkspaceHomePage } from "../pages/home/WorkspaceHomePage";
+import { HomePage } from "../pages/home/HomePage";
 import { ProjectsPage } from "../pages/home/ProjectsPage";
 import { ProjectOverviewPage } from "../pages/home/ProjectOverviewPage";
 import { SettingsPage } from "../pages/home/SettingsPage";
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          { path: "/home", element: <HomePage /> },
           { path: "/workspace", element: <WorkspaceHomePage /> },
           { path: "/projects", element: <ProjectsPage /> },
           { path: "/projects/:projectId", element: <ProjectOverviewPage /> },
