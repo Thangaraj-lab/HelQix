@@ -1,0 +1,16 @@
+[package]
+name = "helqix-sdk"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+description = "Rust SDK models for the HELQIX reality platform"
+license = "UNLICENSED"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"

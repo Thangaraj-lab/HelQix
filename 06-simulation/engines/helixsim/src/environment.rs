@@ -871,11 +871,28 @@ pub enum EnvironmentError {
     /// propagated silently.
     NonFiniteValue(NonFiniteKind),
     /// Two operands did not share the same unit signature.
-    InconsistentUnits { first: String, second: String },
+    InconsistentUnits {
+        /// Symbolic unit carried by the left or first operand.
+        first: String,
+        /// Symbolic unit carried by the right or second operand.
+        second: String,
+    },
     /// A quantity carried a unit of the wrong physical dimension.
-    InvalidDimension { expected: String, found: String, unit: String },
+    InvalidDimension {
+        /// Physical dimension required by the receiving field.
+        expected: String,
+        /// Physical dimension carried by the supplied quantity.
+        found: String,
+        /// Symbolic unit that carried the incompatible dimension.
+        unit: String,
+    },
     /// A physically non-negative field received a negative value.
-    NegativePhysicalValue { name: String, value: f64 },
+    NegativePhysicalValue {
+        /// Name of the field whose physical lower bound is zero.
+        name: String,
+        /// Rejected negative value.
+        value: f64,
+    },
     /// A compound unit signature exceeds the representable exponent range.
     UnitOverflow,
     /// Division by an exactly-zero denominator.

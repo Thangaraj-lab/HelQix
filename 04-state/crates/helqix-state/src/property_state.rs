@@ -28,6 +28,7 @@ use std::fmt;
 
 use helqix_core::id::Identifier;
 use helqix_core::quantity::Quantity;
+use helqix_core::QuantityError;
 
 /// Current runtime state of one engineering property.
 ///
@@ -96,6 +97,11 @@ impl PropertyState {
         self.value = Some(value);
     }
 
+    /// Replaces the current value and returns the previous one, if present.
+    pub fn replace_value(&mut self, value: Quantity) -> Option<Quantity> {
+        self.value.replace(value)
+    }
+
     /// Removes the current runtime value.
     ///
     /// Returns the previous value when one existed.
@@ -120,17 +126,24 @@ impl PropertyState {
     /// `Quantity` is responsible for numeric validity, so there is no second
     /// numeric validation system here.
     pub fn validate(&self) -> Result<(), PropertyStateError> {
+        if let Some(value) = self.value {
+            Quantity::new(value.value(), *value.unit())
+                .map_err(PropertyStateError::InvalidValue)?;
+        }
         Ok(())
     }
 }
 
 /// Errors produced while accessing [`PropertyState`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PropertyStateError {
     /// The property has no current runtime value.
     MissingValue {
         name: Identifier,
     },
+
+    /// The stored quantity violated Foundation's finite-value invariant.
+    InvalidValue(QuantityError),
 }
 
 impl fmt::Display for PropertyStateError {
@@ -139,11 +152,19 @@ impl fmt::Display for PropertyStateError {
             Self::MissingValue { name } => {
                 write!(f, "property `{name}` has no current runtime value")
             }
+            Self::InvalidValue(source) => write!(f, "property contains an invalid quantity: {source}"),
         }
     }
 }
 
-impl Error for PropertyStateError {}
+impl Error for PropertyStateError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::InvalidValue(source) => Some(source),
+            Self::MissingValue { .. } => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -254,4 +275,4 @@ mod tests {
         assert!(state.clear_value().is_none());
         assert!(state.clear_value().is_none());
     }
-}s
+}

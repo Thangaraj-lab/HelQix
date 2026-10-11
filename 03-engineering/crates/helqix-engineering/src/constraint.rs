@@ -32,7 +32,7 @@ use helqix_core::ReferenceKind;
 /// `None` when the value is finite.
 fn classify_non_finite(value: f64) -> Option<NonFiniteKind> {
     if value.is_nan() {
-        Some(NonFiniteKind::NaN)
+        Some(NonFiniteKind::Nan)
     } else if value.is_infinite() {
         if value.is_sign_positive() {
             Some(NonFiniteKind::PositiveInfinity)
@@ -477,7 +477,7 @@ mod tests {
             err,
             ConstraintError::NonFiniteBound {
                 constraint: "bad".to_owned(),
-                bound: NonFiniteKind::NaN,
+                bound: NonFiniteKind::Nan,
             }
         );
     }
@@ -491,7 +491,7 @@ mod tests {
             err,
             ConstraintError::NonFiniteBound {
                 constraint: "bad".to_owned(),
-                bound: NonFiniteKind::NaN,
+                bound: NonFiniteKind::Nan,
             }
         );
     }

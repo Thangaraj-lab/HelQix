@@ -26,6 +26,8 @@ use std::fmt;
 use helqix_core::id::Identifier;
 
 use crate::property_state::PropertyState;
+use crate::physical_state::{PhysicalState, PhysicalStateError};
+use crate::spatial_state::{SpatialState, SpatialStateError, VectorField};
 
 /// Runtime state belonging to one Reality component.
 ///
@@ -35,10 +37,13 @@ use crate::property_state::PropertyState;
 ///
 /// Property states are indexed by their canonical identifiers and stored in
 /// a `BTreeMap` to guarantee deterministic lookup and iteration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ComponentState {
     name: Identifier,
     properties: BTreeMap<Identifier, PropertyState>,
+    physical: PhysicalState,
+    spatial: Option<SpatialState>,
+    vectors: VectorField,
 }
 
 impl ComponentState {
@@ -50,6 +55,9 @@ impl ComponentState {
         Self {
             name,
             properties: BTreeMap::new(),
+            physical: PhysicalState::new(),
+            spatial: None,
+            vectors: VectorField::new(),
         }
     }
 
@@ -65,11 +73,50 @@ impl ComponentState {
         self.properties.len()
     }
 
-    /// Returns `true` when this component has no property state.
+    /// Returns `true` when the component has no property, physical, or spatial values.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.properties.is_empty()
+            && self.physical.is_empty()
+            && self.spatial.is_none()
+            && self.vectors.is_empty()
     }
+
+    /// Returns the number of named physical quantities.
+    #[must_use]
+    pub fn physical_count(&self) -> usize { self.physical.len() }
+
+    /// Returns the number of named spatial vectors.
+    #[must_use]
+    pub fn vector_count(&self) -> usize { self.vectors.len() }
+
+    /// Returns whether this component has a spatial transform.
+    #[must_use]
+    pub fn has_spatial_state(&self) -> bool { self.spatial.is_some() }
+
+    /// Returns the component's named physical quantities in identifier order.
+    #[must_use]
+    pub fn physical(&self) -> &PhysicalState { &self.physical }
+
+    /// Mutates physical values. When this component belongs to a `State`, use
+    /// `State::update_component` or a `StateTransition` to commit the change
+    /// and advance the containing revision.
+    pub fn physical_mut(&mut self) -> &mut PhysicalState { &mut self.physical }
+
+    /// Returns the current transform when the component has spatial state.
+    #[must_use]
+    pub fn spatial(&self) -> Option<&SpatialState> { self.spatial.as_ref() }
+
+    /// Sets or clears the component's spatial transform.
+    pub fn set_spatial(&mut self, spatial: Option<SpatialState>) { self.spatial = spatial; }
+
+    /// Returns named spatial vectors in identifier order.
+    #[must_use]
+    pub fn vectors(&self) -> &VectorField { &self.vectors }
+
+    /// Mutates named spatial vectors before committing the component through
+    /// a revisioned `State` update or transition.
+    pub fn vectors_mut(&mut self) -> &mut VectorField { &mut self.vectors }
 
     /// Returns whether a property state with `name` exists.
     #[must_use]
@@ -146,12 +193,18 @@ impl ComponentState {
                 })?;
         }
 
+        self.physical.validate().map_err(ComponentStateError::InvalidPhysicalState)?;
+        self.vectors.validate().map_err(ComponentStateError::InvalidSpatialState)?;
+        if let Some(spatial) = &self.spatial {
+            spatial.validate().map_err(ComponentStateError::InvalidSpatialState)?;
+        }
+
         Ok(())
     }
 }
 
 /// Errors produced by [`ComponentState`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ComponentStateError {
     /// A property with the same canonical identifier already exists.
     DuplicateProperty {
@@ -169,6 +222,12 @@ pub enum ComponentStateError {
         name: Identifier,
         source: crate::property_state::PropertyStateError,
     },
+
+    /// A contained physical quantity collection is invalid.
+    InvalidPhysicalState(PhysicalStateError),
+
+    /// Contained spatial values are invalid.
+    InvalidSpatialState(SpatialStateError),
 }
 
 impl fmt::Display for ComponentStateError {
@@ -186,6 +245,8 @@ impl fmt::Display for ComponentStateError {
             Self::InvalidProperty { name, source } => {
                 write!(f, "invalid property state `{name}`: {source}")
             }
+            Self::InvalidPhysicalState(source) => write!(f, "invalid physical state: {source}"),
+            Self::InvalidSpatialState(source) => write!(f, "invalid spatial state: {source}"),
         }
     }
 }
@@ -194,6 +255,8 @@ impl Error for ComponentStateError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::InvalidProperty { source, .. } => Some(source),
+            Self::InvalidPhysicalState(source) => Some(source),
+            Self::InvalidSpatialState(source) => Some(source),
             _ => None,
         }
     }

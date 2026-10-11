@@ -1,0 +1,9 @@
+[package]
+name = "helqix-reality"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX product reality graph, topology, and structural validation"
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

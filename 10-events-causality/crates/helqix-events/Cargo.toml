@@ -1,0 +1,10 @@
+[package]
+name = "helqix-events"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX deterministic events, triggers, and event delivery"
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-time = { path = "../../../07-time/crates/helqix-time" }

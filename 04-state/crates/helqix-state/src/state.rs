@@ -10,7 +10,7 @@ use crate::validation::{StateValidationError, StateValidator};
 /// `State` represents what is true at a particular point in the system.
 /// It does not execute actions, advance time, perform physics calculations,
 /// or determine how the state changes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct State {
     components: BTreeMap<Identifier, ComponentState>,
     revision: u64,
@@ -50,11 +50,6 @@ impl State {
         self.components.get(name)
     }
 
-    /// Returns a mutable component state by identifier.
-    pub fn component_mut(&mut self, name: &Identifier) -> Option<&mut ComponentState> {
-        self.components.get_mut(name)
-    }
-
     /// Returns all component states in deterministic identifier order.
     pub fn components(&self) -> impl Iterator<Item = &ComponentState> {
         self.components.values()
@@ -78,13 +73,63 @@ impl State {
         if self.components.contains_key(&name) {
             return Err(StateError::DuplicateComponent { name });
         }
+        component.validate().map_err(|source| {
+            StateError::Validation(StateValidationError::InvalidComponent {
+                name: name.clone(),
+                source,
+            })
+        })?;
 
-        self.components.insert(name, component);
-        self.revision = self
+        let next_revision = self
             .revision
             .checked_add(1)
             .ok_or(StateError::RevisionOverflow)?;
 
+        self.components.insert(name, component);
+        self.revision = next_revision;
+
+        Ok(())
+    }
+
+    /// Replaces an existing component state as one revisioned operation.
+    /// The replacement must retain the component's canonical identity.
+    pub fn replace_component(
+        &mut self,
+        component: ComponentState,
+    ) -> Result<Option<ComponentState>, StateError> {
+        let name = component.name().clone();
+        let Some(_) = self.components.get(&name) else {
+            return Ok(None);
+        };
+        component.validate().map_err(|source| {
+            StateError::Validation(StateValidationError::InvalidComponent { name: name.clone(), source })
+        })?;
+        let next_revision = self.revision.checked_add(1).ok_or(StateError::RevisionOverflow)?;
+        let previous = self.components.insert(name, component);
+        self.revision = next_revision;
+        Ok(previous)
+    }
+
+    /// Applies an edit to a cloned component and commits it only after
+    /// validation succeeds. Failed edits leave the state and revision intact.
+    pub fn update_component<F>(
+        &mut self,
+        name: &Identifier,
+        update: F,
+    ) -> Result<(), StateError>
+    where
+        F: FnOnce(&mut ComponentState),
+    {
+        let mut component = self.components.get(name).cloned().ok_or_else(|| {
+            StateError::MissingComponent { name: name.clone() }
+        })?;
+        update(&mut component);
+        component.validate().map_err(|source| {
+            StateError::Validation(StateValidationError::InvalidComponent { name: name.clone(), source })
+        })?;
+        let next_revision = self.revision.checked_add(1).ok_or(StateError::RevisionOverflow)?;
+        self.components.insert(name.clone(), component);
+        self.revision = next_revision;
         Ok(())
     }
 
@@ -92,14 +137,18 @@ impl State {
     pub fn remove_component(
         &mut self,
         name: &Identifier,
-    ) -> Option<ComponentState> {
-        let removed = self.components.remove(name);
-
-        if removed.is_some() {
-            self.revision = self.revision.saturating_add(1);
+    ) -> Result<Option<ComponentState>, StateError> {
+        if !self.components.contains_key(name) {
+            return Ok(None);
         }
 
-        removed
+        let next_revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(StateError::RevisionOverflow)?;
+        let removed = self.components.remove(name);
+        self.revision = next_revision;
+        Ok(removed)
     }
 
     /// Validates the current state using the Layer 04 semantic validator.
@@ -114,6 +163,12 @@ impl State {
     pub(crate) fn set_revision(&mut self, revision: u64) {
         self.revision = revision;
     }
+
+    pub(crate) fn components_mut_for_transition(
+        &mut self,
+    ) -> &mut BTreeMap<Identifier, ComponentState> {
+        &mut self.components
+    }
 }
 
 impl Default for State {
@@ -123,11 +178,12 @@ impl Default for State {
 }
 
 /// Errors produced while modifying or validating [`State`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StateError {
     DuplicateComponent {
         name: Identifier,
     },
+    MissingComponent { name: Identifier },
     RevisionOverflow,
     Validation(StateValidationError),
 }
@@ -138,6 +194,7 @@ impl std::fmt::Display for StateError {
             Self::DuplicateComponent { name } => {
                 write!(formatter, "component state already exists: {name}")
             }
+            Self::MissingComponent { name } => write!(formatter, "component state does not exist: {name}"),
             Self::RevisionOverflow => {
                 write!(formatter, "state revision overflow")
             }

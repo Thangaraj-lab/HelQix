@@ -15,11 +15,13 @@
 //! `BTreeSet`.
 
 use std::collections::BTreeSet;
+use std::{error::Error, fmt};
 
 use helqix_core::id::Identifier;
 
 use crate::component_state::ComponentState;
 use crate::state_snapshot::StateSnapshot;
+use crate::snapshot::Snapshot;
 
 /// A change to one component between two state snapshots.
 #[derive(Debug, Clone, PartialEq)]
@@ -109,6 +111,22 @@ pub struct StateDiff {
 }
 
 impl StateDiff {
+    /// Computes a component diff while retaining both source revisions.
+    pub fn between_revisioned(
+        before: &Snapshot,
+        after: &Snapshot,
+    ) -> Result<RevisionedStateDiff, RevisionedStateDiffError> {
+        let before_components = before.component_snapshot()
+            .map_err(RevisionedStateDiffError::InvalidSnapshot)?;
+        let after_components = after.component_snapshot()
+            .map_err(RevisionedStateDiffError::InvalidSnapshot)?;
+        Ok(RevisionedStateDiff {
+            before_revision: before.revision(),
+            after_revision: after.revision(),
+            diff: Self::between(&before_components, &after_components),
+        })
+    }
+
     /// Computes the deterministic difference from `before` to `after`.
     ///
     /// The direction matters:
@@ -226,6 +244,45 @@ impl StateDiff {
     #[must_use]
     pub fn contains(&self, name: &Identifier) -> bool {
         self.get(name).is_some()
+    }
+}
+
+/// A deterministic diff that records the revisions it compares.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RevisionedStateDiff {
+    before_revision: u64,
+    after_revision: u64,
+    diff: StateDiff,
+}
+
+impl RevisionedStateDiff {
+    #[must_use]
+    pub const fn before_revision(&self) -> u64 { self.before_revision }
+    #[must_use]
+    pub const fn after_revision(&self) -> u64 { self.after_revision }
+    #[must_use]
+    pub const fn diff(&self) -> &StateDiff { &self.diff }
+    #[must_use]
+    pub fn into_diff(self) -> StateDiff { self.diff }
+}
+
+/// Failure while producing a diff from revisioned snapshots.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RevisionedStateDiffError {
+    InvalidSnapshot(crate::state_snapshot::StateSnapshotError),
+}
+
+impl fmt::Display for RevisionedStateDiffError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidSnapshot(error) => write!(f, "cannot diff invalid snapshot: {error}"),
+        }
+    }
+}
+
+impl Error for RevisionedStateDiffError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self { Self::InvalidSnapshot(error) => Some(error) }
     }
 }
 

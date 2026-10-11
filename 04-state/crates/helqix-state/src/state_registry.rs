@@ -56,6 +56,19 @@ impl StateRegistry {
         }
     }
 
+    /// Builds a registry from components, validating each entry and rejecting
+    /// duplicates without returning a partially populated value.
+    pub fn from_components<I>(components: I) -> Result<Self, StateRegistryError>
+    where
+        I: IntoIterator<Item = ComponentState>,
+    {
+        let mut registry = Self::new();
+        for component in components {
+            registry.register(component)?;
+        }
+        Ok(registry)
+    }
+
     /// Returns the number of registered component states.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -102,6 +115,26 @@ impl StateRegistry {
         self.components.insert(name, state);
 
         Ok(())
+    }
+
+    /// Replaces an existing component state after validating the replacement.
+    /// An invalid replacement leaves the existing value unchanged.
+    pub fn replace(
+        &mut self,
+        state: ComponentState,
+    ) -> Result<Option<ComponentState>, StateRegistryError> {
+        let name = state.name().clone();
+        if !self.components.contains_key(&name) {
+            return Ok(None);
+        }
+
+        state
+            .validate()
+            .map_err(|source| StateRegistryError::InvalidComponentState {
+                name: name.as_str().to_owned(),
+                source,
+            })?;
+        Ok(self.components.insert(name, state))
     }
 
     /// Returns an immutable reference to a component state.
@@ -544,4 +577,4 @@ mod tests {
 
         assert_eq!(first, second);
     }
-}s
+}

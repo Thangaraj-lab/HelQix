@@ -1,0 +1,8 @@
+[package]
+name = "helqix-state"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic runtime state layer for HELQIX"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

@@ -1,0 +1,11 @@
+[package]
+name = "helqix-observation"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 08 — deterministic observation, probes, metrics, and telemetry."
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-state = { path = "../../../04-state/crates/helqix-state" }
+helqix-time = { path = "../../../07-time/crates/helqix-time" }

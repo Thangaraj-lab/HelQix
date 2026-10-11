@@ -1,0 +1,9 @@
+[package]
+name = "helqix-search"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 12 — deterministic engineering design-space search and optimization."
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

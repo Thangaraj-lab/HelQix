@@ -21,6 +21,7 @@
 //! Physical values use `helqix_core::quantity::Quantity` so Layer 04
 //! does not introduce a second quantity or unit system.
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
@@ -89,14 +90,15 @@ impl PhysicalState {
         name: Identifier,
         value: Quantity,
     ) -> Result<(), PhysicalStateError> {
-        if self.quantities.contains_key(&name) {
-            return Err(PhysicalStateError::DuplicateQuantity {
-                name: name.as_str().to_owned(),
-            });
+        match self.quantities.entry(name) {
+            Entry::Occupied(entry) => Err(PhysicalStateError::DuplicateQuantity {
+                name: entry.key().as_str().to_owned(),
+            }),
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+                Ok(())
+            }
         }
-
-        self.quantities.insert(name, value);
-        Ok(())
     }
 
     /// Inserts or replaces a physical quantity.
@@ -104,7 +106,12 @@ impl PhysicalState {
     /// This operation is intentionally explicit because runtime state
     /// changes are expected to be visible to higher execution layers.
     pub fn set(&mut self, name: Identifier, value: Quantity) {
-        self.quantities.insert(name, value);
+        let _ = self.replace(name, value);
+    }
+
+    /// Inserts or replaces a quantity and returns the previous value.
+    pub fn replace(&mut self, name: Identifier, value: Quantity) -> Option<Quantity> {
+        self.quantities.insert(name, value)
     }
 
     /// Removes a physical quantity.

@@ -5,3 +5,19 @@ target/
 # If this is a library workspace, you might want to ignore Cargo.lock, but typically it's tracked.
 # Based on standard practices for workspaces with 'target/' present:
 Cargo.lock
+17-integrations/gateway/.venv/
+17-integrations/gateway/__pycache__/
+__pycache__/
+.pytest_cache/
+/data/
+
+# JavaScript dependency and generated build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+.helqix-toolchain/
+
+# Local editor settings and temporary validation artifacts
+.vscode/
+/scratch/

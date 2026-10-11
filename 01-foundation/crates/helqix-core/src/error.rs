@@ -68,7 +68,7 @@ impl fmt::Display for NonFiniteKind {
 }
 
 /// The kind of named member a definition can reference or declare.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReferenceKind {
     Property,
     Interface,
@@ -894,3 +894,4 @@ mod tests {
         assert_eq!(error.to_string(), error.clone().to_string());
     }
 }
+
