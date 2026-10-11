@@ -1,6 +1,6 @@
 # HELQIX — Engineering Reality
 
-**HELQIX is an ambitious, game-changing engineering engine in development**—built to help engineers create traceable digital realities of engineered products and systems, connect models and tools, explore controlled alternatives, inspect behavior, and verify engineering decisions with reproducible evidence.
+**HELQIX is an ambitious, alien-level engineering engine in development**—built to help engineers create traceable digital realities of engineered products and systems, connect models and tools, explore controlled alternatives, inspect behavior, and verify engineering decisions with reproducible evidence.
 
 HELQIX is designed as a domain-extensible engineering workspace, not a product-specific simulator. The current demonstrator focuses on electric-vehicle and battery studies, while its shared 23-layer architecture is intended to support other engineered products through domain packs and adapters.
 
