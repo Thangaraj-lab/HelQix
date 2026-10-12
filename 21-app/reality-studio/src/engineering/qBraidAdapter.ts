@@ -16,12 +16,6 @@ export interface QBraidAdapterOptions {
   pollIntervalMs?: number;
 }
 
-/**
- * Provider-neutral HELQIX boundary for qBraid Runtime.
- * Authentication, endpoint selection and provider credentials stay outside
- * this module. The adapter only translates HELQIX compute jobs to the
- * qBraid runtime lifecycle and normalizes the result back to HELQIX.
- */
 export class QBraidAdapter implements ComputeProvider {
   readonly id = 'qbraid-runtime';
   private readonly client: QBraidRuntimeClient;
@@ -41,7 +35,7 @@ export class QBraidAdapter implements ComputeProvider {
       .filter((backend) => !this.backendIds || this.backendIds.has(backend.id))
       .map((backend) => ({
         id: backend.id,
-        kind: 'gpu' as const,
+        kind: 'quantum' as const,
         capacity: backend.qubits ?? 1,
         labels: ['quantum', 'qbraid', backend.kind ?? 'unknown', backend.name ?? backend.id],
         available: backend.available !== false,
@@ -49,17 +43,12 @@ export class QBraidAdapter implements ComputeProvider {
   }
 
   async execute(request: ComputeRequest, resource: ComputeResource, signal: AbortSignal): Promise<ComputeResult> {
+    if (request.kind !== 'quantum') return { status: 'failed', error: 'qBraid adapter accepts only quantum compute requests.', resourceId: resource.id };
     const startedAt = Date.now();
     if (signal.aborted) return { status: 'cancelled', resourceId: resource.id, startedAt, finishedAt: Date.now() };
 
-    const submitted = await this.client.submit({
-      backendId: resource.id,
-      operation: request.operation,
-      payload: structuredClone(request.payload),
-      timeoutMs: request.timeoutMs,
-    });
+    const submitted = await this.client.submit({ backendId: resource.id, operation: request.operation, payload: structuredClone(request.payload), timeoutMs: request.timeoutMs });
     this.activeJobs.set(request.id, submitted.jobId);
-
     try {
       while (true) {
         if (signal.aborted) {
@@ -67,16 +56,12 @@ export class QBraidAdapter implements ComputeProvider {
           return { status: 'cancelled', resourceId: resource.id, startedAt, finishedAt: Date.now() };
         }
         const state = await this.client.status(submitted.jobId);
-        if (state.status === 'completed') {
-          return { status: 'completed', output: await this.client.result(submitted.jobId), resourceId: resource.id, startedAt, finishedAt: Date.now() };
-        }
+        if (state.status === 'completed') return { status: 'completed', output: await this.client.result(submitted.jobId), resourceId: resource.id, startedAt, finishedAt: Date.now() };
         if (state.status === 'failed') return { status: 'failed', error: state.error ?? 'qBraid job failed.', resourceId: resource.id, startedAt, finishedAt: Date.now() };
         if (state.status === 'cancelled') return { status: 'cancelled', error: state.error, resourceId: resource.id, startedAt, finishedAt: Date.now() };
         await new Promise<void>((resolve) => setTimeout(resolve, this.pollIntervalMs));
       }
-    } finally {
-      this.activeJobs.delete(request.id);
-    }
+    } finally { this.activeJobs.delete(request.id); }
   }
 
   async cancel(requestId: string): Promise<void> {
@@ -85,6 +70,4 @@ export class QBraidAdapter implements ComputeProvider {
   }
 }
 
-export function createQBraidAdapter(options: QBraidAdapterOptions): QBraidAdapter {
-  return new QBraidAdapter(options);
-}
+export function createQBraidAdapter(options: QBraidAdapterOptions): QBraidAdapter { return new QBraidAdapter(options); }
