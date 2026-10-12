@@ -2,7 +2,7 @@
 //!
 //! Durable storage, distributed coordination, authentication and container
 //! runtime installation remain production adapters; this crate exposes the
-//! fail-closed contracts and the Linux Podman execution boundary.
+//! fail-closed contracts and Linux Podman execution boundary.
 
 #![forbid(unsafe_code)]
 
