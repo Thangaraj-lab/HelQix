@@ -69,13 +69,13 @@ impl LocalProcessExecutor {
                 Some(_) => break,
                 None if Instant::now() >= deadline => {
                     timed_out = true;
-                    let _ = child.kill();
-                    child.wait().map_err(|e| ProcessExecutionError::WaitFailed(e.to_string()))?;
+                    child.kill().map_err(|e| ProcessExecutionError::WaitFailed(e.to_string()))?;
                     break;
                 }
                 None => thread::sleep(Duration::from_millis(5)),
             }
         }
+
         let output = child.wait_with_output().map_err(|e| ProcessExecutionError::OutputFailed(e.to_string()))?;
         Ok(ProcessOutput {
             exit_code: output.status.code(),
