@@ -9,3 +9,5 @@ export * from './stateTimeline';
 export * from './replayEngine';
 export * from './stateFreeze';
 export * from './conditionEngine';
+export * from './executionSession';
+export * from './simulationOrchestrator';
