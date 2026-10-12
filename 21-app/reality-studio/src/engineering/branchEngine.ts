@@ -1,4 +1,4 @@
-import type { EngineeringReality, RealityProperty } from '../api';
+import type { EngineeringReality } from '../api';
 import {
   captureSnapshot,
   cloneState,
@@ -60,7 +60,7 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function getRealityProperty(reality: EngineeringReality, componentId: string, propertyName: string): RealityProperty | undefined {
+function getRealityProperty(reality: EngineeringReality, componentId: string, propertyName: string) {
   return reality.components.find((component) => component.id === componentId)?.properties.find((property) => property.name === propertyName);
 }
 
@@ -111,6 +111,8 @@ export function applyBranch(
 ): BranchResult {
   const errors = validateBranch(branch, reality).filter((issue) => issue.severity === 'error').map((issue) => `${issue.path}: ${issue.message}`);
   const baseSnapshot = captureSnapshot(baseState, 'branch', `base-${branch.id}`);
+  if (baseState.realityRevision !== reality.revision) errors.push(`baseState.revision: state is based on reality revision ${baseState.realityRevision}, current reality is ${reality.revision}.`);
+  if (branch.baseStateRevision !== undefined && branch.baseStateRevision !== baseState.stateRevision) errors.push(`baseStateRevision: branch expects state revision ${branch.baseStateRevision}, received ${baseState.stateRevision}.`);
   if (errors.length) {
     return {
       schema: BRANCH_RESULT_SCHEMA,
