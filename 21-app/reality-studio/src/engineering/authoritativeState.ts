@@ -47,7 +47,7 @@ export interface StateEvent {
   before?: ScalarValue;
   after?: ScalarValue;
   faultId?: string;
-  source: 'scenario' | 'solver' | 'adapter' | 'runtime' | 'restore';
+  source: 'model' | 'scenario' | 'solver' | 'adapter' | 'runtime' | 'restore';
 }
 
 export interface StateMetadata {
@@ -98,29 +98,15 @@ export interface StateTransition {
   event: StateEvent;
 }
 
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
-
-function now(): string {
-  return new Date().toISOString();
-}
-
-function assertFiniteNumber(value: number, label: string): void {
-  if (!Number.isFinite(value)) throw new Error(`${label} must be finite.`);
-}
+function clone<T>(value: T): T { return structuredClone(value); }
+function now(): string { return new Date().toISOString(); }
+function assertFiniteNumber(value: number, label: string): void { if (!Number.isFinite(value)) throw new Error(`${label} must be finite.`); }
 
 function componentState(component: EngineeringReality['components'][number], stateRevision: number): ComponentRuntimeState {
   return {
     componentId: component.id,
     status: 'ready',
-    properties: component.properties.map((property) => ({
-      name: property.name,
-      value: property.value,
-      ...(property.unit ? { unit: property.unit } : {}),
-      origin: property.origin,
-      declaredAtStateRevision: stateRevision,
-    })),
+    properties: component.properties.map((property) => ({ name: property.name, value: property.value, ...(property.unit ? { unit: property.unit } : {}), origin: property.origin, declaredAtStateRevision: stateRevision })),
     signals: {},
     faultIds: [],
     updatedAtLogicalTimeMs: 0,
@@ -132,23 +118,20 @@ export function createInitialState(reality: EngineeringReality, metadata: Partia
   const components: Record<string, ComponentRuntimeState> = {};
   for (const component of reality.components) components[component.id] = componentState(component, 1);
   const timestamp = now();
-  const state: AuthoritativeEngineeringState = {
+  return {
     schema: AUTHORITATIVE_STATE_SCHEMA,
     realityRevision: reality.revision,
     stateRevision: 1,
     logicalTimeMs: 0,
-    status: components && Object.keys(components).length ? 'ready' : 'idle',
+    status: Object.keys(components).length ? 'ready' : 'idle',
     components,
     environment: { values: {}, updatedAtLogicalTimeMs: 0 },
     events: [{ sequence: 1, type: 'state_created', logicalTimeMs: 0, source: 'runtime' }],
     metadata: { createdAt: timestamp, updatedAt: timestamp, ...metadata },
   };
-  return state;
 }
 
-export function cloneState(state: AuthoritativeEngineeringState): AuthoritativeEngineeringState {
-  return clone(state);
-}
+export function cloneState(state: AuthoritativeEngineeringState): AuthoritativeEngineeringState { return clone(state); }
 
 function withRevision(state: AuthoritativeEngineeringState, logicalTimeMs = state.logicalTimeMs): AuthoritativeEngineeringState {
   const next = clone(state);
@@ -165,15 +148,8 @@ function appendEvent(state: AuthoritativeEngineeringState, event: Omit<StateEven
   return next;
 }
 
-export function setComponentStatus(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  status: RuntimeStatus,
-  actionId?: string,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
+export function setComponentStatus(state: AuthoritativeEngineeringState, componentId: string, status: RuntimeStatus, actionId?: string, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState {
+  if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`);
   const next = withRevision(state);
   const before = next.components[componentId].status;
   next.components[componentId].status = status;
@@ -184,17 +160,8 @@ export function setComponentStatus(
   return next;
 }
 
-export function setComponentProperty(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  name: string,
-  value: ScalarValue,
-  unit?: string,
-  actionId?: string,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
+export function setComponentProperty(state: AuthoritativeEngineeringState, componentId: string, name: string, value: ScalarValue, unit?: string, actionId?: string, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState {
+  if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`);
   const propertyName = name.trim();
   if (!propertyName) throw new Error('Component property name is required.');
   if (typeof value === 'number') assertFiniteNumber(value, `Property ${propertyName}`);
@@ -215,16 +182,8 @@ export function setComponentProperty(
   return next;
 }
 
-export function setSignal(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  name: string,
-  value: ScalarValue,
-  unit: string | undefined,
-  source: RuntimeSignal['source'],
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
+export function setSignal(state: AuthoritativeEngineeringState, componentId: string, name: string, value: ScalarValue, unit: string | undefined, source: RuntimeSignal['source']): AuthoritativeEngineeringState {
+  if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`);
   if (typeof value === 'number') assertFiniteNumber(value, `Signal ${name}`);
   const next = withRevision(state);
   next.components[componentId].signals[name] = { name, value, ...(unit ? { unit } : {}), source, timestampMs: next.logicalTimeMs };
@@ -233,12 +192,7 @@ export function setSignal(
   return next;
 }
 
-export function setEnvironmentValue(
-  state: AuthoritativeEngineeringState,
-  name: string,
-  value: ScalarValue,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
+export function setEnvironmentValue(state: AuthoritativeEngineeringState, name: string, value: ScalarValue, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState {
   const key = name.trim();
   if (!key) throw new Error('Environment key is required.');
   if (typeof value === 'number') assertFiniteNumber(value, `Environment ${key}`);
@@ -250,12 +204,7 @@ export function setEnvironmentValue(
   return next;
 }
 
-export function advanceLogicalTime(
-  state: AuthoritativeEngineeringState,
-  logicalTimeMs: number,
-  source: StateEvent['source'] = 'scenario',
-  actionId?: string,
-): AuthoritativeEngineeringState {
+export function advanceLogicalTime(state: AuthoritativeEngineeringState, logicalTimeMs: number, source: StateEvent['source'] = 'scenario', actionId?: string): AuthoritativeEngineeringState {
   assertFiniteNumber(logicalTimeMs, 'Logical time');
   if (logicalTimeMs < state.logicalTimeMs) throw new Error(`Logical time cannot move backwards (${logicalTimeMs} < ${state.logicalTimeMs}).`);
   if (logicalTimeMs === state.logicalTimeMs) return state;
@@ -264,15 +213,8 @@ export function advanceLogicalTime(
   return next;
 }
 
-export function addFault(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  faultId: string,
-  actionId?: string,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
+export function addFault(state: AuthoritativeEngineeringState, componentId: string, faultId: string, actionId?: string, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState {
+  if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`);
   const cleanFaultId = faultId.trim();
   if (!cleanFaultId) throw new Error('Fault id is required.');
   const next = withRevision(state);
@@ -286,8 +228,7 @@ export function addFault(
 }
 
 export function clearFault(state: AuthoritativeEngineeringState, componentId: string, faultId: string): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
+  if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`);
   const next = withRevision(state);
   next.components[componentId].faultIds = next.components[componentId].faultIds.filter((id) => id !== faultId);
   if (next.components[componentId].faultIds.length === 0 && next.components[componentId].status === 'faulted') next.components[componentId].status = 'ready';
@@ -300,20 +241,8 @@ export function setStateStatus(state: AuthoritativeEngineeringState, status: Run
   return next;
 }
 
-export function captureSnapshot(
-  state: AuthoritativeEngineeringState,
-  reason: StateSnapshot['reason'] = 'manual',
-  id = `snapshot-${state.stateRevision}-${Date.now()}`,
-): StateSnapshot {
-  return {
-    schema: STATE_SNAPSHOT_SCHEMA,
-    id,
-    capturedAt: now(),
-    logicalTimeMs: state.logicalTimeMs,
-    stateRevision: state.stateRevision,
-    state: clone(state),
-    reason,
-  };
+export function captureSnapshot(state: AuthoritativeEngineeringState, reason: StateSnapshot['reason'] = 'manual', id = `snapshot-${state.stateRevision}-${Date.now()}`): StateSnapshot {
+  return { schema: STATE_SNAPSHOT_SCHEMA, id, capturedAt: now(), logicalTimeMs: state.logicalTimeMs, stateRevision: state.stateRevision, state: clone(state), reason };
 }
 
 export function restoreSnapshot(snapshot: StateSnapshot): AuthoritativeEngineeringState {
@@ -332,10 +261,7 @@ export function stateAtLogicalTime(snapshot: StateSnapshot, targetTimeMs: number
   return restoreSnapshot(snapshot);
 }
 
-export function validateState(
-  state: AuthoritativeEngineeringState,
-  reality: EngineeringReality,
-): StateValidationResult {
+export function validateState(state: AuthoritativeEngineeringState, reality: EngineeringReality): StateValidationResult {
   const issues: StateValidationIssue[] = [];
   if (state.schema !== AUTHORITATIVE_STATE_SCHEMA) issues.push({ path: 'schema', message: 'Unsupported authoritative-state schema.', severity: 'error' });
   if (state.realityRevision !== reality.revision) issues.push({ path: 'realityRevision', message: `State is based on reality revision ${state.realityRevision}, current reality is ${reality.revision}.`, severity: 'error' });
@@ -358,10 +284,5 @@ export function assertValidState(state: AuthoritativeEngineeringState, reality: 
   if (!result.valid) throw new Error(`Authoritative state is invalid: ${result.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message).join('; ')}`);
 }
 
-export function stateEventCount(state: AuthoritativeEngineeringState): number {
-  return state.events.length;
-}
-
-export function latestComponentSignal(state: AuthoritativeEngineeringState, componentId: string, signalName: string): RuntimeSignal | undefined {
-  return state.components[componentId]?.signals[signalName];
-}
+export function stateEventCount(state: AuthoritativeEngineeringState): number { return state.events.length; }
+export function latestComponentSignal(state: AuthoritativeEngineeringState, componentId: string, signalName: string): RuntimeSignal | undefined { return state.components[componentId]?.signals[signalName]; }
