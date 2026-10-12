@@ -1,6 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, CircleAlert, GitBranch, Pause, Play, RotateCcw, SkipForward, TriangleAlert } from 'lucide-react';
 import type { ProjectPayload, Resource } from './api';
+import { RuntimeCanvas } from './RuntimeCanvas';
 import { createInitialState } from './engineering/authoritativeState';
 import { createExecutionController, pauseExecution, restoreExecutionCheckpoint, startExecution, stepExecution, runToCompletion, type ExecutionController } from './engineering/executionController';
 import { buildStateTimeline } from './engineering/stateTimeline';
@@ -8,7 +9,7 @@ import { createFaultInjectionScenario, createInspectionScenario } from './engine
 import type { ExecutableScenario } from './engineering/scenarioEngine';
 import './scenarioExecutionBoard.css';
 
-interface Props { project: Resource<ProjectPayload>; realityViewport: ReactNode; selectedComponentId?: string | null; onSelectComponent?: (id: string | null) => void; }
+interface Props { project: Resource<ProjectPayload>; realityViewport?: React.ReactNode; selectedComponentId?: string | null; onSelectComponent?: (id: string | null) => void; }
 
 export function ScenarioExecutionBoard({ project, realityViewport, selectedComponentId, onSelectComponent }: Props) {
   const reality = project.payload.engineering_reality;
@@ -26,11 +27,12 @@ export function ScenarioExecutionBoard({ project, realityViewport, selectedCompo
   const run = () => apply((current) => runToCompletion(reality, scenario, current));
   const phase = controller?.phase ?? 'idle';
   const selectedComponent = reality.components.find((component) => component.id === (selectedComponentId ?? faultComponentId));
+  const stateViewport = controller ? <RuntimeCanvas reality={reality} authoritativeState={controller.state} selectedEntityId={selectedComponentId} onSelectEntity={onSelectComponent} viewPreset="isometric" showGrid showAxes /> : realityViewport;
 
-  return <div className="canvas-stage stage-run">{realityViewport}<div className="stage-grid"/><section className="scenario-board">
+  return <div className="canvas-stage stage-run">{stateViewport}<div className="stage-grid"/><section className="scenario-board">
     <header className="scenario-header"><div><span className="stage-kicker">EXECUTABLE REALITY <i/> AUTHORITATIVE STATE</span><h1>Scenario execution</h1><p>Run deterministic engineering actions against the saved reality. The 3D scene follows authoritative runtime state.</p></div><span className={`scenario-phase phase-${phase}`}><i/>{phase.toUpperCase()}</span></header>
     <div className="scenario-toolbar">
-      <label>Scenario<select value={scenarioKind} onChange={(event) => { setScenarioKind(event.target.value as 'inspection' | 'fault'); setController(null); setScenario(null); }}><option value="inspection">Inspection · start → checkpoint → complete</option><option value="fault">Fault injection · start → fault → checkpoint</option></select></label>
+      <label>Scenario<select value={scenarioKind} onChange={(event) => { setScenarioKind(event.target.value as 'inspection' | 'fault'); setController(null); setScenario(null); }}>{/* scenario templates are rebuilt on Prepare */}<option value="inspection">Inspection · start → checkpoint → complete</option><option value="fault">Fault injection · start → fault → checkpoint</option></select></label>
       {scenarioKind === 'fault' && <label>Target component<select value={faultComponentId} onChange={(event) => { setFaultComponentId(event.target.value); onSelectComponent?.(event.target.value); setController(null); }}>{reality.components.map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}</select></label>}
       <button className="secondary-button" onClick={prepare}><RotateCcw size={13}/> Prepare</button><button className="primary-button" disabled={!controller || phase === 'completed' || phase === 'failed'} onClick={() => apply(startExecution)}><Play size={13}/> Run</button><button className="secondary-button" disabled={phase !== 'running'} onClick={() => apply(pauseExecution)}><Pause size={13}/> Pause</button><button className="secondary-button" disabled={!controller || phase === 'completed' || phase === 'failed'} onClick={step}><SkipForward size={13}/> Step</button><button className="secondary-button" disabled={!controller || phase === 'completed' || phase === 'failed'} onClick={run}><Play size={13}/> Run all</button>
     </div>
