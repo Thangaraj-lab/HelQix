@@ -28,6 +28,23 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
 
+  api:
+    name: HELQIX API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 22-api/helqix-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check API
+        run: cargo check --all-targets
+      - name: Test API
+        run: cargo test --all-targets
+      - name: Format API
+        run: cargo fmt --all -- --check
+
   reality-studio:
     name: Reality Studio
     runs-on: ubuntu-latest
