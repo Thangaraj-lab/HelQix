@@ -11,8 +11,8 @@ export interface ReplayFrame {
   stateRevision: number;
   actionId?: string;
   snapshotId: string;
-  snapshot: StateSnapshot;
   eventType?: string;
+  state: AuthoritativeEngineeringState;
 }
 
 export interface ReplayResult {
@@ -25,27 +25,14 @@ export interface ReplayResult {
   error?: string;
 }
 
-/** Replays a scenario from a captured initial state without mutating the supplied controller. */
-export function replayExecution(
-  reality: EngineeringReality,
-  scenario: ExecutableScenario,
-  initialSnapshot: StateSnapshot,
-): ReplayResult {
+export function replayExecution(reality: EngineeringReality, scenario: ExecutableScenario, initialSnapshot: StateSnapshot): ReplayResult {
   const restored = restoreSnapshot(initialSnapshot);
   let controller: ExecutionController = {
-    schema: 'helqix.execution-controller.v1',
-    phase: 'ready',
-    realityRevision: reality.revision,
-    scenarioId: scenario.id,
-    cursor: 0,
-    logicalTimeMs: restored.logicalTimeMs,
-    state: restored,
-    initialSnapshot: captureSnapshot(restored, 'initial', initialSnapshot.id),
-    checkpoints: [initialSnapshot],
-    events: [],
+    schema: 'helqix.execution-controller.v1', phase: 'ready', realityRevision: reality.revision,
+    scenarioId: scenario.id, cursor: 0, logicalTimeMs: restored.logicalTimeMs, state: restored,
+    initialSnapshot: captureSnapshot(restored, 'initial', initialSnapshot.id), checkpoints: [initialSnapshot], events: [],
   };
-  const initialFrame = initialSnapshot;
-  const frames: ReplayFrame[] = [{ sequence: 0, logicalTimeMs: restored.logicalTimeMs, stateRevision: restored.stateRevision, snapshotId: initialFrame.id, snapshot: initialFrame }];
+  const frames: ReplayFrame[] = [{ sequence: 0, logicalTimeMs: restored.logicalTimeMs, stateRevision: restored.stateRevision, snapshotId: initialSnapshot.id, state: structuredClone(restored) }];
   try {
     while (controller.cursor < scenario.actions.length && controller.phase !== 'failed') {
       controller = { ...controller, phase: 'running' };
@@ -53,10 +40,9 @@ export function replayExecution(
       controller = result.controller;
       const event = result.event;
       const snapshot = captureSnapshot(controller.state, 'scenario', `replay-${scenario.id}-${frames.length}`);
-      frames.push({ sequence: frames.length, logicalTimeMs: controller.logicalTimeMs, stateRevision: controller.state.stateRevision, ...(event?.actionId ? { actionId: event.actionId } : {}), snapshotId: snapshot.id, snapshot, ...(event?.type ? { eventType: event.type } : {}) });
+      frames.push({ sequence: frames.length, logicalTimeMs: controller.logicalTimeMs, stateRevision: controller.state.stateRevision, ...(event?.actionId ? { actionId: event.actionId } : {}), snapshotId: snapshot.id, ...(event?.type ? { eventType: event.type } : {}), state: structuredClone(controller.state) });
     }
-    const finalState = restoreSnapshot(frames[frames.length - 1].snapshot);
-    return { schema: REPLAY_ENGINE_SCHEMA, realityRevision: reality.revision, scenarioId: scenario.id, frames, finalState, deterministic: controller.phase !== 'failed', ...(controller.error ? { error: controller.error } : {}) };
+    return { schema: REPLAY_ENGINE_SCHEMA, realityRevision: reality.revision, scenarioId: scenario.id, frames, finalState: structuredClone(controller.state), deterministic: controller.phase !== 'failed', ...(controller.error ? { error: controller.error } : {}) };
   } catch (error) {
     return { schema: REPLAY_ENGINE_SCHEMA, realityRevision: reality.revision, scenarioId: scenario.id, frames, finalState: restored, deterministic: false, error: error instanceof Error ? error.message : 'Replay failed.' };
   }
@@ -64,5 +50,10 @@ export function replayExecution(
 
 export function replayStateAt(result: ReplayResult, sequence: number): AuthoritativeEngineeringState | undefined {
   if (!Number.isInteger(sequence) || sequence < 0 || sequence >= result.frames.length) return undefined;
-  return restoreSnapshot(result.frames[sequence].snapshot);
+  return structuredClone(result.frames[sequence].state);
+}
+
+export function replayFrameAtTime(result: ReplayResult, logicalTimeMs: number): ReplayFrame | undefined {
+  if (!Number.isFinite(logicalTimeMs) || logicalTimeMs < 0) return undefined;
+  return [...result.frames].filter((frame) => frame.logicalTimeMs <= logicalTimeMs).pop() ?? result.frames[0];
 }
