@@ -13,6 +13,7 @@ import {
   type ScalarValue,
 } from './authoritativeState';
 import { assertValidReality } from './engineeringReality';
+import { evaluateAllConditions, type StateCondition } from './conditionEngine';
 
 export const SCENARIO_SCHEMA = 'helqix.executable-scenario.v1' as const;
 export const SCENARIO_RESULT_SCHEMA = 'helqix.scenario-result.v1' as const;
@@ -43,6 +44,7 @@ export interface ScenarioAction {
   signalSource?: 'model' | 'solver' | 'adapter' | 'scenario' | 'runtime';
   checkpointId?: string;
   enabled?: boolean;
+  conditions?: StateCondition[];
   metadata?: Record<string, string | number | boolean>;
 }
 
@@ -146,6 +148,12 @@ export function validateScenario(
     if (action.atMs < previousTime) issues.push({ actionId: action.id, path: `actions.${action.id}.atMs`, code: 'invalid_order', message: 'Actions must be ordered by non-decreasing logical time.', severity: 'error' });
     previousTime = Math.max(previousTime, action.atMs);
     if (action.componentId && !componentIds.has(action.componentId)) issues.push({ actionId: action.id, path: `actions.${action.id}.componentId`, code: 'unknown_component', message: `Unknown component ${action.componentId}.`, severity: 'error' });
+    if (action.conditions) {
+      action.conditions.forEach((condition, conditionIndex) => {
+        if (!condition.path.trim()) issues.push({ actionId: action.id, path: `actions.${action.id}.conditions.${conditionIndex}.path`, code: 'missing_argument', message: 'Condition path is required.', severity: 'error' });
+        if (condition.operator !== 'exists' && condition.value === undefined) issues.push({ actionId: action.id, path: `actions.${action.id}.conditions.${conditionIndex}.value`, code: 'missing_argument', message: `Condition value is required for operator ${condition.operator}.`, severity: 'error' });
+      });
+    }
     switch (action.type) {
       case 'set_property':
         if (!action.componentId || !action.propertyName || action.value === undefined) issues.push({ actionId: action.id, path: `actions.${action.id}`, code: 'missing_argument', message: 'set_property requires componentId, propertyName, and value.', severity: 'error' });
@@ -171,28 +179,17 @@ export function validateScenario(
   return issues;
 }
 
-function executeAction(
-  state: AuthoritativeEngineeringState,
-  action: ScenarioAction,
-): AuthoritativeEngineeringState {
+function executeAction(state: AuthoritativeEngineeringState, action: ScenarioAction): AuthoritativeEngineeringState {
   let next = advanceLogicalTime(state, action.atMs, 'scenario', action.id);
   switch (action.type) {
-    case 'set_property':
-      return setComponentProperty(next, action.componentId!, action.propertyName!, action.value!, action.unit, action.id, 'scenario');
-    case 'set_status':
-      return setComponentStatus(next, action.componentId!, action.status!, action.id, 'scenario');
-    case 'advance_time':
-      return next;
-    case 'set_environment':
-      return setEnvironmentValue(next, action.environmentKey!, action.value!, 'scenario');
-    case 'inject_fault':
-      return addFault(next, action.componentId!, action.faultId!, action.id, 'scenario');
-    case 'clear_fault':
-      return clearFault(next, action.componentId!, action.faultId!);
-    case 'set_signal':
-      return setSignal(next, action.componentId!, action.signalName!, action.value!, action.unit, action.signalSource!);
-    case 'checkpoint':
-      return next;
+    case 'set_property': return setComponentProperty(next, action.componentId!, action.propertyName!, action.value!, action.unit, action.id, 'scenario');
+    case 'set_status': return setComponentStatus(next, action.componentId!, action.status!, action.id, 'scenario');
+    case 'advance_time': return next;
+    case 'set_environment': return setEnvironmentValue(next, action.environmentKey!, action.value!, 'scenario');
+    case 'inject_fault': return addFault(next, action.componentId!, action.faultId!, action.id, 'scenario');
+    case 'clear_fault': return clearFault(next, action.componentId!, action.faultId!);
+    case 'set_signal': return setSignal(next, action.componentId!, action.signalName!, action.value!, action.unit, action.signalSource!);
+    case 'checkpoint': return next;
   }
 }
 
@@ -235,6 +232,24 @@ export function executeScenario(
   for (const action of actions) {
     const beforeRevision = state.stateRevision;
     try {
+      const conditionResults = action.conditions?.length ? evaluateAllConditions(state, action.conditions) : [];
+      const failedCondition = conditionResults.find((result) => !result.matched);
+      if (failedCondition) {
+        const event: ScenarioExecutionEvent = {
+          sequence: events.length + 1,
+          actionId: action.id,
+          logicalTimeMs: state.logicalTimeMs,
+          type: action.type,
+          ...(action.componentId ? { componentId: action.componentId } : {}),
+          outcome: 'skipped',
+          message: failedCondition.reason,
+          stateRevisionBefore: beforeRevision,
+          stateRevisionAfter: state.stateRevision,
+        };
+        events.push(event);
+        options.onEvent?.(event, state);
+        continue;
+      }
       state = executeAction(state, action);
       const event: ScenarioExecutionEvent = {
         sequence: events.length + 1,
@@ -286,12 +301,7 @@ export function executeScenario(
   };
 }
 
-export function createScenario(
-  name: string,
-  reality: EngineeringReality,
-  actions: ScenarioAction[] = [],
-  description = '',
-): ExecutableScenario {
+export function createScenario(name: string, reality: EngineeringReality, actions: ScenarioAction[] = [], description = ''): ExecutableScenario {
   const timestamp = now();
   return {
     schema: SCENARIO_SCHEMA,
@@ -305,10 +315,7 @@ export function createScenario(
   };
 }
 
-export function appendScenarioAction(
-  scenario: ExecutableScenario,
-  action: ScenarioAction,
-): ExecutableScenario {
+export function appendScenarioAction(scenario: ExecutableScenario, action: ScenarioAction): ExecutableScenario {
   const next = clone(scenario);
   next.actions.push(clone(action));
   next.actions = sortActions(next.actions);
