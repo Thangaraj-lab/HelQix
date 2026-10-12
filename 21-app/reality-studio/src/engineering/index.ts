@@ -11,3 +11,4 @@ export * from './stateFreeze';
 export * from './conditionEngine';
 export * from './executionSession';
 export * from './simulationOrchestrator';
+export * from './optimizationEngine';
