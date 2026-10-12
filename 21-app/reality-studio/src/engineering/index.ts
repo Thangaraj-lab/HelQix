@@ -6,3 +6,5 @@ export * from './engineeringRuntime';
 export * from './executionController';
 export * from './stateTimeline';
 export * from './replayEngine';
+export * from './stateFreeze';
+export * from './conditionEngine';
