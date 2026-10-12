@@ -32,7 +32,7 @@ export {
   stateEventCount,
   latestComponentSignal,
 } from './authoritativeState';
-export { ScalarValue as RuntimeScalarValue } from './authoritativeState';
+export type { ScalarValue as RuntimeScalarValue } from './authoritativeState';
 export { setComponentProperty as setRuntimeComponentProperty } from './authoritativeState';
 export * from './scenarioEngine';
 export * from './branchEngine';
