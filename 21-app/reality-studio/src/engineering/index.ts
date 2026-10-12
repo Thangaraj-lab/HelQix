@@ -13,5 +13,6 @@ export * from './executionSession';
 export * from './simulationOrchestrator';
 export * from './optimizationEngine';
 export * from './computeFabric';
+export * from './computeIntegration';
 export * from './externalExecution';
 export * from './qBraidAdapter';
