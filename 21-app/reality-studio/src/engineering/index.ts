@@ -66,3 +66,4 @@ export * from './computeFabric';
 export * from './computeIntegration';
 export * from './externalExecution';
 export * from './qBraidAdapter';
+export * from './engineeringAssistant';
