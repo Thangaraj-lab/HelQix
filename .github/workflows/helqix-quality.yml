@@ -68,6 +68,8 @@ jobs:
         run: npm install --prefix ../../14-visual-runtime/engines/visual-runtime --no-audit --no-fund && npm run build --prefix ../../14-visual-runtime/engines/visual-runtime
       - name: Typecheck
         run: npm run typecheck
+      - name: Unit tests
+        run: npm test -- --run
       - name: Production build
         run: npm run build
 
