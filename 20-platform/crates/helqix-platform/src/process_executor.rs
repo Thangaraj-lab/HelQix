@@ -6,7 +6,7 @@
 //! rejects network-enabled policies instead of pretending it can enforce them.
 use crate::isolation::IsolationPolicy;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -44,8 +44,6 @@ impl LocalProcessExecutor {
     pub fn validate(spec: &ProcessSpec, policy: &IsolationPolicy) -> Result<(), ProcessExecutionError> {
         if spec.executable.trim().is_empty() { return Err(ProcessExecutionError::EmptyExecutable); }
         if spec.timeout_ms == 0 { return Err(ProcessExecutionError::ZeroTimeout); }
-        // A plain child process cannot enforce a network deny-list. Refusing
-        // the request is safer than executing under a false isolation claim.
         if policy.network_enabled { return Err(ProcessExecutionError::NetworkPolicyUnsupported); }
         if !spec.working_directory.is_absolute() { return Err(ProcessExecutionError::InvalidWorkingDirectory); }
         let path = spec.working_directory.to_string_lossy();
@@ -65,23 +63,22 @@ impl LocalProcessExecutor {
             .map_err(|e| ProcessExecutionError::SpawnFailed(e.to_string()))?;
 
         let deadline = Instant::now() + Duration::from_millis(spec.timeout_ms);
+        let mut timed_out = false;
         loop {
             match child.try_wait().map_err(|e| ProcessExecutionError::WaitFailed(e.to_string()))? {
-                Some(status) => return Self::collect(child, Some(status.code()), false),
+                Some(_) => break,
                 None if Instant::now() >= deadline => {
+                    timed_out = true;
                     let _ = child.kill();
-                    let status = child.wait().map_err(|e| ProcessExecutionError::WaitFailed(e.to_string()))?;
-                    return Self::collect(child, status.code(), true);
+                    child.wait().map_err(|e| ProcessExecutionError::WaitFailed(e.to_string()))?;
+                    break;
                 }
                 None => thread::sleep(Duration::from_millis(5)),
             }
         }
-    }
-
-    fn collect(mut child: Child, exit_code: Option<i32>, timed_out: bool) -> Result<ProcessOutput, ProcessExecutionError> {
         let output = child.wait_with_output().map_err(|e| ProcessExecutionError::OutputFailed(e.to_string()))?;
         Ok(ProcessOutput {
-            exit_code: if timed_out { exit_code } else { output.status.code().or(exit_code) },
+            exit_code: output.status.code(),
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
             timed_out,
