@@ -2,11 +2,11 @@ import type { RuntimeEntity, RuntimeViewPreset } from './visualRuntime';
 import { useVehicleRuntime, useVisualRuntime } from './visualRuntime';
 import type { EngineeringReality, RealityConnection, RealityInterface } from './api';
 import type { AuthoritativeEngineeringState } from './engineering/authoritativeState';
-import { bindAuthoritativeStateToReality } from './engineering/visualStateBinding';
+import { bindAuthoritativeStateToReality, type RuntimeEntityState } from './engineering/visualStateBinding';
 import { useMemo } from 'react';
 
 export interface RuntimeCanvasProps {
-  entities?: RuntimeEntity[];
+  entities?: RuntimeEntity[] | RuntimeEntityState[];
   interfaces?: RealityInterface[];
   connections?: RealityConnection[];
   reality?: EngineeringReality;
@@ -19,10 +19,23 @@ export interface RuntimeCanvasProps {
   fitRevision?: number;
 }
 
+function normalizeEntities(entities: RuntimeCanvasProps['entities']): RuntimeEntityState[] {
+  return (entities ?? []).map((entity) => ({
+    ...entity,
+    status: 'unknown' as const,
+    propertyValues: {},
+    faults: [],
+    signals: {},
+    selected: false,
+    stateRevision: 0,
+    logicalTimeMs: 0,
+  }));
+}
+
 export function RuntimeCanvas({ entities = [], interfaces, connections, reality, authoritativeState, selectedEntityId, onSelectEntity, viewPreset, showGrid, showAxes, fitRevision }: RuntimeCanvasProps) {
-  const boundEntities = useMemo(() => {
-    if (!reality || !authoritativeState) return entities;
-    return bindAuthoritativeStateToReality(reality, authoritativeState, selectedEntityId).entities;
+  const boundEntities = useMemo<RuntimeEntityState[]>(() => {
+    if (reality && authoritativeState) return bindAuthoritativeStateToReality(reality, authoritativeState, selectedEntityId).entities;
+    return normalizeEntities(entities);
   }, [entities, reality, authoritativeState, selectedEntityId]);
 
   const canvas = useVisualRuntime(boundEntities, interfaces, connections, onSelectEntity, selectedEntityId, viewPreset, showGrid, showAxes, fitRevision);
