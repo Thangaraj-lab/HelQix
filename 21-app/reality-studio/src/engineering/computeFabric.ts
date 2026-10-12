@@ -21,18 +21,32 @@ export async function executeCompute(provider: ComputeProvider, request: Compute
     ? resources.find((item) => item.id === request.preferredResourceId && item.available && item.kind === request.kind)
     : resources.find((item) => item.available && item.kind === request.kind);
   if (!resource) return { schema: COMPUTE_FABRIC_SCHEMA, request, status: 'failed', result: { status: 'failed', error: `No available ${request.kind} resource satisfies the compute request.` } };
+
   const controller = new AbortController();
   const startedAt = Date.now();
-  const timeout = setTimeout(() => controller.abort(), request.timeoutMs);
+  let timedOut = false;
+  let settled = false;
+  const timeout = setTimeout(() => {
+    if (settled) return;
+    timedOut = true;
+    controller.abort();
+    void provider.cancel?.(request.id).catch(() => undefined);
+  }, request.timeoutMs);
+
   try {
     const result = await provider.execute(request, resource, controller.signal);
-    if (controller.signal.aborted) {
-      await provider.cancel?.(request.id).catch(() => undefined);
-      return { schema: COMPUTE_FABRIC_SCHEMA, request, status: 'failed', result: { status: 'timed_out', error: `Compute request exceeded ${request.timeoutMs}ms.`, resourceId: resource.id, startedAt, finishedAt: Date.now() } };
+    settled = true;
+    const finishedAt = Date.now();
+    if (timedOut || controller.signal.aborted) {
+      return { schema: COMPUTE_FABRIC_SCHEMA, request, status: 'failed', result: { status: 'timed_out', error: `Compute request exceeded ${request.timeoutMs}ms.`, resourceId: resource.id, startedAt, finishedAt } };
     }
-    return { schema: COMPUTE_FABRIC_SCHEMA, request, status: result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed', result: { ...result, resourceId: result.resourceId ?? resource.id, startedAt: result.startedAt ?? startedAt, finishedAt: result.finishedAt ?? Date.now() } };
+    return { schema: COMPUTE_FABRIC_SCHEMA, request, status: result.status === 'completed' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed', result: { ...result, resourceId: result.resourceId ?? resource.id, startedAt: result.startedAt ?? startedAt, finishedAt: result.finishedAt ?? finishedAt } };
   } catch (error) {
-    const timedOut = controller.signal.aborted;
-    return { schema: COMPUTE_FABRIC_SCHEMA, request, status: 'failed', result: { status: timedOut ? 'timed_out' : 'failed', error: timedOut ? `Compute request exceeded ${request.timeoutMs}ms.` : error instanceof Error ? error.message : 'Compute execution failed.', resourceId: resource.id, startedAt, finishedAt: Date.now() } };
-  } finally { clearTimeout(timeout); }
+    settled = true;
+    const finishedAt = Date.now();
+    return { schema: COMPUTE_FABRIC_SCHEMA, request, status: 'failed', result: { status: timedOut ? 'timed_out' : 'failed', error: timedOut ? `Compute request exceeded ${request.timeoutMs}ms.` : error instanceof Error ? error.message : 'Compute execution failed.', resourceId: resource.id, startedAt, finishedAt } };
+  } finally {
+    settled = true;
+    clearTimeout(timeout);
+  }
 }
