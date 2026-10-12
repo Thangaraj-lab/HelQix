@@ -1,5 +1,5 @@
 export const COMPUTE_FABRIC_SCHEMA = 'helqix.compute-fabric.v1' as const;
-export type ComputeKind = 'cpu' | 'gpu';
+export type ComputeKind = 'cpu' | 'gpu' | 'quantum';
 export type ComputeJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface ComputeResource { id: string; kind: ComputeKind; capacity: number; labels: string[]; available: boolean; }
