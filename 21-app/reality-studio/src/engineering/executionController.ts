@@ -70,5 +70,8 @@ export function restoreExecutionCheckpoint(controller: ExecutionController, snap
   const snapshot = controller.checkpoints.find((item) => item.id === snapshotId);
   if (!snapshot) throw new Error(`Unknown execution checkpoint: ${snapshotId}`);
   const state = restoreSnapshot(snapshot);
-  return { ...clone(controller), phase: 'paused', logicalTimeMs: state.logicalTimeMs, state, error: undefined };
+  const lastActionId = [...state.events].reverse().find((event) => event.actionId)?.actionId;
+  const restoredEventIndex = lastActionId ? controller.events.findIndex((event) => event.actionId === lastActionId) : -1;
+  const cursor = restoredEventIndex >= 0 ? restoredEventIndex + 1 : 0;
+  return { ...clone(controller), phase: 'paused', cursor, logicalTimeMs: state.logicalTimeMs, state, error: undefined };
 }
