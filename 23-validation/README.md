@@ -18,3 +18,7 @@ In a second terminal, run:
 ```
 
 This suite does not validate flight physics, structural safety, airworthiness, or regulatory compliance. HELQIX has no design-specific flight simulation in this checkout, so no Layer 23 drone performance benchmark is claimed.
+
+## Product readiness gate
+
+Layer 23 is the release gate for cross-layer behavior. A release candidate must keep the Rust workspace, API, integration gateway, and Reality Studio build green, and must not treat architectural scaffolding as production capability. External solvers, QPU execution, AI proposals, durable workers, and security controls are only certified when their live lifecycle paths and failure modes are exercised by tests.
