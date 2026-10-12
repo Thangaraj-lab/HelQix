@@ -1,5 +1,5 @@
 import type { AuthoritativeEngineeringState } from './authoritativeState';
-import { setSignal, setStateStatus } from './authoritativeState';
+import { setSignal } from './authoritativeState';
 import type { ComputeJob, ComputeResult } from './computeFabric';
 
 export const COMPUTE_INTEGRATION_SCHEMA = 'helqix.compute-integration.v1' as const;
@@ -37,12 +37,16 @@ function defaultValue(output: unknown): string | number | boolean {
   throw new Error('Compute output must be scalar or a binding selector must be provided.');
 }
 
-export function createComputeObservation(job: ComputeJob, providerId: string): ComputeObservation {
+export function createComputeObservation(
+  job: ComputeJob,
+  providerId: string,
+  logicalTimeMs = 0,
+): ComputeObservation {
   return {
     executionId: job.request.id,
     resourceId: job.result?.resourceId,
     status: job.result?.status ?? 'failed',
-    logicalTimeMs: job.result?.finishedAt ?? Date.now(),
+    logicalTimeMs,
     output: clone(job.result?.output),
     provenance: {
       providerId,
@@ -58,7 +62,7 @@ export function createComputeObservation(job: ComputeJob, providerId: string): C
 /**
  * Applies an already-completed compute result to authoritative state.
  * The compute adapter owns execution; this bridge owns only normalization and
- * state binding. It never invents engineering telemetry from an error result.
+ * state binding. Failed/cancelled results never become engineering telemetry.
  */
 export function bindComputeResult(
   state: AuthoritativeEngineeringState,
@@ -66,18 +70,20 @@ export function bindComputeResult(
   providerId: string,
   bindings: ComputeStateBinding[],
 ): { state: AuthoritativeEngineeringState; observation: ComputeObservation } {
-  const observation = createComputeObservation(job, providerId);
+  const observation = createComputeObservation(job, providerId, state.logicalTimeMs);
   if (job.status !== 'completed' || job.result?.status !== 'completed') {
-    return { state: setStateStatus(state, job.result?.status === 'cancelled' ? 'paused' : 'failed'), observation };
+    return { state, observation };
   }
 
   let next = state;
   for (const binding of bindings) {
+    const bindingIssues = validateComputeBinding(binding);
+    if (bindingIssues.length) throw new Error(bindingIssues.join(' '));
     if (!next.components[binding.componentId]) throw new Error(`Unknown compute binding component: ${binding.componentId}`);
     const selected = binding.select ? binding.select(observation.output) : defaultValue(observation.output);
     next = setSignal(next, binding.componentId, binding.signal, selected, binding.unit, binding.source ?? 'adapter');
   }
-  return { state: setStateStatus(next, 'completed'), observation };
+  return { state: next, observation };
 }
 
 export function validateComputeBinding(binding: ComputeStateBinding): string[] {
