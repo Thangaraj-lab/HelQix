@@ -15,6 +15,7 @@ pub mod execution;
 pub mod isolation;
 pub mod jobs;
 pub mod limits;
+pub mod worker_runtime;
 pub mod workers;
 
 pub use access::{AccessDecision, AccessPolicy, Action, Principal, ResourceScope};
@@ -23,4 +24,5 @@ pub use execution::{create_lease, lease_is_valid, select_worker, validate_lease,
 pub use isolation::{IsolationError, IsolationPolicy};
 pub use jobs::{Job, JobId, JobQueue, JobState, Lease, QueueError};
 pub use limits::{AdmissionLimits, AdmissionUsage, LimitError};
+pub use worker_runtime::{validate_worker_execution, RuntimeLimits, RuntimeValidationError, SandboxedExecutor, WorkerExecutionSpec};
 pub use workers::{WorkerCapabilities, WorkerError, WorkerRegistration, WorkerState};
