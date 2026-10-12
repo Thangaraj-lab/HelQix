@@ -6,6 +6,7 @@ import { createExecutionController, pauseExecution, restoreExecutionCheckpoint, 
 import { buildStateTimeline } from './engineering/stateTimeline';
 import { createFaultInjectionScenario, createInspectionScenario } from './engineering/scenarioTemplates';
 import type { ExecutableScenario } from './engineering/scenarioEngine';
+import './scenarioExecutionBoard.css';
 
 interface Props { project: Resource<ProjectPayload>; realityViewport: ReactNode; selectedComponentId?: string | null; onSelectComponent?: (id: string | null) => void; }
 
