@@ -12,3 +12,4 @@ export * from './conditionEngine';
 export * from './executionSession';
 export * from './simulationOrchestrator';
 export * from './optimizationEngine';
+export * from './computeFabric';
