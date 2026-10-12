@@ -25,6 +25,21 @@ export interface ReplayResult {
   error?: string;
 }
 
+function replayComparable(result: ReplayResult): unknown {
+  return {
+    realityRevision: result.realityRevision,
+    scenarioId: result.scenarioId,
+    frames: result.frames.map((frame) => ({
+      sequence: frame.sequence,
+      logicalTimeMs: frame.logicalTimeMs,
+      stateRevision: frame.stateRevision,
+      actionId: frame.actionId,
+      eventType: frame.eventType,
+      state: frame.state,
+    })),
+  };
+}
+
 export function replayExecution(reality: EngineeringReality, scenario: ExecutableScenario, initialSnapshot: StateSnapshot): ReplayResult {
   const restored = restoreSnapshot(initialSnapshot);
   let controller: ExecutionController = {
@@ -56,4 +71,14 @@ export function replayStateAt(result: ReplayResult, sequence: number): Authorita
 export function replayFrameAtTime(result: ReplayResult, logicalTimeMs: number): ReplayFrame | undefined {
   if (!Number.isFinite(logicalTimeMs) || logicalTimeMs < 0) return undefined;
   return [...result.frames].filter((frame) => frame.logicalTimeMs <= logicalTimeMs).pop() ?? result.frames[0];
+}
+
+export function verifyReplayDeterminism(first: ReplayResult, second: ReplayResult): { deterministic: boolean; reason: string } {
+  if (first.schema !== REPLAY_ENGINE_SCHEMA || second.schema !== REPLAY_ENGINE_SCHEMA) return { deterministic: false, reason: 'Replay schema mismatch.' };
+  if (first.realityRevision !== second.realityRevision || first.scenarioId !== second.scenarioId) return { deterministic: false, reason: 'Replay identity mismatch.' };
+  const left = JSON.stringify(replayComparable(first));
+  const right = JSON.stringify(replayComparable(second));
+  return left === right
+    ? { deterministic: first.deterministic && second.deterministic, reason: 'Replay state and event traces match.' }
+    : { deterministic: false, reason: 'Replay state or event traces diverged.' };
 }
