@@ -14,7 +14,11 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@helqix/visual-runtime": ["../../14-visual-runtime/engines/visual-runtime/src/index.ts"]
+    }
   },
   "include": ["src"]
 }
