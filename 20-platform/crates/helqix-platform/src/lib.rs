@@ -4,8 +4,8 @@
 //! tenant-scoped authorization, quota-aware job admission, worker capability
 //! contracts, execution leases, isolation policy and immutable audit events.
 //! Durable storage, distributed coordination, authentication and process
-//! isolation enforcement are supplied by production adapters; this crate does
-//! not pretend its in-memory primitives provide those guarantees.
+//! isolation enforcement are supplied by production adapters; this crate
+//! does not pretend its in-memory primitives provide those guarantees.
 
 #![forbid(unsafe_code)]
 
