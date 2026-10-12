@@ -5,3 +5,4 @@ export * from './branchEngine';
 export * from './engineeringRuntime';
 export * from './executionController';
 export * from './stateTimeline';
+export * from './replayEngine';
