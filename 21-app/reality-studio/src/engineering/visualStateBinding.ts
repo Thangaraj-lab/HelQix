@@ -1,10 +1,10 @@
 import type { EngineeringReality } from '../api';
-import type { AuthoritativeEngineeringState, ComponentRuntimeState } from './authoritativeState';
+import type { AuthoritativeEngineeringState, RuntimeStatus } from './authoritativeState';
 import { assertValidState } from './authoritativeState';
 import type { RuntimeEntity } from '../visualRuntime';
 
 export interface RuntimeEntityState extends RuntimeEntity {
-  status: ComponentRuntimeState['status'];
+  status: RuntimeStatus | 'unknown';
   propertyValues: Record<string, string | number | boolean>;
   faults: string[];
   signals: Record<string, string | number | boolean>;
@@ -26,18 +26,14 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
-/**
- * Projects authoritative engineering state into UI-safe runtime entities.
- * No physics, telemetry, geometry, health, or failure is inferred here.
- * Missing runtime data remains explicit as missing/unknown.
- */
+/** Projects authoritative engineering state into UI-safe runtime entities. No physics or failure is inferred. */
 export function bindAuthoritativeStateToReality(
   reality: EngineeringReality,
   state: AuthoritativeEngineeringState,
   selectedComponentId?: string | null,
 ): VisualStateBindingResult {
   assertValidState(state, reality);
-  const runtimeByComponent = new Map(state.components.map((component) => [component.componentId, component]));
+  const runtimeByComponent = new Map(Object.values(state.components).map((component) => [component.componentId, component]));
 
   const entities: RuntimeEntityState[] = reality.components.map((component) => {
     const runtime = runtimeByComponent.get(component.id);
@@ -47,7 +43,7 @@ export function bindAuthoritativeStateToReality(
       componentType: component.componentType,
       status: runtime?.status ?? 'unknown',
       propertyValues: Object.fromEntries((runtime?.properties ?? []).map((property) => [property.name, property.value])),
-      faults: [...(runtime?.faults ?? [])],
+      faults: [...(runtime?.faultIds ?? [])],
       signals: Object.fromEntries(Object.entries(runtime?.signals ?? {}).map(([name, signal]) => [name, signal.value])),
       selected: selectedComponentId === component.id,
       stateRevision: state.stateRevision,
@@ -65,34 +61,33 @@ export function bindAuthoritativeStateToReality(
   };
 }
 
-export function runtimeEntityById(
-  binding: VisualStateBindingResult,
-  componentId: string,
-): RuntimeEntityState | undefined {
+export function runtimeEntityById(binding: VisualStateBindingResult, componentId: string): RuntimeEntityState | undefined {
   return binding.entities.find((entity) => entity.id === componentId);
 }
 
-export function runtimeStatusLabel(status: ComponentRuntimeState['status']): string {
+export function runtimeStatusLabel(status: RuntimeEntityState['status']): string {
   switch (status) {
     case 'running': return 'RUNNING';
     case 'paused': return 'PAUSED';
-    case 'stopped': return 'STOPPED';
     case 'failed': return 'FAILED';
+    case 'faulted': return 'FAULTED';
     case 'completed': return 'COMPLETED';
+    case 'ready': return 'READY';
     case 'idle': return 'IDLE';
-    default: return 'UNKNOWN';
+    case 'unknown': return 'UNKNOWN';
   }
 }
 
-export function runtimeStatusHealth(status: ComponentRuntimeState['status']): 'unknown' | 'nominal' | 'warning' | 'critical' | 'failed' {
+export function runtimeStatusHealth(status: RuntimeEntityState['status']): 'unknown' | 'nominal' | 'warning' | 'critical' | 'failed' {
   switch (status) {
     case 'failed': return 'failed';
+    case 'faulted': return 'critical';
     case 'running':
     case 'completed': return 'nominal';
     case 'paused': return 'warning';
-    case 'stopped':
-    case 'idle': return 'unknown';
-    default: return 'unknown';
+    case 'ready':
+    case 'idle':
+    case 'unknown': return 'unknown';
   }
 }
 
