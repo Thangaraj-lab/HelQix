@@ -1,13 +1,9 @@
 """HELQIX -> qBraid quantum runtime adapter.
 
-This module is deliberately isolated from the core gateway. qBraid is an
-optional execution backend: when the SDK/API key is absent HELQIX reports the
-capability as unavailable instead of fabricating quantum output.
-
-The adapter accepts OpenQASM 3 because it is an explicit, portable quantum
-program representation. qBraid performs target-specific serialization and
-submission; HELQIX retains the engineering job identity, selected device,
-provider metadata, result, and provenance boundary.
+The adapter is optional and provider-agnostic at the HELQIX boundary. It uses
+qBraid's native runtime provider for device discovery, OpenQASM 3 validation,
+submission, lifecycle control, and result retrieval. No quantum result is
+fabricated when the SDK or credentials are absent.
 """
 from __future__ import annotations
 
@@ -19,9 +15,11 @@ from typing import Any
 try:
     from qbraid import QbraidProvider
     from qbraid.programs.gate_model.qasm3 import OpenQasm3Program
+    from qbraid.runtime.native.job import QbraidJob
 except ImportError:  # Optional dependency; the gateway remains usable without it.
     QbraidProvider = None  # type: ignore[assignment,misc]
     OpenQasm3Program = None  # type: ignore[assignment,misc]
+    QbraidJob = None  # type: ignore[assignment,misc]
 
 
 class QbraidUnavailable(RuntimeError):
@@ -50,26 +48,28 @@ class QuantumSubmission:
 
 
 def _require_sdk() -> None:
-    if QbraidProvider is None or OpenQasm3Program is None:
+    if QbraidProvider is None or OpenQasm3Program is None or QbraidJob is None:
         raise QbraidUnavailable("qBraid SDK is not installed. Install the optional quantum requirements.")
-    if not os.environ.get("QBRAID_API_KEY"):
-        # qBraid also supports its local config file, but HELQIX server
-        # deployments should use an environment/secret manager rather than a
-        # developer home directory. Allow that path only when explicitly opted in.
-        if os.environ.get("HELQIX_ALLOW_QBRAID_CONFIG", "false").lower() != "true":
-            raise QbraidUnavailable("QBRAID_API_KEY is not configured.")
+    if not os.environ.get("QBRAID_API_KEY") and os.environ.get("HELQIX_ALLOW_QBRAID_CONFIG", "false").lower() != "true":
+        raise QbraidUnavailable("QBRAID_API_KEY is not configured.")
 
 
 def _provider() -> Any:
     _require_sdk()
     try:
         return QbraidProvider()
-    except Exception as exc:  # qBraid owns authentication/config diagnostics.
+    except Exception as exc:
         raise QbraidUnavailable(f"qBraid authentication failed: {exc}") from exc
 
 
+def _job(provider: Any, job_qrn: str) -> Any:
+    model = provider.client.get_job(job_qrn)
+    device = provider.get_device(str(model.deviceQrn))
+    return QbraidJob(job_id=job_qrn, device=device, client=provider.client)
+
+
 def list_devices() -> list[QuantumDevice]:
-    """Return the currently discoverable qBraid devices without submitting work."""
+    """Return discoverable qBraid devices without submitting work."""
     provider = _provider()
     try:
         devices = provider.get_devices()
@@ -121,12 +121,11 @@ def submit_qasm3(
             tags=tags or {},
             runtime_options=dict(runtime_options or {}),
         )
-        job_qrn = str(job.id)
     except Exception as exc:
         raise QbraidExecutionError(f"qBraid submission failed: {exc}") from exc
 
     return QuantumSubmission(
-        job_qrn=job_qrn,
+        job_qrn=str(job.id),
         device_qrn=device_qrn,
         submitted_at=time.time(),
         metadata={"shots": shots, "name": name, "tags": tags or {}, "provider": "qbraid"},
@@ -139,9 +138,7 @@ def get_job(job_qrn: str) -> dict[str, Any]:
     if not job_qrn.strip():
         raise ValueError("job_qrn must be non-empty")
     try:
-        # The native provider exposes job retrieval through its runtime client.
-        client = provider.client
-        model = client.get_job(job_qrn)
+        model = provider.client.get_job(job_qrn)
     except Exception as exc:
         raise QbraidExecutionError(f"qBraid job lookup failed: {exc}") from exc
     return {
@@ -160,13 +157,11 @@ def cancel_job(job_qrn: str) -> dict[str, Any]:
     if not job_qrn.strip():
         raise ValueError("job_qrn must be non-empty")
     try:
-        job = provider.client.get_job(job_qrn)
-        device = provider.get_device(str(job.deviceQrn))
-        runtime_job = device.retrieve_job(job_qrn)
-        runtime_job.cancel()
-        return get_job(job_qrn)
+        job = _job(provider, job_qrn)
+        job.cancel()
     except Exception as exc:
         raise QbraidExecutionError(f"qBraid cancellation failed: {exc}") from exc
+    return get_job(job_qrn)
 
 
 def result(job_qrn: str, *, timeout: int | None = None) -> dict[str, Any]:
@@ -175,10 +170,9 @@ def result(job_qrn: str, *, timeout: int | None = None) -> dict[str, Any]:
     if not job_qrn.strip():
         raise ValueError("job_qrn must be non-empty")
     try:
-        model = provider.client.get_job(job_qrn)
-        device = provider.get_device(str(model.deviceQrn))
-        job = device.retrieve_job(job_qrn)
+        job = _job(provider, job_qrn)
         raw = job.result(timeout=timeout)
+        model = provider.client.get_job(job_qrn)
     except Exception as exc:
         raise QbraidExecutionError(f"qBraid result retrieval failed: {exc}") from exc
 
