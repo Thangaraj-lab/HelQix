@@ -61,6 +61,7 @@ export * from './stateFreeze';
 export * from './conditionEngine';
 export * from './simulationOrchestrator';
 export * from './optimizationEngine';
+export * from './searchEngine';
 export * from './computeFabric';
 export * from './computeIntegration';
 export * from './externalExecution';
