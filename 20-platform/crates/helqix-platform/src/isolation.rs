@@ -5,6 +5,7 @@
 //! before starting an external solver/tool.
 
 use std::collections::BTreeSet;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IsolationPolicy {
@@ -28,6 +29,23 @@ pub enum IsolationError {
     InvalidWritablePath,
     HostNotAllowed,
 }
+
+impl fmt::Display for IsolationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::InvalidProcessLimit => "max_processes must be greater than zero",
+            Self::InvalidMemoryLimit => "max_memory_bytes must be greater than zero",
+            Self::InvalidCpuLimit => "max_cpu_millis must be greater than zero",
+            Self::WritableRoot => "root filesystem must be read-only",
+            Self::SecretWithoutNetworkPolicy => "secrets require an explicitly enabled network policy",
+            Self::InvalidWritablePath => "writable paths must be absolute non-empty paths",
+            Self::HostNotAllowed => "allowed hosts must not contain blank entries",
+        };
+        f.write_str(message)
+    }
+}
+
+impl std::error::Error for IsolationError {}
 
 impl IsolationPolicy {
     pub fn validate(&self) -> Result<(), IsolationError> {
@@ -59,4 +77,5 @@ mod tests {
     #[test] fn denies_network_by_default() { assert!(!policy().allows_host("example.com")); }
     #[test] fn limits_writes_to_declared_paths() { assert!(policy().allows_write("/workspace/case/input.json")); assert!(!policy().allows_write("/etc/passwd")); }
     #[test] fn requires_read_only_root() { let mut p=policy(); p.read_only_root=false; assert_eq!(p.validate(),Err(IsolationError::WritableRoot)); }
+    #[test] fn validation_errors_are_displayable() { assert_eq!(IsolationError::InvalidCpuLimit.to_string(), "max_cpu_millis must be greater than zero"); }
 }
