@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { SceneManager, EngineeringObject, InteractionController, type SelectionCallback } from '@helqix/visual-runtime';
 import type { RealityConnection, RealityInterface } from './api';
 import type { RuntimeEntityState } from './engineering/visualStateBinding';
+import { engineeringVisualMotion } from './engineering/engineeringVisualMotion';
 
 export interface RuntimeEntity { id: string; name: string; componentType: string }
 export type RuntimeViewPreset = 'perspective' | 'top' | 'front' | 'side' | 'isometric';
@@ -42,16 +43,49 @@ export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_
       entities.forEach((entity, index) => {
         const group = new THREE.Group();
         const type = entity.componentType.toLowerCase();
-        const baseColor = /battery|cell|pack/.test(type) ? 0x64748b : /motor|engine|pump/.test(type) ? 0x6b7280 : 0x71717a;
+        const motion = engineeringVisualMotion(entity);
+        const isRotating = /motor|engine|pump|fan/.test(type) && motion.hasMotionSignal;
+        const isWheel = /wheel|tire/.test(type);
+        const baseColor = /battery|cell|pack/.test(type) ? 0x64748b : /motor|engine|pump|fan/.test(type) ? 0x6b7280 : 0x71717a;
         const material = new THREE.MeshStandardMaterial({ color: baseColor, metalness: 0.42, roughness: 0.42, emissive: statusColor(entity.status), emissiveIntensity: entity.status === 'failed' ? 0.55 : isActive(entity.status) ? 0.28 : entity.selected ? 0.18 : 0.04 });
         const accent = new THREE.MeshStandardMaterial({ color: entity.faults.length ? 0xef4444 : 0x334155, metalness: 0.5, roughness: 0.35 });
-        if (/motor|engine|pump/.test(type)) { const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 28), material); motor.rotation.z = Math.PI / 2; motor.castShadow = true; group.add(motor); const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 16), accent); shaft.rotation.z = Math.PI / 2; shaft.position.x = 0.65; group.add(shaft); } else { const bounds = /battery|cell|pack/.test(type) ? [1.25, 0.48, 0.82] : [0.92, 0.72, 0.76]; const body = new THREE.Mesh(new THREE.BoxGeometry(...bounds as [number, number, number]), material); body.castShadow = true; body.receiveShadow = true; group.add(body); if (/battery|cell|pack/.test(type)) for (let cell = -1; cell <= 1; cell++) { const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.38, 0.74), accent); seam.position.x = cell * 0.35; group.add(seam); } }
+        if (/motor|engine|pump|fan/.test(type)) {
+          const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 28), material); motor.rotation.z = Math.PI / 2; motor.castShadow = true; group.add(motor);
+          const shaftAssembly = new THREE.Group(); shaftAssembly.position.x = 0.65; shaftAssembly.userData.engineeringRotationRad = motion.rotationRad;
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 16), accent); shaft.rotation.z = Math.PI / 2; shaftAssembly.add(shaft);
+          if (isRotating) {
+            const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0xc5e486, metalness: 0.35, roughness: 0.3 });
+            for (let bladeIndex = 0; bladeIndex < 4; bladeIndex++) {
+              const blade = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.035, 0.09), bladeMaterial);
+              blade.rotation.y = bladeIndex * (Math.PI / 2);
+              blade.position.x = 0.18;
+              shaftAssembly.add(blade);
+            }
+            shaftAssembly.rotation.x = motion.rotationRad;
+          }
+          group.add(shaftAssembly);
+        } else if (isWheel) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.18, 28), material);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.rotation.y += motion.rotationRad;
+          wheel.position.x += motion.translationMeters;
+          wheel.castShadow = true;
+          group.add(wheel);
+        } else {
+          const bounds = /battery|cell|pack/.test(type) ? [1.25, 0.48, 0.82] : [0.92, 0.72, 0.76];
+          const body = new THREE.Mesh(new THREE.BoxGeometry(...bounds as [number, number, number]), material); body.castShadow = true; body.receiveShadow = true; group.add(body);
+          if (/battery|cell|pack/.test(type)) for (let cell = -1; cell <= 1; cell++) { const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.38, 0.74), accent); seam.position.x = cell * 0.35; group.add(seam); }
+        }
+        if (motion.hasThermalSignal) {
+          const thermalRing = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.035 + motion.thermalIntensity * 0.04, 8, 48), new THREE.MeshBasicMaterial({ color: motion.thermalIntensity > 0.7 ? 0xef4444 : 0xf59e0b, transparent: true, opacity: 0.25 + motion.thermalIntensity * 0.65 }));
+          thermalRing.rotation.x = Math.PI / 2; thermalRing.position.y = 0.1; group.add(thermalRing);
+        }
         if (entity.faults.length) { const faultRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.025, 8, 48), new THREE.MeshBasicMaterial({ color: 0xef4444 })); faultRing.rotation.x = Math.PI / 2; faultRing.position.y = 0.08; group.add(faultRing); }
         if (entity.selected) { const selectionRing = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.018, 8, 48), new THREE.MeshBasicMaterial({ color: 0x22d3ee })); selectionRing.rotation.x = Math.PI / 2; selectionRing.position.y = 0.03; group.add(selectionRing); }
         const columns = Math.max(1, Math.ceil(Math.sqrt(entities.length)));
         group.position.set(3.25 + (index % columns - (columns - 1) / 2) * 2.1, 0.5, (Math.floor(index / columns) - (Math.ceil(entities.length / columns) - 1) / 2) * 1.8);
         componentPositions.set(entity.id, { position: group.position.clone(), halfWidth: /battery|cell|pack/.test(type) ? 0.64 : 0.5 });
-        const object = new EngineeringObject({ id: entity.id, name: entity.name, subsystem: 'engineering-reality', category: entity.componentType, rootMesh: group, initialAttributes: { selected: entity.selected, health: entity.status === 'failed' ? 'failed' : entity.status === 'paused' ? 'warning' : entity.status === 'running' || entity.status === 'completed' ? 'nominal' : 'unknown' } });
+        const object = new EngineeringObject({ id: entity.id, name: entity.name, subsystem: 'engineering-reality', category: entity.componentType, rootMesh: group, initialAttributes: { selected: entity.selected, health: entity.status === 'failed' ? 'failed' : entity.status === 'paused' ? 'warning' : entity.status === 'running' || entity.status === 'completed' ? 'nominal' : 'unknown', thermal: motion.hasThermalSignal ? { normalizedHeatRatio: motion.thermalIntensity } : undefined } });
         manager!.registry.register(object);
       });
       if (connections.length) {
