@@ -65,7 +65,7 @@ export function createEvidencePackage(input: {
   if (input.freeze) artifacts.push({ kind: 'freeze', id: input.freeze.id, digest: input.freeze.freezeDigest });
   if (input.replay) artifacts.push({ kind: 'replay', id: `replay-${input.replay.traceDigest}`, digest: input.replay.traceDigest });
   if (input.branch) artifacts.push({ kind: 'branch', id: input.branch.definition.id, digest: digest(input.branch.result) });
-  for (const observation of input.compute ?? []) artifacts.push({ kind: 'compute', id: observation.executionId, digest: observation.outputDigest });
+  for (const observation of input.compute ?? []) artifacts.push({ kind: 'compute', id: observation.executionId, digest: digest({ output: observation.output, provenance: observation.provenance, logicalTimeMs: observation.logicalTimeMs }) });
   if (input.optimization) artifacts.push({ kind: 'optimization', id: input.optimization.id, digest: input.optimization.digest });
 
   const canonicalArtifacts = sortedArtifacts(artifacts);
