@@ -21,23 +21,15 @@ export interface RuntimeCanvasProps {
 
 function normalizeEntities(entities: RuntimeCanvasProps['entities']): RuntimeEntityState[] {
   return (entities ?? []).map((entity) => ({
-    ...entity,
-    status: 'unknown' as const,
-    propertyValues: {},
-    faults: [],
-    signals: {},
-    selected: false,
-    stateRevision: 0,
-    logicalTimeMs: 0,
+    ...entity, status: 'unknown' as const, propertyValues: {}, faults: [], signals: {}, selected: false,
+    stateRevision: 0, logicalTimeMs: 0, motionEvents: [],
   }));
 }
 
 export function RuntimeCanvas({ entities = [], interfaces, connections, reality, authoritativeState, selectedEntityId, onSelectEntity, viewPreset, showGrid, showAxes, fitRevision }: RuntimeCanvasProps) {
-  const boundEntities = useMemo<RuntimeEntityState[]>(() => {
-    if (reality && authoritativeState) return bindAuthoritativeStateToReality(reality, authoritativeState, selectedEntityId).entities;
-    return normalizeEntities(entities);
-  }, [entities, reality, authoritativeState, selectedEntityId]);
-
+  const boundEntities = useMemo<RuntimeEntityState[]>(() => reality && authoritativeState
+    ? bindAuthoritativeStateToReality(reality, authoritativeState, selectedEntityId).entities
+    : normalizeEntities(entities), [entities, reality, authoritativeState, selectedEntityId]);
   const canvas = useVisualRuntime(boundEntities, interfaces, connections, onSelectEntity, selectedEntityId, viewPreset, showGrid, showAxes, fitRevision);
   return <canvas ref={canvas} className={`runtime-canvas ${onSelectEntity ? 'runtime-canvas-interactive' : ''}`} aria-label={onSelectEntity ? 'Interactive engineering reality component viewport. Drag to orbit, scroll to zoom, and click a part to inspect it.' : 'Engineering reality component viewport'} />;
 }
