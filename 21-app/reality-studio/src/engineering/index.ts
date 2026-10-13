@@ -84,6 +84,7 @@ export {
 export * from './coupledPhysicsEngine';
 export * from './observationFabric';
 export * from './causalityEngine';
+export * from './deterministicEngineeringSimulation';
 export * from './simulationClock';
 export * from './optimizationEngine';
 export * from './searchEngine';
