@@ -6,12 +6,19 @@ export interface TimelineEntry { sequence: number; logicalTimeMs: number; stateR
 export interface FailureObservation { componentId?: string; faultId?: string; logicalTimeMs: number; stateRevision: number; actionId?: string; eventType: StateEvent['type']; description: string; }
 export interface StateTimeline { schema: typeof STATE_TIMELINE_SCHEMA; realityRevision: number; stateRevision: number; logicalTimeMs: number; status: AuthoritativeEngineeringState['status']; entries: TimelineEntry[]; failures: FailureObservation[]; }
 
+function eventStateRevision(state: AuthoritativeEngineeringState, event: StateEvent): number {
+  if (event.type === 'state_created') return 1;
+  const matching = state.events.filter((candidate) => candidate.sequence <= event.sequence);
+  const transitions = matching.filter((candidate) => candidate.type !== 'state_created');
+  return Math.min(state.stateRevision, Math.max(1, transitions.length + 1));
+}
+
 export function buildStateTimeline(reality: EngineeringReality, state: AuthoritativeEngineeringState): StateTimeline {
   assertValidState(state, reality);
   const entries = state.events.map((event) => ({
     sequence: event.sequence,
     logicalTimeMs: event.logicalTimeMs,
-    stateRevision: Math.min(state.stateRevision, Math.max(1, event.sequence)),
+    stateRevision: eventStateRevision(state, event),
     type: event.type,
     ...(event.componentId ? { componentId: event.componentId } : {}),
     ...(event.name ? { name: event.name } : {}),
@@ -27,7 +34,7 @@ export function buildStateTimeline(reality: EngineeringReality, state: Authorita
       ...(event.componentId ? { componentId: event.componentId } : {}),
       ...(event.faultId ? { faultId: event.faultId } : {}),
       logicalTimeMs: event.logicalTimeMs,
-      stateRevision: Math.min(state.stateRevision, Math.max(1, event.sequence)),
+      stateRevision: eventStateRevision(state, event),
       ...(event.actionId ? { actionId: event.actionId } : {}),
       eventType: event.type,
       description: event.faultId ? `Fault ${event.faultId} observed.` : `Failure state observed${event.componentId ? ` on ${event.componentId}` : ''}.`,
