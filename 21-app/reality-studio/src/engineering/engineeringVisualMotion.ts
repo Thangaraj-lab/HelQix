@@ -4,6 +4,8 @@ export interface EngineeringVisualMotion {
   rotationRad: number;
   translationMeters: number;
   thermalIntensity: number;
+  temperatureCelsius: number;
+  temperatureLimitCelsius: number;
   hasMotionSignal: boolean;
   hasThermalSignal: boolean;
 }
@@ -11,7 +13,8 @@ export interface EngineeringVisualMotion {
 function normalize(name: string): string { return name.toLowerCase().replace(/[\s_-]/g, ''); }
 const RPM_ALIASES = new Set(['rpm', 'rotationalspeed', 'rotationsperminute', 'shaftspeed']);
 const VELOCITY_ALIASES = new Set(['velocityms', 'speedms', 'linearvelocity']);
-const TEMPERATURE_ALIASES = new Set(['temperaturec', 'temperature', 'tempc', 'celltemperature']);
+const TEMPERATURE_ALIASES = new Set(['temperaturec', 'temperature', 'tempc', 'celltemperature', 'windingtemperaturec']);
+const TEMPERATURE_LIMIT_ALIASES = new Set(['temperaturelimitc', 'temperaturelimit', 'maxtemperaturec', 'maximumtemperaturec']);
 
 function numberByAlias(entity: RuntimeEntityState, aliases: Set<string>): number | undefined {
   const values = [...Object.entries(entity.signals), ...Object.entries(entity.propertyValues)];
@@ -44,15 +47,19 @@ export function engineeringVisualMotion(entity: RuntimeEntityState): Engineering
   const rpm = numberByAlias(entity, RPM_ALIASES);
   const velocity = numberByAlias(entity, VELOCITY_ALIASES);
   const temperature = numberByAlias(entity, TEMPERATURE_ALIASES);
+  const temperatureLimit = numberByAlias(entity, TEMPERATURE_LIMIT_ALIASES) ?? Math.max(100, temperature ?? 100);
   const seconds = Math.max(0, entity.logicalTimeMs) / 1000;
   const hasVelocityHistory = entity.motionEvents.some((event) => eventIsAlias(event.name, VELOCITY_ALIASES));
   const translationMeters = velocity === undefined ? 0 : seconds * velocity;
+  const hasThermalSignal = temperature !== undefined;
 
   return {
     rotationRad: integratedRotationRad(entity, rpm),
     translationMeters,
-    thermalIntensity: temperature === undefined ? 0 : Math.max(0, Math.min(1, (temperature - 20) / 100)),
+    thermalIntensity: temperature === undefined ? 0 : Math.max(0, Math.min(1, (temperature - 20) / Math.max(1, temperatureLimit - 20))),
+    temperatureCelsius: temperature ?? 20,
+    temperatureLimitCelsius: temperatureLimit,
     hasMotionSignal: rpm !== undefined || velocity !== undefined || hasVelocityHistory,
-    hasThermalSignal: temperature !== undefined,
+    hasThermalSignal,
   };
 }
