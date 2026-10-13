@@ -1,5 +1,5 @@
 import type { EngineeringReality } from '../api';
-import { captureSnapshot, restoreSnapshot, validateState, type AuthoritativeEngineeringState, type StateSnapshot } from './authoritativeState';
+import { captureSnapshot, validateState, type AuthoritativeEngineeringState, type StateSnapshot } from './authoritativeState';
 import { stepExecution, type ExecutionController } from './executionController';
 import type { ExecutableScenario } from './scenarioEngine';
 
