@@ -7,6 +7,7 @@ export interface FailureObservation { componentId?: string; faultId?: string; lo
 export interface StateTimeline { schema: typeof STATE_TIMELINE_SCHEMA; realityRevision: number; stateRevision: number; logicalTimeMs: number; status: AuthoritativeEngineeringState['status']; entries: TimelineEntry[]; failures: FailureObservation[]; }
 
 function eventStateRevision(state: AuthoritativeEngineeringState, event: StateEvent): number {
+  if (event.stateRevision !== undefined) return event.stateRevision;
   if (event.type === 'state_created') return 1;
   const matching = state.events.filter((candidate) => candidate.sequence <= event.sequence);
   const transitions = matching.filter((candidate) => candidate.type !== 'state_created');
