@@ -8,7 +8,6 @@ import { runCoupledMotor, type CoupledMotorParameters } from './coupledPhysicsEn
 
 export const SIMULATION_ORCHESTRATOR_SCHEMA = 'helqix.simulation-orchestrator.v1' as const;
 export type SimulationStatus = 'planned' | 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
-
 export interface SimulationRequest { id: string; realityRevision: number; scenarioId: string; solver: { id: string; version: string; deterministic: boolean; seed?: number }; timeoutMs: number; checkpointIntervalMs?: number; }
 export interface SimulationObservation { logicalTimeMs: number; componentId?: string; signal?: string; value: unknown; unit?: string; source: string; }
 export interface SimulationResult { status: 'completed' | 'failed' | 'cancelled' | 'timed_out'; finalState?: AuthoritativeEngineeringState; observations: SimulationObservation[]; outputs: Record<string, unknown>; error?: string; }
@@ -26,7 +25,6 @@ export function createSimulationRun(reality: EngineeringReality, scenario: Execu
 }
 
 function transition(run: SimulationRun, status: SimulationStatus, error?: string): SimulationRun { return { ...run, status, ...(error ? { error } : { error: undefined }), updatedAt: now() }; }
-
 export function queueSimulation(run: SimulationRun): SimulationRun { if (run.status !== 'planned') throw new Error(`Cannot queue simulation from ${run.status}.`); return transition(run, 'queued'); }
 
 export async function executeSimulation(run: SimulationRun, adapter: SimulationAdapter): Promise<SimulationRun> {
@@ -58,35 +56,26 @@ export function createCoupledMotorSimulationAdapter(options: CoupledMotorSimulat
   const stepMs = options.stepMs ?? 10;
   if (!Number.isFinite(stepMs) || stepMs <= 0 || stepMs > 100) throw new Error('Coupled simulation step must be > 0 and <= 100 ms.');
   const checkpointEvery = Math.max(1, Math.floor(options.checkpointEverySteps ?? 100));
-
   return {
     async prepare(context) {
       if (context.state.realityRevision !== context.reality.revision) throw new Error('Simulation state/reality revision mismatch.');
       if (options.environment) context.environment = clone(options.environment);
-      if (!context.environment) context.environment = createEnvironment(`sim-${context.requestId ?? 'runtime'}`, '1', 'controlled', [], [], 'global', context.state.logicalTimeMs);
+      if (!context.environment) context.environment = createEnvironment(`sim-${context.scenario.id}`, '1', 'controlled', [], [], 'global', context.state.logicalTimeMs);
     },
     async run(context, signal) {
       if (!context.environment) throw new Error('Coupled physics requires an environment definition.');
-      const totalSteps = Math.ceil(options.durationMs / stepMs);
-      const observations: SimulationObservation[] = [];
-      let state = clone(context.state);
-      let completedSteps = 0;
+      const totalSteps = Math.ceil(options.durationMs / stepMs); const observations: SimulationObservation[] = []; let state = clone(context.state); let completedSteps = 0;
       for (let index = 0; index < totalSteps; index += 1) {
         if (signal.aborted) return { status: 'cancelled', finalState: state, observations, outputs: { completedSteps, totalSteps } };
-        const remaining = options.durationMs - index * stepMs;
-        const delta = Math.min(stepMs, remaining);
-        const [result] = runCoupledMotor(context.reality, state, context.environment, options.parameters, delta, delta);
-        state = result.authoritativeState;
-        completedSteps += 1;
+        const remaining = options.durationMs - index * stepMs; const delta = Math.min(stepMs, remaining);
+        const [result] = runCoupledMotor(context.reality, state, context.environment, options.parameters, delta, delta); state = result.authoritativeState; completedSteps += 1;
         observations.push(
           { logicalTimeMs: result.logicalTimeMs, componentId: result.componentId, signal: 'currentA', value: result.nextState.currentA, unit: 'A', source: 'coupled-physics' },
           { logicalTimeMs: result.logicalTimeMs, componentId: result.componentId, signal: 'angularVelocityRadPerS', value: result.nextState.angularVelocityRadPerS, unit: 'rad/s', source: 'coupled-physics' },
           { logicalTimeMs: result.logicalTimeMs, componentId: result.componentId, signal: 'windingTemperatureC', value: result.nextState.windingTemperatureC, unit: '°C', source: 'coupled-physics' },
         );
         if (completedSteps % checkpointEvery === 0 || result.failures.length) context.checkpoints.push(captureSnapshot(state, result.failures.length ? 'failure' : 'checkpoint'));
-        if (result.failures.some((failure) => failure.severity === 'error')) {
-          return { status: 'failed', finalState: state, observations, outputs: { completedSteps, totalSteps, failures: result.failures, energy: result.energy }, error: result.failures.map((failure) => failure.message).join('; ') };
-        }
+        if (result.failures.some((failure) => failure.severity === 'error')) return { status: 'failed', finalState: state, observations, outputs: { completedSteps, totalSteps, failures: result.failures, energy: result.energy }, error: result.failures.map((failure) => failure.message).join('; ') };
       }
       return { status: 'completed', finalState: state, observations, outputs: { completedSteps, totalSteps } };
     },
