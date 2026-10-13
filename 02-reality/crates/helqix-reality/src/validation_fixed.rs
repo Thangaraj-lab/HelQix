@@ -55,7 +55,7 @@ mod tests {
     use helqix_core::component::Component;
     use helqix_core::id::Identifier;
     fn id(name: &str) -> Identifier { Identifier::parse(name).expect("valid identifier") }
-    fn component(name: &str) -> Component { Component::new(id(name)).expect("valid component") }
+    fn component(name: &str) -> Component { Component::new(id(name)) }
     #[test] fn empty_system_validates() { let r=Reality::new(id("system")); let g=RealityGraph::new(); let c=ComponentRegistry::new(); let t=Topology::new(); assert!(RealityValidator::new().validate(&r,&g,&c,&t,&Environment::new(),&EngineeringModel::new()).is_ok()); }
     #[test] fn public_component_import_is_valid() { let mut r=Reality::new(id("system")); let mut c=ComponentRegistry::new(); r.add_component(component("battery")).expect("add"); c.register(component("battery")).expect("register"); assert!(RealityValidator::new().validate_cross_references(&r,&RealityGraph::new(),&c).is_ok()); }
     #[test] fn mismatched_component_sets_are_rejected() { let mut r=Reality::new(id("system")); r.add_component(component("battery")).expect("add"); assert!(matches!(RealityValidator::new().validate_cross_references(&r,&RealityGraph::new(),&ComponentRegistry::new()),Err(ValidationError::CrossReference{..}))); }
