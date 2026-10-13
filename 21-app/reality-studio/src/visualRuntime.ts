@@ -47,7 +47,7 @@ export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_
           const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 16), accent); shaft.rotation.z = Math.PI / 2; shaftAssembly.add(shaft);
           if (isRotating) {
             const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0xc5e486, metalness: 0.35, roughness: 0.3 });
-            for (let bladeIndex = 0; bladeIndex < 4; bladeIndex++) { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.035, 0.09), bladeMaterial); blade.rotation.y = bladeIndex * (Math.PI / 2); blade.position.x = 0.18; shaftAssembly.add(blade); }
+            for (let bladeIndex = 0; bladeIndex < 4; bladeIndex += 1) { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.035, 0.09), bladeMaterial); blade.rotation.y = bladeIndex * (Math.PI / 2); blade.position.x = 0.18; shaftAssembly.add(blade); }
             shaftAssembly.rotation.x = motion.rotationRad;
           }
           group.add(shaftAssembly);
@@ -56,7 +56,7 @@ export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_
         } else {
           const bounds = /battery|cell|pack/.test(type) ? [1.25, 0.48, 0.82] : [0.92, 0.72, 0.76];
           const body = new THREE.Mesh(new THREE.BoxGeometry(...bounds as [number, number, number]), material); body.castShadow = true; body.receiveShadow = true; group.add(body);
-          if (/battery|cell|pack/.test(type)) for (let cell = -1; cell <= 1; cell++) { const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.38, 0.74), accent); seam.position.x = cell * 0.35; group.add(seam); }
+          if (/battery|cell|pack/.test(type)) for (let cell = -1; cell <= 1; cell += 1) { const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.38, 0.74), accent); seam.position.x = cell * 0.35; group.add(seam); }
         }
         if (motion.hasThermalSignal) { const thermalRing = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.035 + motion.thermalIntensity * 0.04, 8, 48), new THREE.MeshBasicMaterial({ color: motion.thermalIntensity > 0.7 ? 0xef4444 : 0xf59e0b, transparent: true, opacity: 0.25 + motion.thermalIntensity * 0.65 })); thermalRing.rotation.x = Math.PI / 2; thermalRing.position.y = 0.1; group.add(thermalRing); }
         if (entity.faults.length) { const faultRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.025, 8, 48), new THREE.MeshBasicMaterial({ color: 0xef4444 })); faultRing.rotation.x = Math.PI / 2; faultRing.position.y = 0.08; group.add(faultRing); }
@@ -64,7 +64,7 @@ export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_
         const columns = Math.max(1, Math.ceil(Math.sqrt(entities.length)));
         group.position.set(3.25 + (index % columns - (columns - 1) / 2) * 2.1, 0.5, (Math.floor(index / columns) - (Math.ceil(entities.length / columns) - 1) / 2) * 1.8);
         componentPositions.set(entity.id, { position: group.position.clone(), halfWidth: /battery|cell|pack/.test(type) ? 0.64 : 0.5 });
-        const object = new EngineeringObject({ id: entity.id, name: entity.name, subsystem: 'engineering-reality', category: entity.componentType, rootMesh: group, initialAttributes: { selected: entity.selected, health: entity.status === 'failed' ? 'failed' : entity.status === 'paused' ? 'warning' : entity.status === 'running' || entity.status === 'completed' ? 'nominal' : 'unknown', thermal: motion.hasThermalSignal ? { normalizedHeatRatio: motion.thermalIntensity } : undefined } });
+        const object = new EngineeringObject({ id: entity.id, name: entity.name, subsystem: 'engineering-reality', category: entity.componentType, rootMesh: group, initialAttributes: { selected: entity.selected, health: entity.status === 'failed' ? 'failed' : entity.status === 'paused' ? 'warning' : entity.status === 'running' || entity.status === 'completed' ? 'nominal' : 'unknown', thermal: motion.hasThermalSignal ? { temperatureCelsius: motion.temperatureCelsius, temperatureLimitCelsius: motion.temperatureLimitCelsius, normalizedHeatRatio: motion.thermalIntensity } : undefined } });
         manager!.registry.register(object);
       });
       if (connections.length) {
