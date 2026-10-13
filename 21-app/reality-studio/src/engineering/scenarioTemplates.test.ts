@@ -6,13 +6,18 @@ import type { EngineeringReality } from '../api';
 
 function reality(): EngineeringReality {
   return {
+    schema: 'helqix.engineering-reality.v1',
+    name: 'Motion Scenario Fixture',
+    domain: 'mechanical',
+    description: 'Deterministic test fixture for motion scenario execution.',
     revision: 1,
-    components: [{ id: 'motor-1', name: 'Drive Motor', componentType: 'motor', properties: [], behaviors: [], tags: [] }],
+    unitsSystem: 'SI',
+    components: [{ id: 'motor-1', name: 'Drive Motor', componentType: 'motor', properties: [] }],
     interfaces: [],
     connections: [],
     requirements: [],
-    environment: {},
-  } as EngineeringReality;
+    modelBindings: [],
+  };
 }
 
 describe('createMotionScenario', () => {
