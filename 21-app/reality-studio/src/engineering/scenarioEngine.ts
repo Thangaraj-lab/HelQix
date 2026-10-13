@@ -3,6 +3,7 @@ import {
   addFault,
   advanceLogicalTime,
   assertValidState,
+  clearFault,
   setComponentProperty,
   setComponentStatus,
   setEnvironmentValue,

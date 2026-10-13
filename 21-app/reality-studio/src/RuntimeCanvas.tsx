@@ -2,7 +2,7 @@ import type { RuntimeEntity, RuntimeViewPreset } from './visualRuntime';
 import { useVehicleRuntime, useVisualRuntime } from './visualRuntime';
 import type { EngineeringReality, RealityConnection, RealityInterface } from './api';
 import type { AuthoritativeEngineeringState } from './engineering/authoritativeState';
-import { bindAuthoritativeStateToReality } from './engineering/visualStateBinding';
+import { bindAuthoritativeStateToReality, type RuntimeEntityState } from './engineering/visualStateBinding';
 import { useMemo } from 'react';
 
 export interface RuntimeCanvasProps {
@@ -20,8 +20,17 @@ export interface RuntimeCanvasProps {
 }
 
 export function RuntimeCanvas({ entities = [], interfaces, connections, reality, authoritativeState, selectedEntityId, onSelectEntity, viewPreset, showGrid, showAxes, fitRevision }: RuntimeCanvasProps) {
-  const boundEntities = useMemo(() => {
-    if (!reality || !authoritativeState) return entities;
+  const boundEntities = useMemo<RuntimeEntityState[]>(() => {
+    if (!reality || !authoritativeState) return entities.map((entity) => ({
+      ...entity,
+      status: 'ready',
+      propertyValues: {},
+      faults: [],
+      signals: {},
+      selected: selectedEntityId === entity.id,
+      stateRevision: 0,
+      logicalTimeMs: 0,
+    }));
     return bindAuthoritativeStateToReality(reality, authoritativeState, selectedEntityId).entities;
   }, [entities, reality, authoritativeState, selectedEntityId]);
 

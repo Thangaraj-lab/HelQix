@@ -97,7 +97,8 @@ export function saveCheckpoint(
   label: string,
   reason: StateSnapshot['reason'] = 'checkpoint',
 ): EngineeringRuntimeContext {
-  const snapshot = captureSnapshot(context.state, reason, `checkpoint-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const checkpointLabel = label.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'unnamed';
+  const snapshot = captureSnapshot(context.state, reason, `checkpoint-${checkpointLabel}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   return { ...clone(context), snapshots: [...context.snapshots, snapshot] };
 }
 

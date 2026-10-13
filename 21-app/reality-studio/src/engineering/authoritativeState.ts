@@ -47,7 +47,7 @@ export interface StateEvent {
   before?: ScalarValue;
   after?: ScalarValue;
   faultId?: string;
-  source: 'scenario' | 'solver' | 'adapter' | 'runtime' | 'restore';
+  source: 'model' | 'scenario' | 'solver' | 'adapter' | 'runtime' | 'restore';
 }
 
 export interface StateMetadata {

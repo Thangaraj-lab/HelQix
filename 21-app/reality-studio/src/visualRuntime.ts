@@ -18,7 +18,6 @@ function statusColor(status: RuntimeEntityState['status']): number {
     case 'paused': return 0xf59e0b;
     case 'running': return 0x38bdf8;
     case 'completed': return 0x22c55e;
-    case 'stopped': return 0x94a3b8;
     case 'idle': return 0x94a3b8;
     default: return 0x64748b;
   }

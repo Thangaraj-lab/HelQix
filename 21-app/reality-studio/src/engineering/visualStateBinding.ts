@@ -4,7 +4,7 @@ import { assertValidState } from './authoritativeState';
 import type { RuntimeEntity } from '../visualRuntime';
 
 export interface RuntimeEntityState extends RuntimeEntity {
-  status: ComponentRuntimeState['status'];
+  status: ComponentRuntimeState['status'] | 'unknown';
   propertyValues: Record<string, string | number | boolean>;
   faults: string[];
   signals: Record<string, string | number | boolean>;
@@ -37,7 +37,7 @@ export function bindAuthoritativeStateToReality(
   selectedComponentId?: string | null,
 ): VisualStateBindingResult {
   assertValidState(state, reality);
-  const runtimeByComponent = new Map(state.components.map((component) => [component.componentId, component]));
+  const runtimeByComponent = new Map(Object.values(state.components).map((component) => [component.componentId, component]));
 
   const entities: RuntimeEntityState[] = reality.components.map((component) => {
     const runtime = runtimeByComponent.get(component.id);
@@ -47,7 +47,7 @@ export function bindAuthoritativeStateToReality(
       componentType: component.componentType,
       status: runtime?.status ?? 'unknown',
       propertyValues: Object.fromEntries((runtime?.properties ?? []).map((property) => [property.name, property.value])),
-      faults: [...(runtime?.faults ?? [])],
+      faults: [...(runtime?.faultIds ?? [])],
       signals: Object.fromEntries(Object.entries(runtime?.signals ?? {}).map(([name, signal]) => [name, signal.value])),
       selected: selectedComponentId === component.id,
       stateRevision: state.stateRevision,
@@ -76,7 +76,6 @@ export function runtimeStatusLabel(status: ComponentRuntimeState['status']): str
   switch (status) {
     case 'running': return 'RUNNING';
     case 'paused': return 'PAUSED';
-    case 'stopped': return 'STOPPED';
     case 'failed': return 'FAILED';
     case 'completed': return 'COMPLETED';
     case 'idle': return 'IDLE';
@@ -90,7 +89,6 @@ export function runtimeStatusHealth(status: ComponentRuntimeState['status']): 'u
     case 'running':
     case 'completed': return 'nominal';
     case 'paused': return 'warning';
-    case 'stopped':
     case 'idle': return 'unknown';
     default: return 'unknown';
   }

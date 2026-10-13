@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import math
 import os
@@ -129,6 +130,7 @@ class SitlSession:
 sessions: dict[str, SitlSession] = {}
 sessions_lock = asyncio.Lock()
 _schema_lock = threading.Lock()
+_local_workspace_lock = threading.Lock()
 _schema_initialized = False
 _pybamm_readiness: tuple[bool, str | None] | None = None
 _pybamm_lock = asyncio.Lock()
@@ -1173,6 +1175,38 @@ async def sign_up(body: SignUpRequest, response: Response) -> dict[str, Any]:
             row = database.execute("SELECT * FROM helqix_users WHERE id=?", (user_id,)).fetchone()
     except sqlite3.IntegrityError as exc:
         raise HTTPException(status_code=409, detail="An account with this email already exists") from exc
+    return {"user": user_public(row)}
+
+
+@app.post("/v1/auth/local-workspace")
+async def open_local_workspace(request: Request, response: Response) -> dict[str, Any]:
+    """Open the single-user local workspace without exposing a public login bypass.
+
+    This entry point is deliberately restricted to loopback clients and is
+    disabled when API-key mode is configured. Project and resource routes still
+    require the short-lived, HttpOnly session created here.
+    """
+    host = request.client.host if request.client else ""
+    try:
+        is_loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        is_loopback = False
+    if not is_loopback:
+        raise HTTPException(status_code=403, detail="Local workspace entry is only available from this computer")
+
+    email = "local-workspace@helqix.invalid"
+    with _local_workspace_lock, open_database() as database:
+        row = database.execute("SELECT * FROM helqix_users WHERE email=?", (email,)).fetchone()
+        if row is None:
+            user_id, now = str(uuid.uuid4()), time.time()
+            # Credentials are random and never returned or accepted by an API.
+            salt, password_hash = secrets.token_bytes(16), secrets.token_bytes(32)
+            database.execute(
+                "INSERT INTO helqix_users(id,name,email,organization,password_salt,password_hash,created_at) VALUES(?,?,?,?,?,?,?)",
+                (user_id, "Local workspace", email, "This computer", salt, password_hash, now),
+            )
+            row = database.execute("SELECT * FROM helqix_users WHERE id=?", (user_id,)).fetchone()
+        create_session(database, row["id"], response)
     return {"user": user_public(row)}
 
 

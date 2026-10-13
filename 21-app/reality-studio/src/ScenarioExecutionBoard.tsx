@@ -7,9 +7,9 @@ import { buildStateTimeline } from './engineering/stateTimeline';
 import { createFaultInjectionScenario, createInspectionScenario } from './engineering/scenarioTemplates';
 import type { ExecutableScenario } from './engineering/scenarioEngine';
 
-interface Props { project: Resource<ProjectPayload>; realityViewport: ReactNode; selectedComponentId?: string | null; onSelectComponent?: (id: string | null) => void; }
+interface Props { project: Resource<ProjectPayload>; realityViewport: (state?: import('./engineering/authoritativeState').AuthoritativeEngineeringState) => ReactNode; selectedComponentId?: string | null; onSelectComponent?: (id: string | null) => void; onBackToRuns: () => void; }
 
-export function ScenarioExecutionBoard({ project, realityViewport, selectedComponentId, onSelectComponent }: Props) {
+export function ScenarioExecutionBoard({ project, realityViewport, selectedComponentId, onSelectComponent, onBackToRuns }: Props) {
   const reality = project.payload.engineering_reality;
   const [scenarioKind, setScenarioKind] = useState<'inspection' | 'fault'>('inspection');
   const [faultComponentId, setFaultComponentId] = useState(selectedComponentId ?? reality?.components[0]?.id ?? '');
@@ -18,16 +18,16 @@ export function ScenarioExecutionBoard({ project, realityViewport, selectedCompo
   const [error, setError] = useState('');
   const timeline = useMemo(() => controller && reality ? buildStateTimeline(reality, controller.state) : null, [controller, reality]);
 
-  if (!reality) return <div className="canvas-stage stage-run">{realityViewport}<section className="execution-empty"><h2>No engineering reality</h2><p>Build a saved engineering reality before executing a scenario.</p></section></div>;
+  if (!reality) return <div className="canvas-stage stage-run">{realityViewport()}<section className="execution-empty"><h2>No engineering reality</h2><p>Build a saved engineering reality before executing a scenario.</p><button className="secondary-button" onClick={onBackToRuns}>Back to model runs</button></section></div>;
   const prepare = () => { try { setError(''); const chosen = scenarioKind === 'inspection' ? createInspectionScenario(reality) : createFaultInjectionScenario(reality, faultComponentId || reality.components[0]?.id || ''); const initial = createInitialState(reality, { scenarioId: chosen.id, executionId: `studio-${Date.now()}` }); setScenario(chosen); setController(createExecutionController(reality, chosen, initial)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not prepare scenario.'); } };
   const apply = (fn: (current: ExecutionController) => ExecutionController) => { if (!controller || !scenario) return; try { setError(''); setController(fn(controller)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Execution action failed.'); } };
-  const step = () => apply((current) => stepExecution(reality, scenario, current).controller);
-  const run = () => apply((current) => runToCompletion(reality, scenario, current));
+  const step = () => { const currentScenario = scenario; if (!currentScenario) return; apply((current) => stepExecution(reality, currentScenario, current).controller); };
+  const run = () => { const currentScenario = scenario; if (!currentScenario) return; apply((current) => runToCompletion(reality, currentScenario, current)); };
   const phase = controller?.phase ?? 'idle';
   const selectedComponent = reality.components.find((component) => component.id === (selectedComponentId ?? faultComponentId));
 
-  return <div className="canvas-stage stage-run">{realityViewport}<div className="stage-grid"/><section className="scenario-board">
-    <header className="scenario-header"><div><span className="stage-kicker">EXECUTABLE REALITY <i/> AUTHORITATIVE STATE</span><h1>Scenario execution</h1><p>Run deterministic engineering actions against the saved reality. The 3D scene follows authoritative runtime state.</p></div><span className={`scenario-phase phase-${phase}`}><i/>{phase.toUpperCase()}</span></header>
+  return <div className="canvas-stage stage-run">{realityViewport(controller?.state)}<div className="stage-grid"/><section className="scenario-board">
+    <header className="scenario-header"><div><button type="button" className="scenario-back" onClick={onBackToRuns}>← Model runs</button><span className="stage-kicker">EXECUTABLE REALITY <i/> AUTHORITATIVE STATE</span><h1>Scenario execution</h1><p>Run deterministic engineering actions against the saved reality. The 3D scene follows authoritative runtime state.</p></div><span className={`scenario-phase phase-${phase}`}><i/>{phase.toUpperCase()}</span></header>
     <div className="scenario-toolbar">
       <label>Scenario<select value={scenarioKind} onChange={(event) => { setScenarioKind(event.target.value as 'inspection' | 'fault'); setController(null); setScenario(null); }}><option value="inspection">Inspection · start → checkpoint → complete</option><option value="fault">Fault injection · start → fault → checkpoint</option></select></label>
       {scenarioKind === 'fault' && <label>Target component<select value={faultComponentId} onChange={(event) => { setFaultComponentId(event.target.value); onSelectComponent?.(event.target.value); setController(null); }}>{reality.components.map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}</select></label>}
