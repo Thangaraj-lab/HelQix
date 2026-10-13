@@ -69,7 +69,18 @@ export * from './conditionEngine';
 export * from './simulationOrchestrator';
 export * from './environmentFabric';
 export * from './physicsFabric';
-export * from './physicsFabricRuntime';
+export {
+  PHYSICS_FABRIC_RUNTIME_SCHEMA,
+  type PhysicsDomain as PhysicsRuntimeDomain,
+  type PhysicsProviderPhase,
+  type PhysicsProviderCapabilities,
+  type PhysicsStepContext as PhysicsRuntimeStepContext,
+  type PhysicsEvent as PhysicsRuntimeEvent,
+  type PhysicsProviderResult,
+  type PhysicsProvider,
+  type PhysicsExecutionResult,
+  PhysicsFabricRuntime,
+} from './physicsFabricRuntime';
 export * from './coupledPhysicsEngine';
 export * from './observationFabric';
 export * from './causalityEngine';
