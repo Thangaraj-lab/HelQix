@@ -7,13 +7,12 @@ export interface EngineeringVisualMotion {
   translationMeters: number;
   /** Normalized thermal intensity. 0 means no thermal signal is available. */
   thermalIntensity: number;
-  /** True only when the corresponding engineering signal exists. */
   hasMotionSignal: boolean;
   hasThermalSignal: boolean;
 }
 
 function normalize(name: string): string {
-  return name.toLowerCase().replace(/[\\s_-]/g, '');
+  return name.toLowerCase().replace(/[\s_-]/g, '');
 }
 
 function numberByAlias(entity: RuntimeEntityState, aliases: string[]): number | undefined {
