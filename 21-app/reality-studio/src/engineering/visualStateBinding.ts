@@ -3,6 +3,13 @@ import type { AuthoritativeEngineeringState, RuntimeStatus } from './authoritati
 import { assertValidState } from './authoritativeState';
 import type { RuntimeEntity } from '../visualRuntime';
 
+export interface RuntimeMotionEvent {
+  logicalTimeMs: number;
+  name: string;
+  value: number;
+  source: 'model' | 'solver' | 'adapter' | 'scenario' | 'runtime';
+}
+
 export interface RuntimeEntityState extends RuntimeEntity {
   status: RuntimeStatus | 'unknown';
   propertyValues: Record<string, string | number | boolean>;
@@ -11,6 +18,7 @@ export interface RuntimeEntityState extends RuntimeEntity {
   selected: boolean;
   stateRevision: number;
   logicalTimeMs: number;
+  motionEvents: RuntimeMotionEvent[];
 }
 
 export interface VisualStateBindingResult {
@@ -22,9 +30,10 @@ export interface VisualStateBindingResult {
   stateStatus: AuthoritativeEngineeringState['status'];
 }
 
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
+function clone<T>(value: T): T { return structuredClone(value); }
+function normalize(name: string): string { return name.toLowerCase().replace(/[\s_-]/g, ''); }
+const RPM_ALIASES = new Set(['rpm', 'rotationalspeed', 'rotationsperminute', 'shaftspeed']);
+const VELOCITY_ALIASES = new Set(['velocityms', 'speedms', 'linearvelocity']);
 
 /** Projects authoritative engineering state into UI-safe runtime entities. No physics or failure is inferred. */
 export function bindAuthoritativeStateToReality(
@@ -34,6 +43,16 @@ export function bindAuthoritativeStateToReality(
 ): VisualStateBindingResult {
   assertValidState(state, reality);
   const runtimeByComponent = new Map(Object.values(state.components).map((component) => [component.componentId, component]));
+  const motionByComponent = new Map<string, RuntimeMotionEvent[]>();
+  for (const event of state.events) {
+    if (event.type !== 'signal_updated' || !event.componentId || typeof event.after !== 'number' || !Number.isFinite(event.after)) continue;
+    const name = normalize(event.name ?? '');
+    if (!RPM_ALIASES.has(name) && !VELOCITY_ALIASES.has(name)) continue;
+    const events = motionByComponent.get(event.componentId) ?? [];
+    events.push({ logicalTimeMs: event.logicalTimeMs, name: event.name ?? '', value: event.after, source: event.source });
+    motionByComponent.set(event.componentId, events);
+  }
+  for (const events of motionByComponent.values()) events.sort((a, b) => a.logicalTimeMs - b.logicalTimeMs);
 
   const entities: RuntimeEntityState[] = reality.components.map((component) => {
     const runtime = runtimeByComponent.get(component.id);
@@ -48,6 +67,7 @@ export function bindAuthoritativeStateToReality(
       selected: selectedComponentId === component.id,
       stateRevision: state.stateRevision,
       logicalTimeMs: state.logicalTimeMs,
+      motionEvents: clone(motionByComponent.get(component.id) ?? []),
     };
   });
 
@@ -61,9 +81,7 @@ export function bindAuthoritativeStateToReality(
   };
 }
 
-export function runtimeEntityById(binding: VisualStateBindingResult, componentId: string): RuntimeEntityState | undefined {
-  return binding.entities.find((entity) => entity.id === componentId);
-}
+export function runtimeEntityById(binding: VisualStateBindingResult, componentId: string): RuntimeEntityState | undefined { return binding.entities.find((entity) => entity.id === componentId); }
 
 export function runtimeStatusLabel(status: RuntimeEntityState['status']): string {
   switch (status) {
@@ -91,6 +109,4 @@ export function runtimeStatusHealth(status: RuntimeEntityState['status']): 'unkn
   }
 }
 
-export function stateBindingRevision(binding: VisualStateBindingResult): string {
-  return `R${binding.realityRevision} · S${binding.stateRevision} · T+${(binding.logicalTimeMs / 1000).toFixed(3)}s`;
-}
+export function stateBindingRevision(binding: VisualStateBindingResult): string { return `R${binding.realityRevision} · S${binding.stateRevision} · T+${(binding.logicalTimeMs / 1000).toFixed(3)}s`; }
