@@ -26,11 +26,10 @@ function clone<T>(value: T): T { return structuredClone(value); }
 function finite(value: number, label: string): void { if (!Number.isFinite(value)) throw new Error(`${label} must be finite.`); }
 function parameterKey(componentId: string, propertyName: string): string { return `${componentId}::${propertyName}`; }
 function sameDimension(a: DimensionVector, b: DimensionVector): boolean { const keys = ['length', 'mass', 'time', 'temperature', 'current', 'amount', 'luminousIntensity'] as const; return keys.every((key) => a[key] === b[key]); }
-
 function componentMetadata(component: EngineeringComponent): Pick<RuntimeComponent, 'category' | 'constraints' | 'behaviors' | 'tags'> {
   return { category: component.category ?? 'unknown', constraints: clone(component.constraints ?? []), behaviors: clone(component.behaviors ?? []), tags: [...(component.tags ?? [])] };
 }
-
+function parameterSource(origin: RealityProperty['origin']): RuntimeParameter['source'] { return origin === 'model' ? 'derived' : origin; }
 function runtimeComponent(component: EngineeringComponent, reality: EngineeringReality, contracts: EngineeringModelContract[]): RuntimeComponent {
   const metadata = componentMetadata(component);
   const interfaces = reality.interfaces.filter((item) => item.componentId === component.id).map((item) => ({
@@ -39,14 +38,13 @@ function runtimeComponent(component: EngineeringComponent, reality: EngineeringR
   }));
   return { id: component.id, name: component.name, componentType: component.componentType, ...metadata,
     parameters: component.properties.map((property) => {
-      const result: RuntimeParameter = { componentId: component.id, propertyName: property.name, value: clone(property.value), ...(property.unit ? { unit: property.unit } : {}), source: property.origin, state: 'valid' };
-      if (typeof property.value === 'number' && property.unit) { try { result.physicalQuantity = quantity(property.value, property.unit, { source: property.origin, ...(property.sourceRef ? { sourceRef: property.sourceRef } : {}) }); } catch { result.state = 'invalid'; } }
+      const result: RuntimeParameter = { componentId: component.id, propertyName: property.name, value: clone(property.value), ...(property.unit ? { unit: property.unit } : {}), source: parameterSource(property.origin), state: 'valid' };
+      if (typeof property.value === 'number' && property.unit) { try { result.physicalQuantity = quantity(property.value, property.unit, { source: parameterSource(property.origin) === 'runtime' ? 'derived' : parameterSource(property.origin) }); } catch { result.state = 'invalid'; } }
       return result;
     }),
     interfaces, modelContracts: contracts.filter((contract) => contract.componentType === component.componentType),
   };
 }
-
 function parseConstraint(expression: string): { left: string; operator: '<' | '<=' | '>' | '>=' | '==' | '!='; right: number } | undefined {
   const match = expression.trim().match(/^([a-zA-Z0-9_.:-]+)\s*(<=|>=|==|!=|<|>)\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)$/);
   if (!match) return undefined;
@@ -61,7 +59,7 @@ export class EngineeringModelRuntimeImpl implements EngineeringModelRuntime {
   private modelRevisionValue: number;
   private realityValue: EngineeringReality;
 
-  constructor(reality: EngineeringReality, private readonly modelContracts: EngineeringModelContract[] = [], componentDefinitions: ComponentDefinition[] = []) {
+  constructor(reality: EngineeringReality, modelContracts: EngineeringModelContract[] = [], componentDefinitions: ComponentDefinition[] = []) {
     const normalized = normalizeReality(reality); assertValidReality(normalized); this.realityValue = cloneReality(normalized); this.modelRevisionValue = normalized.revision;
     const definitions = new Map(componentDefinitions.map((definition) => [definition.componentType, definition]));
     for (const raw of normalized.components) {
@@ -129,7 +127,7 @@ export class EngineeringModelRuntimeImpl implements EngineeringModelRuntime {
   }
 
   private runtimeConnection(connection: EngineeringReality['connections'][number]): RuntimeConnection { const source = this.realityValue.interfaces.find((item) => item.id === connection.sourceInterfaceId); const target = this.realityValue.interfaces.find((item) => item.id === connection.targetInterfaceId); if (!source || !target) throw new Error(`Connection ${connection.id} references a missing interface.`); return { id: connection.id, sourceInterfaceId: source.id, targetInterfaceId: target.id, connectionType: connection.connectionType, sourceComponentId: source.componentId, targetComponentId: target.componentId }; }
-  private refreshParameterValidity(): void { for (const parameter of this.parameterIndex.values()) { if (typeof parameter.value !== 'number' || !parameter.unit) continue; try { parameter.physicalQuantity = quantity(parameter.value, parameter.unit, { source: parameter.source === 'runtime' ? 'derived' : parameter.source }); assertQuantity(parameter.physicalQuantity); parameter.state = 'valid'; } catch { parameter.state = 'invalid'; } } }
+  private refreshParameterValidity(): void { for (const parameter of this.parameterIndex.values()) { if (typeof parameter.value !== 'number' || !parameter.unit) continue; try { parameter.physicalQuantity = quantity(parameter.value, parameter.unit, { source: parameter.source === 'runtime' ? 'derived' : parameterSource(parameter.source) }); assertQuantity(parameter.physicalQuantity); parameter.state = 'valid'; } catch { parameter.state = 'invalid'; } } }
 }
 
 export function createEngineeringModelRuntime(reality: EngineeringReality, modelContracts: EngineeringModelContract[] = [], componentDefinitions: ComponentDefinition[] = []): EngineeringModelRuntimeImpl { return new EngineeringModelRuntimeImpl(reality, modelContracts, componentDefinitions); }
