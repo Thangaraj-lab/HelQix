@@ -11,20 +11,13 @@ export const EMPTY_RUNTIME_ENTITIES: RuntimeEntityState[] = [];
 export const EMPTY_RUNTIME_INTERFACES: RealityInterface[] = [];
 export const EMPTY_RUNTIME_CONNECTIONS: RealityConnection[] = [];
 
-function statusColor(status: RuntimeEntityState['status']): number {
-  switch (status) {
-    case 'failed': return 0xef4444;
-    case 'paused': return 0xf59e0b;
-    case 'running': return 0x38bdf8;
-    case 'completed': return 0x22c55e;
-    case 'idle': return 0x94a3b8;
-    case 'faulted': return 0xef4444;
-    case 'ready': return 0x94a3b8;
-    default: return 0x64748b;
-  }
-}
+function statusColor(status: RuntimeEntityState['status']): number { switch (status) { case 'failed': return 0xef4444; case 'paused': return 0xf59e0b; case 'running': return 0x38bdf8; case 'completed': return 0x22c55e; case 'idle': return 0x94a3b8; case 'faulted': return 0xef4444; case 'ready': return 0x94a3b8; default: return 0x64748b; } }
 function isActive(status: RuntimeEntityState['status']): boolean { return status === 'running'; }
 
+/**
+ * Builds a state-driven visual scene. Logical engineering motion is evaluated
+ * from authoritative state/history; this layer never invents telemetry.
+ */
 export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_ENTITIES, interfaces: RealityInterface[] = EMPTY_RUNTIME_INTERFACES, connections: RealityConnection[] = EMPTY_RUNTIME_CONNECTIONS, onSelectEntity?: (id: string | null) => void, selectedEntityId?: string | null, viewPreset: RuntimeViewPreset = 'isometric', showGrid = true, showAxes = true, fitRevision = 0) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const managerRef = useRef<SceneManager | null>(null);
@@ -37,8 +30,7 @@ export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_
     let connectionGroup: THREE.Group | null = null;
     try {
       manager = new SceneManager({ canvas, sceneConfig: { backgroundColor: 0x080b10, showGrid, showAxes, gridSizeMeters: 20 }, enableInterpolation: true });
-      manager.setViewPreset(viewPreset, cameraTargetRef.current);
-      managerRef.current = manager;
+      manager.setViewPreset(viewPreset, cameraTargetRef.current); managerRef.current = manager;
       const componentPositions = new Map<string, { position: THREE.Vector3; halfWidth: number }>();
       entities.forEach((entity, index) => {
         const group = new THREE.Group();
@@ -55,31 +47,18 @@ export function useVisualRuntime(entities: RuntimeEntityState[] = EMPTY_RUNTIME_
           const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 16), accent); shaft.rotation.z = Math.PI / 2; shaftAssembly.add(shaft);
           if (isRotating) {
             const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0xc5e486, metalness: 0.35, roughness: 0.3 });
-            for (let bladeIndex = 0; bladeIndex < 4; bladeIndex++) {
-              const blade = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.035, 0.09), bladeMaterial);
-              blade.rotation.y = bladeIndex * (Math.PI / 2);
-              blade.position.x = 0.18;
-              shaftAssembly.add(blade);
-            }
+            for (let bladeIndex = 0; bladeIndex < 4; bladeIndex++) { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.035, 0.09), bladeMaterial); blade.rotation.y = bladeIndex * (Math.PI / 2); blade.position.x = 0.18; shaftAssembly.add(blade); }
             shaftAssembly.rotation.x = motion.rotationRad;
           }
           group.add(shaftAssembly);
         } else if (isWheel) {
-          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.18, 28), material);
-          wheel.rotation.z = Math.PI / 2;
-          wheel.rotation.y += motion.rotationRad;
-          wheel.position.x += motion.translationMeters;
-          wheel.castShadow = true;
-          group.add(wheel);
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.18, 28), material); wheel.rotation.z = Math.PI / 2; wheel.rotation.y += motion.rotationRad; wheel.position.x += motion.translationMeters; wheel.castShadow = true; group.add(wheel);
         } else {
           const bounds = /battery|cell|pack/.test(type) ? [1.25, 0.48, 0.82] : [0.92, 0.72, 0.76];
           const body = new THREE.Mesh(new THREE.BoxGeometry(...bounds as [number, number, number]), material); body.castShadow = true; body.receiveShadow = true; group.add(body);
           if (/battery|cell|pack/.test(type)) for (let cell = -1; cell <= 1; cell++) { const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.38, 0.74), accent); seam.position.x = cell * 0.35; group.add(seam); }
         }
-        if (motion.hasThermalSignal) {
-          const thermalRing = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.035 + motion.thermalIntensity * 0.04, 8, 48), new THREE.MeshBasicMaterial({ color: motion.thermalIntensity > 0.7 ? 0xef4444 : 0xf59e0b, transparent: true, opacity: 0.25 + motion.thermalIntensity * 0.65 }));
-          thermalRing.rotation.x = Math.PI / 2; thermalRing.position.y = 0.1; group.add(thermalRing);
-        }
+        if (motion.hasThermalSignal) { const thermalRing = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.035 + motion.thermalIntensity * 0.04, 8, 48), new THREE.MeshBasicMaterial({ color: motion.thermalIntensity > 0.7 ? 0xef4444 : 0xf59e0b, transparent: true, opacity: 0.25 + motion.thermalIntensity * 0.65 })); thermalRing.rotation.x = Math.PI / 2; thermalRing.position.y = 0.1; group.add(thermalRing); }
         if (entity.faults.length) { const faultRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.025, 8, 48), new THREE.MeshBasicMaterial({ color: 0xef4444 })); faultRing.rotation.x = Math.PI / 2; faultRing.position.y = 0.08; group.add(faultRing); }
         if (entity.selected) { const selectionRing = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.018, 8, 48), new THREE.MeshBasicMaterial({ color: 0x22d3ee })); selectionRing.rotation.x = Math.PI / 2; selectionRing.position.y = 0.03; group.add(selectionRing); }
         const columns = Math.max(1, Math.ceil(Math.sqrt(entities.length)));
