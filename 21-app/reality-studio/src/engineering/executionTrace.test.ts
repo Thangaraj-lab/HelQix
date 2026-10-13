@@ -9,13 +9,18 @@ import { createExecutionController, runToCompletion } from './executionControlle
 
 function reality(): EngineeringReality {
   return {
+    schema: 'helqix.engineering-reality.v1',
+    name: 'Execution Trace Fixture',
+    domain: 'mechanical',
+    description: 'Deterministic test fixture for execution trace, freeze, replay and branch behavior.',
     revision: 7,
-    components: [{ id: 'motor-1', name: 'Reference Motor', componentType: 'motor', properties: [], behaviors: [], tags: [] }],
+    unitsSystem: 'SI',
+    components: [{ id: 'motor-1', name: 'Reference Motor', componentType: 'motor', properties: [] }],
     interfaces: [],
     connections: [],
     requirements: [],
-    environment: {},
-  } as EngineeringReality;
+    modelBindings: [],
+  };
 }
 
 describe('HELQIX execution trace', () => {
