@@ -1,7 +1,7 @@
 import type { EngineeringReality } from '../api';
 import { addFault, assertValidState, captureSnapshot, setStateStatus, type AuthoritativeEngineeringState, type StateSnapshot } from './authoritativeState';
 import { CausalityEngine, type CausalFailure } from './causalityEngine';
-import { runCoupledMotor, type CoupledMotorParameters, type CoupledPhysicsFailure, type CoupledPhysicsStepResult } from './coupledPhysicsEngine';
+import { runCoupledMotor, type CoupledMotorParameters, type CoupledPhysicsFailure } from './coupledPhysicsEngine';
 import { createEnvironment, type EnvironmentDefinition } from './environmentFabric';
 import { ObservationFabric, type ObservationAnomaly, type ObservationFrame } from './observationFabric';
 import { DeterministicSimulationClock } from './simulationClock';
@@ -27,7 +27,7 @@ export interface DeterministicSimulationResult {
   status: 'completed' | 'failed';
   initialState: AuthoritativeEngineeringState;
   finalState: AuthoritativeEngineeringState;
-  clock: ReturnType<DeterministicSimulationEngine['clockSnapshot']>;
+  clock: ReturnType<DeterministicEngineeringSimulationEngine['clockSnapshot']>;
   observations: ObservationFrame[];
   failures: DeterministicSimulationFailure[];
   checkpoints: StateSnapshot[];
@@ -56,7 +56,7 @@ function anomalyForFailure(failure: CoupledPhysicsFailure): ObservationAnomaly {
 }
 
 export class DeterministicEngineeringSimulationEngine {
-  private readonly clock: DeterministicSimulationEngineClock;
+  private readonly clock: DeterministicSimulationClock;
   private readonly observation = new ObservationFabric();
   private readonly causality = new CausalityEngine();
 
@@ -71,7 +71,7 @@ export class DeterministicEngineeringSimulationEngine {
     if (!Number.isInteger(options.durationMs / options.fixedStepMs)) throw new Error('durationMs must align to fixedStepMs.');
     if (state.realityRevision !== reality.revision) throw new Error('Simulation state does not match engineering reality revision.');
     assertValidState(state, reality);
-    this.clock = new DeterministicSimulationEngineClock({ startTimeMs: state.logicalTimeMs, fixedStepMs: options.fixedStepMs, maxTimeMs: state.logicalTimeMs + options.durationMs });
+    this.clock = new DeterministicSimulationClock({ startTimeMs: state.logicalTimeMs, fixedStepMs: options.fixedStepMs, maxTimeMs: state.logicalTimeMs + options.durationMs });
     for (const motor of options.motorParameters ?? []) this.registerMotorObservationProbes(motor);
     for (const motor of options.motorParameters ?? []) {
       this.causality.addNode({ id: `component:${motor.componentId}`, kind: 'component', label: motor.componentId, reference: motor.componentId });
@@ -140,5 +140,3 @@ export class DeterministicEngineeringSimulationEngine {
     this.observation.registerProbe({ id: `temperature:${parameters.componentId}`, name: `${parameters.componentId} winding temperature`, source: 'state', componentId: parameters.componentId, signalName: 'windingTemperatureC', unit: '°C', ...(parameters.maximumTemperatureC !== undefined ? { max: parameters.maximumTemperatureC } : {}), enabled: true });
   }
 }
-
-type DeterministicSimulationEngineClock = DeterministicSimulationClock;
