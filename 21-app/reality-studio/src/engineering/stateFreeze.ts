@@ -1,5 +1,5 @@
 import type { EngineeringReality } from '../api';
-import { captureSnapshot, type AuthoritativeEngineeringState, type StateSnapshot } from './authoritativeState';
+import { captureSnapshot, validateState, type AuthoritativeEngineeringState, type StateSnapshot } from './authoritativeState';
 import type { ExecutableScenario } from './scenarioEngine';
 
 export const STATE_FREEZE_SCHEMA = 'helqix.state-freeze.v1' as const;
@@ -30,6 +30,9 @@ function digest(value: unknown): string {
 }
 
 export function createStateFreeze(reality: EngineeringReality, state: AuthoritativeEngineeringState, scenario: ExecutableScenario, options: { executionConfiguration?: Record<string, unknown>; solver?: { name: string; version?: string }; externalTools?: Array<{ name: string; version?: string }>; deterministic?: boolean } = {}): StateFreeze {
+  const validation = validateState(state, reality);
+  if (!validation.valid) throw new Error(`Cannot freeze invalid authoritative state: ${validation.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message).join('; ')}`);
+  if (state.realityRevision !== reality.revision) throw new Error('Cannot freeze state from a different reality revision.');
   const snapshot = captureSnapshot(state, 'manual', `freeze-${scenario.id}-${state.stateRevision}`);
   return {
     schema: STATE_FREEZE_SCHEMA,
@@ -51,12 +54,12 @@ export function createStateFreeze(reality: EngineeringReality, state: Authoritat
 }
 
 export function verifyStateFreeze(freeze: StateFreeze, reality: EngineeringReality, scenario: ExecutableScenario): boolean {
-  return freeze.schema === STATE_FREEZE_SCHEMA
-    && freeze.realityRevision === reality.revision
-    && freeze.scenarioId === scenario.id
-    && freeze.scenarioVersion === scenario.version
-    && freeze.realityDigest === digest(reality)
-    && freeze.scenarioDigest === digest(scenario)
-    && freeze.snapshot.stateRevision === freeze.stateRevision
-    && freeze.snapshot.logicalTimeMs === freeze.logicalTimeMs;
+  if (freeze.schema !== STATE_FREEZE_SCHEMA) return false;
+  if (freeze.realityRevision !== reality.revision || freeze.scenarioId !== scenario.id || freeze.scenarioVersion !== scenario.version) return false;
+  if (freeze.realityDigest !== digest(reality) || freeze.scenarioDigest !== digest(scenario)) return false;
+  if (freeze.snapshot.schema !== 'helqix.state-snapshot.v1') return false;
+  if (freeze.snapshot.stateRevision !== freeze.stateRevision || freeze.snapshot.logicalTimeMs !== freeze.logicalTimeMs) return false;
+  if (freeze.snapshot.state.realityRevision !== freeze.realityRevision) return false;
+  if (freeze.snapshot.state.stateRevision !== freeze.stateRevision || freeze.snapshot.state.logicalTimeMs !== freeze.logicalTimeMs) return false;
+  return validateState(freeze.snapshot.state, reality).valid;
 }
