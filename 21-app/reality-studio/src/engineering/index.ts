@@ -1,5 +1,11 @@
 export * from './engineeringReality';
 export * from './physicalQuantity';
+export * from './modelRuntime';
+export * from './environmentFabric';
+export * from './physicsFabricRuntime';
+export * from './observationFabric';
+export * from './causalityEngine';
+export * from './simulationClock';
 export {
   AUTHORITATIVE_STATE_SCHEMA,
   STATE_SNAPSHOT_SCHEMA,
