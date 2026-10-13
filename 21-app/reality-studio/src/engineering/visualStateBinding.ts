@@ -34,6 +34,9 @@ function clone<T>(value: T): T { return structuredClone(value); }
 function normalize(name: string): string { return name.toLowerCase().replace(/[\s_-]/g, ''); }
 const RPM_ALIASES = new Set(['rpm', 'rotationalspeed', 'rotationsperminute', 'shaftspeed']);
 const VELOCITY_ALIASES = new Set(['velocityms', 'speedms', 'linearvelocity']);
+function motionEventSource(source: AuthoritativeEngineeringState['events'][number]['source']): RuntimeMotionEvent['source'] {
+  return source === 'restore' ? 'runtime' : source;
+}
 
 /** Projects authoritative engineering state into UI-safe runtime entities. No physics or failure is inferred. */
 export function bindAuthoritativeStateToReality(
@@ -49,7 +52,7 @@ export function bindAuthoritativeStateToReality(
     const name = normalize(event.name ?? '');
     if (!RPM_ALIASES.has(name) && !VELOCITY_ALIASES.has(name)) continue;
     const events = motionByComponent.get(event.componentId) ?? [];
-    events.push({ logicalTimeMs: event.logicalTimeMs, name: event.name ?? '', value: event.after, source: event.source });
+    events.push({ logicalTimeMs: event.logicalTimeMs, name: event.name ?? '', value: event.after, source: motionEventSource(event.source) });
     motionByComponent.set(event.componentId, events);
   }
   for (const events of motionByComponent.values()) events.sort((a, b) => a.logicalTimeMs - b.logicalTimeMs);
