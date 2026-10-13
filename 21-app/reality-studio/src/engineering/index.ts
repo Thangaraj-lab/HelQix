@@ -1,11 +1,6 @@
 export * from './engineeringReality';
 export * from './physicalQuantity';
 export * from './modelRuntime';
-export * from './environmentFabric';
-export * from './physicsFabricRuntime';
-export * from './observationFabric';
-export * from './causalityEngine';
-export * from './simulationClock';
 export {
   AUTHORITATIVE_STATE_SCHEMA,
   STATE_SNAPSHOT_SCHEMA,
@@ -72,6 +67,9 @@ export * from './stateFreeze';
 export * from './evidenceEngine';
 export * from './conditionEngine';
 export * from './simulationOrchestrator';
+export * from './environmentFabric';
+export * from './physicsFabric';
+export * from './simulationClock';
 export * from './optimizationEngine';
 export * from './searchEngine';
 export * from './computeFabric';
