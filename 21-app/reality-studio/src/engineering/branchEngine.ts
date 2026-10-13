@@ -26,6 +26,7 @@ export function applyBranch(branch: EngineeringBranch, reality: EngineeringReali
 }
 
 export function compareBranches(baseline: BranchResult, candidate: BranchResult): { stateRevisionDelta: number; logicalTimeDeltaMs: number; changedProperties: Array<{ componentId: string; propertyName: string; baseline: unknown; candidate: unknown }> } {
+  if (baseline.status !== 'completed' || candidate.status !== 'completed') throw new Error('Only completed branch results can be compared.');
   if (baseline.baseRealityRevision !== candidate.baseRealityRevision || baseline.baseStateRevision !== candidate.baseStateRevision) throw new Error('Cannot compare branches from different authoritative bases.');
   const changedProperties: Array<{ componentId: string; propertyName: string; baseline: unknown; candidate: unknown }> = [];
   const componentIds = new Set([...Object.keys(baseline.resultingState.components), ...Object.keys(candidate.resultingState.components)]);
