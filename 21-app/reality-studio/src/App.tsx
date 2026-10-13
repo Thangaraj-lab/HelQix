@@ -10,6 +10,7 @@ type ConnectedTool = { id: string; label: string; status: string; available: boo
 type StudioSearchEntry = { id: string; kind: 'project' | 'component' | 'requirement' | 'run' | 'branch' | 'search' | 'evidence'; title: string; detail: string; searchable: string };
 const EMPTY_RUNTIME_ENTITIES: Array<{ id: string; name: string; componentType: string }> = [];
 const RuntimeCanvas = lazy(() => import('./RuntimeCanvas').then((module) => ({ default: module.RuntimeCanvas })));
+const ScenarioExecutionBoard = lazy(() => import('./ScenarioExecutionBoard').then((module) => ({ default: module.ScenarioExecutionBoard })));
 const VehicleRuntimeCanvas = lazy(() => import('./RuntimeCanvas').then((module) => ({ default: module.VehicleRuntimeCanvas })));
 const modes: Array<{ name: Mode; icon: typeof Box; label: string }> = [
   { name: 'Build', icon: Box, label: 'Define reality' },
@@ -745,7 +746,7 @@ function CanvasStage({ mode, project, run, playbackIndex, playbackPlaying, onPla
   const runtimeEntities = project.payload.engineering_reality?.components ?? EMPTY_RUNTIME_ENTITIES;
   const realityViewport = <Suspense fallback={<RuntimeFallback />}><RuntimeCanvas entities={runtimeEntities} interfaces={project.payload.engineering_reality?.interfaces} connections={project.payload.engineering_reality?.connections} selectedEntityId={selectedComponentId} onSelectEntity={onSelectComponent} viewPreset={viewPreset} showGrid={showGrid} showAxes={showAxes} fitRevision={fitRevision} /></Suspense>;
   if (mode === 'Simulate') return <SimulationSetupBoard project={project} tools={tools} busy={busy} realityViewport={realityViewport} onRunVehicle={onRunVehicle} onRunCell={onRunCell} onGoBuild={onGoBuild} />;
-  if (mode === 'Run') return <ExecutionBoard runs={runs} selectedRun={run} busy={busy} realityViewport={realityViewport} onConfigure={onGoSimulate} onOpenRun={onOpenRun} />;
+  if (mode === 'Run') return <div className="run-workspace"><Suspense fallback={<RuntimeFallback />}><ScenarioExecutionBoard project={project} realityViewport={realityViewport} selectedComponentId={selectedComponentId} onSelectComponent={onSelectComponent} /></Suspense><ExecutionBoard runs={runs} selectedRun={run} busy={busy} realityViewport={<></>} onConfigure={onGoSimulate} onOpenRun={onOpenRun} /></div>;
   if (mode === 'Improve') return <ImproveBoard project={project} branches={branches} searches={searches} runs={runs} busy={busy} progress={sweepProgress} realityViewport={realityViewport} onRunSweep={onRunSweep} onGoBuild={onGoBuild} onGoSimulate={onGoSimulate} />;
   if (mode === 'Verify') return <VerifyBoard project={project} requirements={requirements} records={records} compatibleRun={compatibleRun} busy={busy} realityViewport={realityViewport} onAdd={onAddRequirement} onReview={onReview} onVerify={onVerify} onExport={onExport} />;
   if (mode === 'Understand' && run?.operation === 'simulate_ev_drive_cycle' && vehicleSeries?.length) return <EVRunView run={run} series={vehicleSeries} playbackIndex={playbackIndex} playbackPlaying={playbackPlaying} onPlaybackIndexChange={onPlaybackIndexChange} onPlaybackPlayingChange={onPlaybackPlayingChange} realityViewport={realityViewport} />;

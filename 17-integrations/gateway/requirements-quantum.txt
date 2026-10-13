@@ -1,0 +1,4 @@
+# Optional quantum execution capability for the HELQIX integration gateway.
+# qBraid's native runtime API provides provider-agnostic device discovery,
+# OpenQASM 3 submission, lifecycle management, and result retrieval.
+qbraid>=0.12.1,<0.13

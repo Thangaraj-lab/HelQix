@@ -27,6 +27,23 @@ export function createFaultInjectionScenario(reality: EngineeringReality, compon
   return createScenario('Fault injection', reality, actions, 'Generic fault-state scenario for validating observation, checkpointing, and replay boundaries.');
 }
 
+/** Deterministic motion smoke test used by reference systems such as EV and drone models. */
+export function createMotionScenario(reality: EngineeringReality, componentId: string): ExecutableScenario {
+  if (!reality.components.some((component) => component.id === componentId)) throw new Error(`Unknown component: ${componentId}`);
+  const component = reality.components.find((item) => item.id === componentId)!;
+  const names = new Set(component.properties.map((property) => property.name.toLowerCase().replace(/[\s_-]/g, '')));
+  const rpmName = ['rpm', 'rotational_speed', 'rotations_per_minute', 'shaft_speed'].find((name) => names.has(name.replace(/[\s_-]/g, ''))) ?? 'rpm';
+  const actions: ScenarioAction[] = [
+    { id: actionId('motion-start'), type: 'set_status', atMs: 0, componentId, status: 'running' },
+    { id: actionId('motion-1500'), type: 'set_signal', atMs: 1000, componentId, signalName: rpmName, value: 1500, unit: 'rpm', signalSource: 'scenario' },
+    { id: actionId('motion-checkpoint'), type: 'checkpoint', atMs: 2000, checkpointId: 'motion-1500rpm' },
+    { id: actionId('motion-4000'), type: 'set_signal', atMs: 3000, componentId, signalName: rpmName, value: 4000, unit: 'rpm', signalSource: 'scenario' },
+    { id: actionId('motion-stop'), type: 'set_signal', atMs: 4000, componentId, signalName: rpmName, value: 0, unit: 'rpm', signalSource: 'scenario' },
+    { id: actionId('motion-complete'), type: 'set_status', atMs: 5000, componentId, status: 'completed' },
+  ];
+  return createScenario('Deterministic motion test', reality, actions, 'Reference-system scenario proving engineering signal changes propagate through authoritative state and into visual runtime motion.');
+}
+
 export function createPropertySweepScenario(reality: EngineeringReality, componentId: string, propertyName: string, values: Array<string | number | boolean>): ExecutableScenario {
   if (!reality.components.some((component) => component.id === componentId)) throw new Error(`Unknown component: ${componentId}`);
   if (!propertyName.trim() || values.length === 0) throw new Error('Property name and at least one value are required.');
