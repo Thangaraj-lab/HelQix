@@ -27,6 +27,13 @@ export function runBranchExperiment(
   baseSnapshot: StateSnapshot,
   candidates: Array<{ name: string; description?: string; changes: BranchChange[] }>,
 ): BranchExperiment {
+  if (baseSnapshot.schema !== 'helqix.state-snapshot.v1') throw new Error('Unsupported experiment snapshot schema.');
+  if (baseSnapshot.stateRevision !== baseState.stateRevision || baseSnapshot.logicalTimeMs !== baseState.logicalTimeMs) {
+    throw new Error('Branch experiment snapshot does not match the supplied authoritative state.');
+  }
+  if (baseSnapshot.state.realityRevision !== reality.revision || baseState.realityRevision !== reality.revision) {
+    throw new Error('Branch experiment requires an authoritative state from the current reality revision.');
+  }
   const baselineBranch = createBranch(reality, 'Baseline', 'Unmodified state at the experiment freeze.', [], baseState.stateRevision);
   const baseline = applyBranch(baselineBranch, reality, baseState);
   const results = candidates.map((candidate) => {
@@ -60,8 +67,13 @@ export function bestExperimentCandidate(
   experiment: BranchExperiment,
   score: (baseline: AuthoritativeEngineeringState, candidate: AuthoritativeEngineeringState) => number,
 ): BranchResult | undefined {
-  return experiment.candidates
+  const ranked = experiment.candidates
     .filter((candidate) => candidate.status === 'completed')
-    .map((candidate) => ({ candidate, score: score(experiment.baseline.resultingState, candidate.resultingState) }))
-    .sort((a, b) => b.score - a.score)[0]?.candidate;
+    .map((candidate) => {
+      const candidateScore = score(experiment.baseline.resultingState, candidate.resultingState);
+      if (!Number.isFinite(candidateScore)) throw new Error(`Branch ${candidate.branchId} produced a non-finite score.`);
+      return { candidate, score: candidateScore };
+    })
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.candidate;
 }
