@@ -1,4 +1,5 @@
 export * from './engineeringReality';
+export * from './physicalQuantity';
 export {
   AUTHORITATIVE_STATE_SCHEMA,
   STATE_SNAPSHOT_SCHEMA,
