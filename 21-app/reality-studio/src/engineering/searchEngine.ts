@@ -30,6 +30,8 @@ export interface SearchRequest {
   maximize: boolean;
   maxEvaluations: number;
   seed: number;
+  objectiveName?: string;
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface SearchResult {
@@ -38,6 +40,11 @@ export interface SearchResult {
   evaluations: SearchEvaluation[];
   best?: SearchEvaluation;
   completed: boolean;
+  status: 'completed' | 'partial' | 'failed';
+  feasibleCount: number;
+  failedCount: number;
+  bestScore?: number;
+  summary: string;
 }
 
 function normalize(variable: SearchVariable, value: number): number {
@@ -65,15 +72,24 @@ export function createSearchRequest(variables: SearchVariable[], constraints: Se
   if (!variables.length) throw new Error('At least one search variable is required.');
   if (!Number.isInteger(maxEvaluations) || maxEvaluations <= 0) throw new Error('maxEvaluations must be a positive integer.');
   variables.forEach(validateVariable);
+  if (new Set(variables.map((v) => v.name.trim())).size !== variables.length) throw new Error('Search variable names must be unique.');
+  if (constraints.some((constraint) => !constraint.id.trim())) throw new Error('Search constraint ids must not be blank.');
+  if (new Set(constraints.map((constraint) => constraint.id)).size !== constraints.length) throw new Error('Search constraint ids must be unique.');
   if (!Number.isFinite(seed)) throw new Error('Search seed must be finite.');
   if (!id.trim()) throw new Error('Search id must not be blank.');
-  return { schema: SEARCH_ENGINE_SCHEMA, id: id.trim(), variables: variables.map((v) => ({ ...v })), constraints: constraints.map((c) => ({ ...c })), maximize, maxEvaluations, seed };
+  return { schema: SEARCH_ENGINE_SCHEMA, id: id.trim(), variables: variables.map((v) => ({ ...v, name: v.name.trim() })), constraints: constraints.map((c) => ({ ...c, id: c.id.trim() })), maximize, maxEvaluations, seed, metadata: {} };
 }
 
 export async function search(
   request: SearchRequest,
   evaluate: (candidate: Record<string, number>) => Promise<{ score: number; output?: Record<string, unknown> }> | { score: number; output?: Record<string, unknown> },
 ): Promise<SearchResult> {
+  if (request.schema !== SEARCH_ENGINE_SCHEMA) throw new Error('Unsupported search request schema.');
+  if (!Number.isInteger(request.maxEvaluations) || request.maxEvaluations < 1) throw new Error('Search maxEvaluations must be a positive integer.');
+  if (!Number.isFinite(request.seed)) throw new Error('Search seed must be finite.');
+  if (!request.variables.length) throw new Error('Search request must contain variables.');
+  request.variables.forEach(validateVariable);
+  if (new Set(request.variables.map((v) => v.name)).size !== request.variables.length) throw new Error('Search variable names must be unique.');
   const rng = random(request.seed);
   const evaluations: SearchEvaluation[] = [];
   let best: SearchEvaluation | undefined;
@@ -86,6 +102,7 @@ export async function search(
       continue;
     }
     try {
+      if (!request.constraints.every((constraint) => { try { return constraint.evaluate({ ...candidate }) === true; } catch { return false; } })) { evaluations.push({ index, candidate, feasible: false, error: 'Constraint evaluation failed or rejected candidate.' }); continue; }
       const result = await evaluate({ ...candidate });
       if (!Number.isFinite(result.score)) throw new Error('Search score must be finite.');
       const evaluation: SearchEvaluation = { index, candidate, feasible: true, score: result.score, output: result.output };
@@ -96,5 +113,17 @@ export async function search(
     }
   }
 
-  return { schema: SEARCH_ENGINE_SCHEMA, request: { ...request, variables: request.variables.map((v) => ({ ...v })), constraints: request.constraints.map((c) => ({ ...c })) }, evaluations, best, completed: evaluations.length === request.maxEvaluations };
+  const feasibleCount = evaluations.filter((evaluation) => evaluation.feasible && evaluation.score !== undefined).length;
+  const failedCount = evaluations.filter((evaluation) => evaluation.error !== undefined).length;
+  const completed = evaluations.length === request.maxEvaluations;
+  const status = !completed ? 'partial' : feasibleCount === 0 ? 'failed' : 'completed';
+  const objective = request.objectiveName?.trim() || (request.maximize ? 'objective' : 'objective');
+  const summary = best
+    ? `Evaluated ${evaluations.length} candidates; ${feasibleCount} feasible scored candidates; best ${objective} ${request.maximize ? 'maximized' : 'minimized'} to ${best.score}.`
+    : `Evaluated ${evaluations.length} candidates; no feasible candidate produced a valid score.`;
+  return {
+    schema: SEARCH_ENGINE_SCHEMA,
+    request: { ...request, variables: request.variables.map((v) => ({ ...v })), constraints: request.constraints.map((c) => ({ ...c })), metadata: request.metadata ? { ...request.metadata } : undefined },
+    evaluations, best, completed, status, feasibleCount, failedCount, ...(best?.score !== undefined ? { bestScore: best.score } : {}), summary,
+  };
 }
