@@ -58,6 +58,7 @@ export * from './executionController';
 export * from './stateTimeline';
 export * from './replayEngine';
 export * from './stateFreeze';
+export * from './evidenceEngine';
 export * from './conditionEngine';
 export * from './simulationOrchestrator';
 export * from './optimizationEngine';
