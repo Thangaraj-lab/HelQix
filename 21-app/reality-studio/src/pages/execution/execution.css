@@ -1,4 +1,0 @@
-.exec-layout { display: grid; grid-template-columns: 280px minmax(0,1fr) var(--hq-inspector-width); gap: var(--hq-sp-3); align-items: start; }
-.exec-controls { display: flex; gap: var(--hq-sp-2); flex-wrap: wrap; }
-.exec-op { font-size: var(--hq-text-xs); letter-spacing: .08em; color: var(--hq-accent-strong); }
-@media (max-width: 1100px) { .exec-layout { grid-template-columns: 1fr; } }

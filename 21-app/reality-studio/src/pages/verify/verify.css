@@ -1,8 +1,0 @@
-.verify-layout { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: var(--hq-sp-3); align-items: start; }
-.verdict { font-weight: 700; letter-spacing: .08em; }
-.verdict--pass { color: var(--hq-success); }
-.verdict--fail { color: var(--hq-failure); }
-.verdict--inconclusive, .verdict--not_run { color: var(--hq-text-muted); }
-.req-row { display: grid; grid-template-columns: 90px minmax(0,1fr) 110px; gap: var(--hq-sp-3); padding: 10px 12px; border-bottom: 1px solid var(--hq-border-subtle); cursor: pointer; width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; color: var(--hq-text-primary); text-align: left; font-size: var(--hq-text-sm); }
-.req-row:hover { background: var(--hq-bg-interactive); }
-@media (max-width: 1000px) { .verify-layout { grid-template-columns: 1fr; } }
