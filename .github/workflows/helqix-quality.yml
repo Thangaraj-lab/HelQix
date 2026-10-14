@@ -1,0 +1,87 @@
+name: HELQIX Quality Gate
+
+on:
+  push:
+    branches: [main, feat/**]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helqix-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Format workspace
+        run: cargo fmt --all
+      - name: Check workspace
+        run: cargo check --workspace --all-targets
+      - name: Test workspace
+        run: cargo test --workspace --all-targets
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+  api:
+    name: HELQIX API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 22-api/helqix-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Format API
+        run: cargo fmt --all
+      - name: Check API
+        run: cargo check --all-targets
+      - name: Test API
+        run: cargo test --all-targets
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+  reality-studio:
+    name: Reality Studio
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 21-app/reality-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: 21-app/reality-studio/package-lock.json
+      - name: Install Studio dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build visual runtime package
+        run: npm install --prefix ../../14-visual-runtime/engines/visual-runtime --no-audit --no-fund && npm run build --prefix ../../14-visual-runtime/engines/visual-runtime
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test -- --run
+      - name: Production build
+        run: npm run build
+
+  gateway:
+    name: Integration Gateway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install gateway dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r 17-integrations/gateway/requirements.txt
+      - name: Compile gateway
+        run: python -m compileall -q 17-integrations/gateway
