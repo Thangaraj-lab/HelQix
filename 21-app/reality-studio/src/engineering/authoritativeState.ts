@@ -6,362 +6,50 @@ export const STATE_SNAPSHOT_SCHEMA = 'helqix.state-snapshot.v1' as const;
 export type RuntimeStatus = 'idle' | 'ready' | 'running' | 'paused' | 'completed' | 'failed' | 'faulted';
 export type ScalarValue = string | number | boolean;
 
-export interface RuntimeProperty {
-  name: string;
-  value: ScalarValue;
-  unit?: string;
-  origin: RealityProperty['origin'] | 'runtime';
-  declaredAtStateRevision: number;
-}
+export interface RuntimeProperty { name: string; value: ScalarValue; unit?: string; origin: RealityProperty['origin'] | 'runtime'; declaredAtStateRevision: number; }
+export interface RuntimeSignal { name: string; value: ScalarValue; unit?: string; source: 'model' | 'solver' | 'adapter' | 'scenario' | 'runtime'; timestampMs: number; }
+export interface ComponentRuntimeState { componentId: string; status: RuntimeStatus; properties: RuntimeProperty[]; signals: Record<string, RuntimeSignal>; faultIds: string[]; lastActionId?: string; updatedAtLogicalTimeMs: number; }
+export interface EngineeringEnvironmentState { values: Record<string, ScalarValue>; updatedAtLogicalTimeMs: number; }
+export interface StateEvent { sequence: number; stateRevision?: number; actionId?: string; type: 'state_created' | 'property_changed' | 'status_changed' | 'signal_updated' | 'environment_changed' | 'fault_injected' | 'time_advanced' | 'snapshot_restored'; logicalTimeMs: number; componentId?: string; name?: string; before?: ScalarValue; after?: ScalarValue; faultId?: string; source: 'model' | 'scenario' | 'solver' | 'adapter' | 'runtime' | 'restore'; }
+export interface StateMetadata { createdAt: string; updatedAt: string; parentSnapshotId?: string; branchId?: string; scenarioId?: string; executionId?: string; runId?: string; }
+export interface AuthoritativeEngineeringState { schema: typeof AUTHORITATIVE_STATE_SCHEMA; realityRevision: number; stateRevision: number; logicalTimeMs: number; status: RuntimeStatus; components: Record<string, ComponentRuntimeState>; environment: EngineeringEnvironmentState; events: StateEvent[]; metadata: StateMetadata; }
+export interface StateSnapshot { schema: typeof STATE_SNAPSHOT_SCHEMA; id: string; capturedAt: string; logicalTimeMs: number; stateRevision: number; state: AuthoritativeEngineeringState; reason: 'initial' | 'scenario' | 'checkpoint' | 'failure' | 'branch' | 'manual' | 'run-complete'; }
+export interface StateValidationIssue { path: string; message: string; severity: 'error' | 'warning'; }
+export interface StateValidationResult { valid: boolean; issues: StateValidationIssue[]; }
+export interface StateTransition { state: AuthoritativeEngineeringState; event: StateEvent; }
 
-export interface RuntimeSignal {
-  name: string;
-  value: ScalarValue;
-  unit?: string;
-  source: 'model' | 'solver' | 'adapter' | 'scenario' | 'runtime';
-  timestampMs: number;
-}
+function clone<T>(value: T): T { return structuredClone(value); }
+function now(): string { return new Date().toISOString(); }
+function assertFiniteNumber(value: number, label: string): void { if (!Number.isFinite(value)) throw new Error(`${label} must be finite.`); }
+function componentState(component: EngineeringReality['components'][number], stateRevision: number): ComponentRuntimeState { return { componentId: component.id, status: 'ready', properties: component.properties.map((property) => ({ name: property.name, value: property.value, ...(property.unit ? { unit: property.unit } : {}), origin: property.origin, declaredAtStateRevision: stateRevision })), signals: {}, faultIds: [], updatedAtLogicalTimeMs: 0 }; }
 
-export interface ComponentRuntimeState {
-  componentId: string;
-  status: RuntimeStatus;
-  properties: RuntimeProperty[];
-  signals: Record<string, RuntimeSignal>;
-  faultIds: string[];
-  lastActionId?: string;
-  updatedAtLogicalTimeMs: number;
-}
-
-export interface EngineeringEnvironmentState {
-  values: Record<string, ScalarValue>;
-  updatedAtLogicalTimeMs: number;
-}
-
-export interface StateEvent {
-  sequence: number;
-  actionId?: string;
-  type: 'state_created' | 'property_changed' | 'status_changed' | 'signal_updated' | 'environment_changed' | 'fault_injected' | 'time_advanced' | 'snapshot_restored';
-  logicalTimeMs: number;
-  componentId?: string;
-  name?: string;
-  before?: ScalarValue;
-  after?: ScalarValue;
-  faultId?: string;
-  source: 'scenario' | 'solver' | 'adapter' | 'runtime' | 'restore';
-}
-
-export interface StateMetadata {
-  createdAt: string;
-  updatedAt: string;
-  parentSnapshotId?: string;
-  branchId?: string;
-  scenarioId?: string;
-  executionId?: string;
-  runId?: string;
-}
-
-export interface AuthoritativeEngineeringState {
-  schema: typeof AUTHORITATIVE_STATE_SCHEMA;
-  realityRevision: number;
-  stateRevision: number;
-  logicalTimeMs: number;
-  status: RuntimeStatus;
-  components: Record<string, ComponentRuntimeState>;
-  environment: EngineeringEnvironmentState;
-  events: StateEvent[];
-  metadata: StateMetadata;
-}
-
-export interface StateSnapshot {
-  schema: typeof STATE_SNAPSHOT_SCHEMA;
-  id: string;
-  capturedAt: string;
-  logicalTimeMs: number;
-  stateRevision: number;
-  state: AuthoritativeEngineeringState;
-  reason: 'initial' | 'scenario' | 'checkpoint' | 'failure' | 'branch' | 'manual' | 'run-complete';
-}
-
-export interface StateValidationIssue {
-  path: string;
-  message: string;
-  severity: 'error' | 'warning';
-}
-
-export interface StateValidationResult {
-  valid: boolean;
-  issues: StateValidationIssue[];
-}
-
-export interface StateTransition {
-  state: AuthoritativeEngineeringState;
-  event: StateEvent;
-}
-
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
-
-function now(): string {
-  return new Date().toISOString();
-}
-
-function assertFiniteNumber(value: number, label: string): void {
-  if (!Number.isFinite(value)) throw new Error(`${label} must be finite.`);
-}
-
-function componentState(component: EngineeringReality['components'][number], stateRevision: number): ComponentRuntimeState {
-  return {
-    componentId: component.id,
-    status: 'ready',
-    properties: component.properties.map((property) => ({
-      name: property.name,
-      value: property.value,
-      ...(property.unit ? { unit: property.unit } : {}),
-      origin: property.origin,
-      declaredAtStateRevision: stateRevision,
-    })),
-    signals: {},
-    faultIds: [],
-    updatedAtLogicalTimeMs: 0,
-  };
-}
-
-/** Build runtime state from persisted reality. No physics, telemetry, or solver result is invented here. */
 export function createInitialState(reality: EngineeringReality, metadata: Partial<StateMetadata> = {}): AuthoritativeEngineeringState {
   const components: Record<string, ComponentRuntimeState> = {};
   for (const component of reality.components) components[component.id] = componentState(component, 1);
   const timestamp = now();
-  const state: AuthoritativeEngineeringState = {
-    schema: AUTHORITATIVE_STATE_SCHEMA,
-    realityRevision: reality.revision,
-    stateRevision: 1,
-    logicalTimeMs: 0,
-    status: components && Object.keys(components).length ? 'ready' : 'idle',
-    components,
-    environment: { values: {}, updatedAtLogicalTimeMs: 0 },
-    events: [{ sequence: 1, type: 'state_created', logicalTimeMs: 0, source: 'runtime' }],
-    metadata: { createdAt: timestamp, updatedAt: timestamp, ...metadata },
-  };
-  return state;
+  return { schema: AUTHORITATIVE_STATE_SCHEMA, realityRevision: reality.revision, stateRevision: 1, logicalTimeMs: 0, status: Object.keys(components).length ? 'ready' : 'idle', components, environment: { values: {}, updatedAtLogicalTimeMs: 0 }, events: [{ sequence: 1, stateRevision: 1, type: 'state_created', logicalTimeMs: 0, source: 'runtime' }], metadata: { createdAt: timestamp, updatedAt: timestamp, ...metadata } };
 }
+export function cloneState(state: AuthoritativeEngineeringState): AuthoritativeEngineeringState { return clone(state); }
+function withRevision(state: AuthoritativeEngineeringState, logicalTimeMs = state.logicalTimeMs): AuthoritativeEngineeringState { const next = clone(state); next.stateRevision += 1; next.logicalTimeMs = logicalTimeMs; next.metadata.updatedAt = now(); return next; }
+function appendEvent(state: AuthoritativeEngineeringState, event: Omit<StateEvent, 'sequence' | 'stateRevision'> & { stateRevision?: number }): AuthoritativeEngineeringState { const next = state; next.events.push({ ...event, sequence: next.events.length + 1, stateRevision: event.stateRevision ?? next.stateRevision }); if (next.events.length > 10_000) next.events = next.events.slice(-10_000).map((item, index) => ({ ...item, sequence: index + 1 })); return next; }
 
-export function cloneState(state: AuthoritativeEngineeringState): AuthoritativeEngineeringState {
-  return clone(state);
-}
-
-function withRevision(state: AuthoritativeEngineeringState, logicalTimeMs = state.logicalTimeMs): AuthoritativeEngineeringState {
-  const next = clone(state);
-  next.stateRevision += 1;
-  next.logicalTimeMs = logicalTimeMs;
-  next.metadata.updatedAt = now();
-  return next;
-}
-
-function appendEvent(state: AuthoritativeEngineeringState, event: Omit<StateEvent, 'sequence'>): AuthoritativeEngineeringState {
-  const next = state;
-  next.events.push({ ...event, sequence: next.events.length + 1 });
-  if (next.events.length > 10_000) next.events = next.events.slice(-10_000).map((item, index) => ({ ...item, sequence: index + 1 }));
-  return next;
-}
-
-export function setComponentStatus(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  status: RuntimeStatus,
-  actionId?: string,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
-  const next = withRevision(state);
-  const before = next.components[componentId].status;
-  next.components[componentId].status = status;
-  next.components[componentId].lastActionId = actionId;
-  next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs;
-  next.status = status === 'faulted' || status === 'failed' ? status : next.status;
-  appendEvent(next, { actionId, type: 'status_changed', logicalTimeMs: next.logicalTimeMs, componentId, name: 'status', before, after: status, source });
-  return next;
-}
-
-export function setComponentProperty(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  name: string,
-  value: ScalarValue,
-  unit?: string,
-  actionId?: string,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
-  const propertyName = name.trim();
-  if (!propertyName) throw new Error('Component property name is required.');
-  if (typeof value === 'number') assertFiniteNumber(value, `Property ${propertyName}`);
-  const next = withRevision(state);
-  const existing = next.components[componentId].properties.find((property) => property.name === propertyName);
-  const before = existing?.value;
-  if (existing) {
-    existing.value = value;
-    if (unit !== undefined) existing.unit = unit;
-    existing.origin = 'runtime';
-    existing.declaredAtStateRevision = next.stateRevision;
-  } else {
-    next.components[componentId].properties.push({ name: propertyName, value, ...(unit ? { unit } : {}), origin: 'runtime', declaredAtStateRevision: next.stateRevision });
-  }
-  next.components[componentId].lastActionId = actionId;
-  next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs;
-  appendEvent(next, { actionId, type: 'property_changed', logicalTimeMs: next.logicalTimeMs, componentId, name: propertyName, ...(before === undefined ? {} : { before }), after: value, source });
-  return next;
-}
-
-export function setSignal(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  name: string,
-  value: ScalarValue,
-  unit: string | undefined,
-  source: RuntimeSignal['source'],
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
-  if (typeof value === 'number') assertFiniteNumber(value, `Signal ${name}`);
-  const next = withRevision(state);
-  next.components[componentId].signals[name] = { name, value, ...(unit ? { unit } : {}), source, timestampMs: next.logicalTimeMs };
-  next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs;
-  appendEvent(next, { type: 'signal_updated', logicalTimeMs: next.logicalTimeMs, componentId, name, after: value, source });
-  return next;
-}
-
-export function setEnvironmentValue(
-  state: AuthoritativeEngineeringState,
-  name: string,
-  value: ScalarValue,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const key = name.trim();
-  if (!key) throw new Error('Environment key is required.');
-  if (typeof value === 'number') assertFiniteNumber(value, `Environment ${key}`);
-  const next = withRevision(state);
-  const before = next.environment.values[key];
-  next.environment.values[key] = value;
-  next.environment.updatedAtLogicalTimeMs = next.logicalTimeMs;
-  appendEvent(next, { type: 'environment_changed', logicalTimeMs: next.logicalTimeMs, name: key, ...(before === undefined ? {} : { before }), after: value, source });
-  return next;
-}
-
-export function advanceLogicalTime(
-  state: AuthoritativeEngineeringState,
-  logicalTimeMs: number,
-  source: StateEvent['source'] = 'scenario',
-  actionId?: string,
-): AuthoritativeEngineeringState {
-  assertFiniteNumber(logicalTimeMs, 'Logical time');
-  if (logicalTimeMs < state.logicalTimeMs) throw new Error(`Logical time cannot move backwards (${logicalTimeMs} < ${state.logicalTimeMs}).`);
-  if (logicalTimeMs === state.logicalTimeMs) return state;
-  const next = withRevision(state, logicalTimeMs);
-  appendEvent(next, { actionId, type: 'time_advanced', logicalTimeMs, source });
-  return next;
-}
-
-export function addFault(
-  state: AuthoritativeEngineeringState,
-  componentId: string,
-  faultId: string,
-  actionId?: string,
-  source: StateEvent['source'] = 'scenario',
-): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
-  const cleanFaultId = faultId.trim();
-  if (!cleanFaultId) throw new Error('Fault id is required.');
-  const next = withRevision(state);
-  if (!next.components[componentId].faultIds.includes(cleanFaultId)) next.components[componentId].faultIds.push(cleanFaultId);
-  next.components[componentId].status = 'faulted';
-  next.components[componentId].lastActionId = actionId;
-  next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs;
-  next.status = 'faulted';
-  appendEvent(next, { actionId, type: 'fault_injected', logicalTimeMs: next.logicalTimeMs, componentId, faultId: cleanFaultId, source });
-  return next;
-}
-
-export function clearFault(state: AuthoritativeEngineeringState, componentId: string, faultId: string): AuthoritativeEngineeringState {
-  const component = state.components[componentId];
-  if (!component) throw new Error(`Unknown component: ${componentId}`);
-  const next = withRevision(state);
-  next.components[componentId].faultIds = next.components[componentId].faultIds.filter((id) => id !== faultId);
-  if (next.components[componentId].faultIds.length === 0 && next.components[componentId].status === 'faulted') next.components[componentId].status = 'ready';
-  return next;
-}
-
-export function setStateStatus(state: AuthoritativeEngineeringState, status: RuntimeStatus): AuthoritativeEngineeringState {
-  const next = withRevision(state);
-  next.status = status;
-  return next;
-}
-
-export function captureSnapshot(
-  state: AuthoritativeEngineeringState,
-  reason: StateSnapshot['reason'] = 'manual',
-  id = `snapshot-${state.stateRevision}-${Date.now()}`,
-): StateSnapshot {
-  return {
-    schema: STATE_SNAPSHOT_SCHEMA,
-    id,
-    capturedAt: now(),
-    logicalTimeMs: state.logicalTimeMs,
-    stateRevision: state.stateRevision,
-    state: clone(state),
-    reason,
-  };
-}
-
-export function restoreSnapshot(snapshot: StateSnapshot): AuthoritativeEngineeringState {
-  if (snapshot.schema !== STATE_SNAPSHOT_SCHEMA) throw new Error(`Unsupported snapshot schema: ${snapshot.schema}`);
-  const restored = clone(snapshot.state);
-  restored.metadata.parentSnapshotId = snapshot.id;
-  restored.metadata.updatedAt = now();
-  restored.stateRevision += 1;
-  appendEvent(restored, { type: 'snapshot_restored', logicalTimeMs: restored.logicalTimeMs, source: 'restore' });
-  return restored;
-}
-
+export function setComponentStatus(state: AuthoritativeEngineeringState, componentId: string, status: RuntimeStatus, actionId?: string, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState { if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`); const next = withRevision(state); const before = next.components[componentId].status; next.components[componentId].status = status; next.components[componentId].lastActionId = actionId; next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs; next.status = status === 'faulted' || status === 'failed' ? status : next.status; appendEvent(next, { actionId, type: 'status_changed', logicalTimeMs: next.logicalTimeMs, componentId, name: 'status', before, after: status, source }); return next; }
+export function setComponentProperty(state: AuthoritativeEngineeringState, componentId: string, name: string, value: ScalarValue, unit?: string, actionId?: string, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState { if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`); const propertyName = name.trim(); if (!propertyName) throw new Error('Component property name is required.'); if (typeof value === 'number') assertFiniteNumber(value, `Property ${propertyName}`); const next = withRevision(state); const existing = next.components[componentId].properties.find((property) => property.name === propertyName); const before = existing?.value; if (existing) { existing.value = value; if (unit !== undefined) existing.unit = unit; existing.origin = 'runtime'; existing.declaredAtStateRevision = next.stateRevision; } else next.components[componentId].properties.push({ name: propertyName, value, ...(unit ? { unit } : {}), origin: 'runtime', declaredAtStateRevision: next.stateRevision }); next.components[componentId].lastActionId = actionId; next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs; appendEvent(next, { actionId, type: 'property_changed', logicalTimeMs: next.logicalTimeMs, componentId, name: propertyName, ...(before === undefined ? {} : { before }), after: value, source }); return next; }
+export function setSignal(state: AuthoritativeEngineeringState, componentId: string, name: string, value: ScalarValue, unit: string | undefined, source: RuntimeSignal['source']): AuthoritativeEngineeringState { if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`); if (typeof value === 'number') assertFiniteNumber(value, `Signal ${name}`); const cleanName = name.trim(); if (!cleanName) throw new Error('Signal name is required.'); const next = withRevision(state); next.components[componentId].signals[cleanName] = { name: cleanName, value, ...(unit ? { unit } : {}), source, timestampMs: next.logicalTimeMs }; next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs; appendEvent(next, { type: 'signal_updated', logicalTimeMs: next.logicalTimeMs, componentId, name: cleanName, after: value, source }); return next; }
+export function setEnvironmentValue(state: AuthoritativeEngineeringState, name: string, value: ScalarValue, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState { const key = name.trim(); if (!key) throw new Error('Environment key is required.'); if (typeof value === 'number') assertFiniteNumber(value, `Environment ${key}`); const next = withRevision(state); const before = next.environment.values[key]; next.environment.values[key] = value; next.environment.updatedAtLogicalTimeMs = next.logicalTimeMs; appendEvent(next, { type: 'environment_changed', logicalTimeMs: next.logicalTimeMs, name: key, ...(before === undefined ? {} : { before }), after: value, source }); return next; }
+export function advanceLogicalTime(state: AuthoritativeEngineeringState, logicalTimeMs: number, source: StateEvent['source'] = 'scenario', actionId?: string): AuthoritativeEngineeringState { assertFiniteNumber(logicalTimeMs, 'Logical time'); if (logicalTimeMs < state.logicalTimeMs) throw new Error(`Logical time cannot move backwards (${logicalTimeMs} < ${state.logicalTimeMs}).`); if (logicalTimeMs === state.logicalTimeMs) return state; const next = withRevision(state, logicalTimeMs); appendEvent(next, { actionId, type: 'time_advanced', logicalTimeMs, source }); return next; }
+export function addFault(state: AuthoritativeEngineeringState, componentId: string, faultId: string, actionId?: string, source: StateEvent['source'] = 'scenario'): AuthoritativeEngineeringState { if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`); const cleanFaultId = faultId.trim(); if (!cleanFaultId) throw new Error('Fault id is required.'); const next = withRevision(state); if (!next.components[componentId].faultIds.includes(cleanFaultId)) next.components[componentId].faultIds.push(cleanFaultId); next.components[componentId].status = 'faulted'; next.components[componentId].lastActionId = actionId; next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs; next.status = 'faulted'; appendEvent(next, { actionId, type: 'fault_injected', logicalTimeMs: next.logicalTimeMs, componentId, faultId: cleanFaultId, source }); return next; }
+export function clearFault(state: AuthoritativeEngineeringState, componentId: string, faultId: string): AuthoritativeEngineeringState { if (!state.components[componentId]) throw new Error(`Unknown component: ${componentId}`); const next = withRevision(state); const before = next.components[componentId].faultIds.length; next.components[componentId].faultIds = next.components[componentId].faultIds.filter((id) => id !== faultId); if (before !== next.components[componentId].faultIds.length) { const recovered = next.components[componentId].faultIds.length === 0; if (recovered && next.components[componentId].status === 'faulted') next.components[componentId].status = 'ready'; next.components[componentId].updatedAtLogicalTimeMs = next.logicalTimeMs; appendEvent(next, { type: 'status_changed', logicalTimeMs: next.logicalTimeMs, componentId, name: 'fault_clear', before: faultId, after: recovered ? 'ready' : 'faulted', source: 'runtime' }); } return next; }
+export function setStateStatus(state: AuthoritativeEngineeringState, status: RuntimeStatus): AuthoritativeEngineeringState { const next = withRevision(state); const before = next.status; next.status = status; appendEvent(next, { type: 'status_changed', logicalTimeMs: next.logicalTimeMs, name: 'runtime_status', before, after: status, source: 'runtime' }); return next; }
+export function captureSnapshot(state: AuthoritativeEngineeringState, reason: StateSnapshot['reason'] = 'manual', id = `snapshot-${state.stateRevision}-${Date.now()}`): StateSnapshot { return { schema: STATE_SNAPSHOT_SCHEMA, id, capturedAt: now(), logicalTimeMs: state.logicalTimeMs, stateRevision: state.stateRevision, state: clone(state), reason }; }
+export function restoreSnapshot(snapshot: StateSnapshot): AuthoritativeEngineeringState { if (snapshot.schema !== STATE_SNAPSHOT_SCHEMA) throw new Error(`Unsupported snapshot schema: ${snapshot.schema}`); const restored = clone(snapshot.state); restored.metadata.parentSnapshotId = snapshot.id; restored.metadata.updatedAt = now(); restored.stateRevision += 1; appendEvent(restored, { type: 'snapshot_restored', logicalTimeMs: restored.logicalTimeMs, source: 'restore' }); return restored; }
 export function stateAtLogicalTime(snapshot: StateSnapshot, targetTimeMs: number): AuthoritativeEngineeringState {
   if (!Number.isFinite(targetTimeMs) || targetTimeMs < 0) throw new Error('Target logical time must be a non-negative finite number.');
   if (targetTimeMs < snapshot.logicalTimeMs) throw new Error('This snapshot does not contain history before its capture time.');
-  return restoreSnapshot(snapshot);
+  if (targetTimeMs === snapshot.state.logicalTimeMs) return restoreSnapshot(snapshot);
+  throw new Error('A snapshot only represents its captured state. Historical reconstruction requires a replay frame or an earlier snapshot at the requested time.');
 }
-
-export function validateState(
-  state: AuthoritativeEngineeringState,
-  reality: EngineeringReality,
-): StateValidationResult {
-  const issues: StateValidationIssue[] = [];
-  if (state.schema !== AUTHORITATIVE_STATE_SCHEMA) issues.push({ path: 'schema', message: 'Unsupported authoritative-state schema.', severity: 'error' });
-  if (state.realityRevision !== reality.revision) issues.push({ path: 'realityRevision', message: `State is based on reality revision ${state.realityRevision}, current reality is ${reality.revision}.`, severity: 'error' });
-  if (!Number.isInteger(state.stateRevision) || state.stateRevision < 1) issues.push({ path: 'stateRevision', message: 'State revision must be a positive integer.', severity: 'error' });
-  if (!Number.isFinite(state.logicalTimeMs) || state.logicalTimeMs < 0) issues.push({ path: 'logicalTimeMs', message: 'Logical time must be a non-negative finite number.', severity: 'error' });
-  const known = new Set(reality.components.map((component) => component.id));
-  for (const id of Object.keys(state.components)) if (!known.has(id)) issues.push({ path: `components.${id}`, message: 'Runtime state references a component absent from reality.', severity: 'error' });
-  for (const component of reality.components) {
-    const runtime = state.components[component.id];
-    if (!runtime) { issues.push({ path: `components.${component.id}`, message: 'Reality component has no runtime state.', severity: 'error' }); continue; }
-    for (const property of runtime.properties) if (typeof property.value === 'number' && !Number.isFinite(property.value)) issues.push({ path: `components.${component.id}.properties.${property.name}`, message: 'Runtime property value must be finite.', severity: 'error' });
-    if (runtime.faultIds.length && runtime.status !== 'faulted') issues.push({ path: `components.${component.id}.status`, message: 'A component with active faults should be faulted.', severity: 'warning' });
-  }
-  if (state.events.length && state.events.some((event, index) => event.sequence !== index + 1)) issues.push({ path: 'events.sequence', message: 'State event sequence is not contiguous.', severity: 'warning' });
-  return { valid: !issues.some((issue) => issue.severity === 'error'), issues };
-}
-
-export function assertValidState(state: AuthoritativeEngineeringState, reality: EngineeringReality): void {
-  const result = validateState(state, reality);
-  if (!result.valid) throw new Error(`Authoritative state is invalid: ${result.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message).join('; ')}`);
-}
-
-export function stateEventCount(state: AuthoritativeEngineeringState): number {
-  return state.events.length;
-}
-
-export function latestComponentSignal(state: AuthoritativeEngineeringState, componentId: string, signalName: string): RuntimeSignal | undefined {
-  return state.components[componentId]?.signals[signalName];
-}
+export function validateState(state: AuthoritativeEngineeringState, reality: EngineeringReality): StateValidationResult { const issues: StateValidationIssue[] = []; if (state.schema !== AUTHORITATIVE_STATE_SCHEMA) issues.push({ path: 'schema', message: 'Unsupported authoritative-state schema.', severity: 'error' }); if (state.realityRevision !== reality.revision) issues.push({ path: 'realityRevision', message: `State is based on reality revision ${state.realityRevision}, current reality is ${reality.revision}.`, severity: 'error' }); if (!Number.isInteger(state.stateRevision) || state.stateRevision < 1) issues.push({ path: 'stateRevision', message: 'State revision must be a positive integer.', severity: 'error' }); if (!Number.isFinite(state.logicalTimeMs) || state.logicalTimeMs < 0) issues.push({ path: 'logicalTimeMs', message: 'Logical time must be a non-negative finite number.', severity: 'error' }); const known = new Set(reality.components.map((component) => component.id)); for (const id of Object.keys(state.components)) if (!known.has(id)) issues.push({ path: `components.${id}`, message: 'Runtime state references a component absent from reality.', severity: 'error' }); for (const component of reality.components) { const runtime = state.components[component.id]; if (!runtime) { issues.push({ path: `components.${component.id}`, message: 'Reality component has no runtime state.', severity: 'error' }); continue; } for (const property of runtime.properties) if (typeof property.value === 'number' && !Number.isFinite(property.value)) issues.push({ path: `components.${component.id}.properties.${property.name}`, message: 'Runtime property value must be finite.', severity: 'error' }); for (const signal of Object.values(runtime.signals)) if (typeof signal.value === 'number' && !Number.isFinite(signal.value)) issues.push({ path: `components.${component.id}.signals.${signal.name}`, message: 'Runtime signal value must be finite.', severity: 'error' }); if (runtime.faultIds.length && runtime.status !== 'faulted') issues.push({ path: `components.${component.id}.status`, message: 'A component with active faults should be faulted.', severity: 'warning' }); } if (state.events.length && state.events.some((event, index) => event.sequence !== index + 1)) issues.push({ path: 'events.sequence', message: 'State event sequence is not contiguous.', severity: 'warning' }); return { valid: !issues.some((issue) => issue.severity === 'error'), issues }; }
+export function assertValidState(state: AuthoritativeEngineeringState, reality: EngineeringReality): void { const result = validateState(state, reality); if (!result.valid) throw new Error(`Authoritative state is invalid: ${result.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message).join('; ')}`); }
+export function stateEventCount(state: AuthoritativeEngineeringState): number { return state.events.length; }
+export function latestComponentSignal(state: AuthoritativeEngineeringState, componentId: string, signalName: string): RuntimeSignal | undefined { return state.components[componentId]?.signals[signalName]; }

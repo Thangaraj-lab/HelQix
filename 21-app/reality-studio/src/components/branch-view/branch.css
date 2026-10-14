@@ -1,7 +1,0 @@
-.branch-layout { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: var(--hq-sp-3); align-items: start; }
-.branch-tree { font-family: var(--hq-font-mono); font-size: var(--hq-text-sm); }
-.branch-row { display: flex; align-items: center; gap: var(--hq-sp-3); padding: 7px 10px; border-radius: var(--hq-radius-sm); cursor: pointer; border: 0; background: none; color: var(--hq-text-secondary); width: 100%; text-align: left; }
-.branch-row:hover { background: var(--hq-bg-interactive); color: var(--hq-text-primary); }
-.branch-row[aria-selected="true"] { background: var(--hq-accent-dim); color: var(--hq-accent-strong); }
-.branch-row__glyph { color: var(--hq-border-strong); }
-@media (max-width: 1000px) { .branch-layout { grid-template-columns: 1fr; } }
