@@ -1000,8 +1000,9 @@ mod tests {
             )
             .unwrap();
 
+        let node_c = identifier("C");
         let incoming: Vec<(&str, &str)> = graph
-            .incoming(&identifier("C"))
+            .incoming(&node_c)
             .map(|edge| {
                 (
                     edge.source().as_str(),
@@ -1050,8 +1051,9 @@ mod tests {
             )
             .unwrap();
 
+        let node_a = identifier("A");
         let outgoing: Vec<(&str, &str)> = graph
-            .outgoing(&identifier("A"))
+            .outgoing(&node_a)
             .map(|edge| {
                 (
                     edge.source().as_str(),

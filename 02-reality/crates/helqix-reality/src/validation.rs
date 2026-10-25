@@ -241,19 +241,20 @@ mod tests {
     // signature difference in the existing modules is a one-place fix.
     // ------------------------------------------------------------------
 
-    use crate::component_registry::Component;
-    use crate::reality::Identifier;
+    use crate::topology::ConnectionKind;
+    use helqix_core::component::Component;
+    use helqix_core::id::Identifier;
 
     fn id(name: &str) -> Identifier {
-        Identifier::new(name).expect("valid identifier")
+        Identifier::parse(name).expect("valid identifier")
     }
 
     fn component(name: &str) -> Component {
-        Component::new(id(name)).expect("valid component")
+        Component::new(id(name))
     }
 
     fn empty_reality() -> Reality {
-        Reality::new(id("system")).expect("valid reality")
+        Reality::new(id("system"))
     }
 
     fn assert_cross_reference(result: ValidationResult<()>, expected: &[&str]) {
@@ -459,7 +460,7 @@ mod tests {
 
         let mut topology = Topology::new();
         topology
-            .connect(id("battery"), id("controller"))
+            .connect(id("battery"), id("controller"), ConnectionKind::Structural)
             .expect("connect components");
 
         assert!(validator.validate_topology(&topology, &registry).is_ok());
@@ -472,7 +473,7 @@ mod tests {
 
         let mut topology = Topology::new();
         topology
-            .connect(id("battery"), id("controller"))
+            .connect(id("battery"), id("controller"), ConnectionKind::Structural)
             .expect("connect components");
 
         let result = validator.validate_topology(&topology, &registry);
@@ -524,7 +525,7 @@ mod tests {
 
         parts
             .topology
-            .connect(id("battery"), id("controller"))
+            .connect(id("battery"), id("controller"), ConnectionKind::Structural)
             .expect("connect battery to controller");
 
         // Environment and EngineeringModel are intentionally left empty:
