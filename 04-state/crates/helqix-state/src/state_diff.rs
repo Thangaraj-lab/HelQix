@@ -2,7 +2,7 @@
 //!
 //! `StateDiff` answers one question:
 //!
-//!     "What changed between these two exact states?"
+//! > "What changed between these two exact states?"
 //!
 //! It does not explain why the change happened.
 //! It does not classify failures.
