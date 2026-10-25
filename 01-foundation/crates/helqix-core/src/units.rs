@@ -18,7 +18,9 @@
 //! A [`Unit`] is looked up by symbol in a fixed, compiled-in registry. There is
 //! no prefix parser and no expression parser: every accepted symbol is listed
 //! explicitly, so the accepted vocabulary is auditable and deterministic.
-//! Symbols are case-sensitive (`Pa` is a unit, `pa` is not).
+//! Symbols are case-sensitive (`Pa` is a unit, `pa` is not). Quotient units
+//! such as `m/s` are single registry entries; `/` is allowed in a symbol but
+//! never evaluated, so an unlisted quotient like `km/h` is simply unknown.
 //!
 //! The registry contains only linear units (`value_in_coherent = value * scale`).
 //! Affine units such as degrees Celsius need an offset and are intentionally
@@ -27,8 +29,9 @@
 //!
 //! # Symbol validation order
 //!
-//! Failures are reported in a fixed order: empty, then the first non-ASCII-
-//! alphanumeric character (zero-based `char` position), then unknown symbol.
+//! Failures are reported in a fixed order: empty, then the first character
+//! that is not an ASCII letter, digit or `/` (zero-based `char` position),
+//! then unknown symbol.
 
 use std::fmt;
 use std::str::FromStr;
@@ -192,6 +195,9 @@ const FREQUENCY: Dimension = Dimension::new(0, 0, -1, 0, 0, 0, 0);
 const CHARGE: Dimension = Dimension::new(0, 0, 1, 1, 0, 0, 0);
 const VOLTAGE: Dimension = Dimension::new(2, 1, -3, -1, 0, 0, 0);
 const RESISTANCE: Dimension = Dimension::new(2, 1, -3, -2, 0, 0, 0);
+const VELOCITY: Dimension = Dimension::new(1, 0, -1, 0, 0, 0, 0);
+const ACCELERATION: Dimension = Dimension::new(1, 0, -2, 0, 0, 0, 0);
+const DENSITY: Dimension = Dimension::new(-3, 1, 0, 0, 0, 0, 0);
 
 /// Every unit HELQIX Core recognises. Order is irrelevant to behaviour; symbols
 /// are unique (enforced by a test).
@@ -246,6 +252,12 @@ static REGISTRY: &[Definition] = &[
     define("mV", VOLTAGE, 1e-3),
     // Resistance
     define("ohm", RESISTANCE, 1.0),
+    // Velocity
+    define("m/s", VELOCITY, 1.0),
+    // Acceleration
+    define("m/s2", ACCELERATION, 1.0),
+    // Density
+    define("kg/m3", DENSITY, 1.0),
 ];
 
 // ---------------------------------------------------------------------------
@@ -271,7 +283,7 @@ impl Unit {
     ///
     /// - [`UnitError::EmptySymbol`] if `symbol` is empty.
     /// - [`UnitError::MalformedSymbol`] at the first character that is not an
-    ///   ASCII letter or digit.
+    ///   ASCII letter, digit or `/`.
     /// - [`UnitError::UnknownSymbol`] if the symbol is well-formed but not in
     ///   the registry.
     pub fn parse(symbol: &str) -> Result<Self, UnitError> {
@@ -326,14 +338,14 @@ impl Unit {
     }
 }
 
-/// Checks the symbol grammar: non-empty, ASCII letters and digits only.
+/// Checks the symbol grammar: non-empty, ASCII letters, digits and `/` only.
 fn validate_symbol(symbol: &str) -> Result<(), UnitError> {
     if symbol.is_empty() {
         return Err(UnitError::EmptySymbol);
     }
     match symbol
         .chars()
-        .position(|character| !character.is_ascii_alphanumeric())
+        .position(|character| !(character.is_ascii_alphanumeric() || character == '/'))
     {
         Some(position) => Err(UnitError::MalformedSymbol {
             symbol: symbol.to_owned(),
@@ -459,9 +471,9 @@ mod tests {
     #[test]
     fn malformed_symbols_report_char_position_of_first_bad_character() {
         assert_eq!(
-            Unit::parse("m/s").unwrap_err(),
+            Unit::parse("m*s").unwrap_err(),
             UnitError::MalformedSymbol {
-                symbol: "m/s".to_owned(),
+                symbol: "m*s".to_owned(),
                 position: 1,
             }
         );
@@ -618,6 +630,29 @@ mod tests {
         // ohm = V / A
         let ohm = volt.checked_div(ampere).unwrap();
         assert_eq!(unit("ohm").dimension(), ohm);
+    }
+
+    #[test]
+    fn quotient_units_are_registered_with_coherent_dimensions() {
+        let metre = unit("m").dimension();
+        let kilogram = unit("kg").dimension();
+        let second = unit("s").dimension();
+
+        let speed = metre.checked_div(second).unwrap();
+        let acceleration = speed.checked_div(second).unwrap();
+        let density = kilogram.checked_div(metre.checked_pow(3).unwrap()).unwrap();
+
+        assert_eq!(unit("m/s").dimension(), speed);
+        assert_eq!(unit("m/s2").dimension(), acceleration);
+        assert_eq!(unit("kg/m3").dimension(), density);
+        for symbol in ["m/s", "m/s2", "kg/m3"] {
+            assert_eq!(unit(symbol).conversion_factor(&unit(symbol)).unwrap(), 1.0);
+        }
+        // '/' is only valid inside a listed symbol; unlisted quotients are unknown.
+        assert_eq!(
+            Unit::parse("km/h").unwrap_err(),
+            UnitError::UnknownSymbol { symbol: "km/h".to_owned() }
+        );
     }
 
     // ----- Conversion ------------------------------------------------------
