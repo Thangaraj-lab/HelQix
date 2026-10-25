@@ -19,6 +19,8 @@
 //! claim by the signer, not a proven time.
 #![forbid(unsafe_code)]
 
+pub mod attestation;
+
 use std::{collections::BTreeSet, fs, path::Path};
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -59,6 +61,9 @@ pub fn merkle_root(entries: &[(String, String)]) -> String {
 pub fn signed_message(manifest_sha256: &str, signer: &str, signed_at: &str) -> Vec<u8> {
     format!("helqix.evidence.v1\n{manifest_sha256}\n{signer}\n{signed_at}").into_bytes()
 }
+
+/// A trusted Ed25519 public key from hex (used by the attestation check).
+pub(crate) fn unhex_pub(s: &str) -> Option<[u8; 32]> { unhex(s.trim())?.try_into().ok() }
 
 fn unhex(s: &str) -> Option<Vec<u8>> {
     if s.len() % 2 != 0 { return None; }

@@ -68,6 +68,19 @@ pub fn generate_key() -> Result<SigningKey, PackError> {
 /// Hex public key (what a verifier must be told to trust).
 pub fn public_key_hex(key: &SigningKey) -> String { hex(key.verifying_key().as_bytes()) }
 
+/// Builds a signed in-toto attestation (DSSE envelope, Ed25519) for an existing package directory.
+/// The envelope is meant to be stored beside the package, e.g. `<package>.intoto.dsse.json`.
+pub fn attest(dir: &Path, key: &SigningKey, builder: &str) -> Result<Vec<u8>, PackError> {
+    use ed25519_dalek::Signer;
+    use helqix_evidence_verify::attestation::{envelope, statement};
+    let st = statement(dir, builder).map_err(build)?;
+    let keyid = sha(key.verifying_key().as_bytes())[..16].to_owned();
+    let env = envelope(&st, &keyid, |msg| key.sign(msg).to_bytes().to_vec());
+    let mut bytes = serde_json::to_vec_pretty(&env).map_err(build)?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
 /// Writes `files`, the manifest and the signature into an empty or new directory.
 pub fn write_package(dir: &Path, mut files: Vec<PackageFile>, statement: &Statement, signer: &str, signed_at: &str, key: &SigningKey) -> Result<PackageSummary, PackError> {
     if dir.exists() && fs::read_dir(dir).map_err(io)?.next().is_some() { return Err(PackError::NotEmpty(dir.display().to_string())); }

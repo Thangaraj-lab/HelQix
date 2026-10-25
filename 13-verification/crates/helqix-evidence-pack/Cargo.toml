@@ -17,7 +17,8 @@ ed25519-dalek = "2"
 getrandom = "0.2"
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"
+# The attestation format lives in the independent verifier; the builder reuses it.
+helqix-evidence-verify = { path = "../helqix-evidence-verify" }
 
 [dev-dependencies]
-helqix-evidence-verify = { path = "../helqix-evidence-verify" }
 serde_json = "1"

@@ -53,3 +53,33 @@ cargo run -p helqix-evidence-pack --bin helqix-evidence-pack -- build .data/pack
 cargo run -p helqix-evidence-verify --bin helqix-evidence-verify -- .data/package --trusted-key <public key printed by build>
 cargo run -p helqix-evidence-pack --bin helqix-evidence-pack -- reexecute .data/package
 ```
+
+## K5: in-toto attestation and cosign
+
+**Signing proves origin and integrity, not correct physics.**
+
+### in-toto attestation (HELQIX, Ed25519)
+
+`helqix-evidence-pack attest <package> --key <key> --out <package>.intoto.dsse.json` writes an **in-toto Statement v1** in a **DSSE envelope** (`application/vnd.in-toto+json`), signed with the package's Ed25519 key over the DSSE pre-authentication encoding.
+
+- Subjects: every file of the package, including `manifest.json` and `signature.json`, by name and SHA-256.
+- Predicate type `https://helqix.dev/attestations/evidence-package/v1`. The predicate holds the builder, the Merkle root, the manifest statement and the scope note.
+- The envelope is stored **beside** the package, so the package's own file list is unchanged.
+
+`helqix-evidence-verify <package> --trusted-key-file <pub> --attestation <envelope>` checks the package (Phase 5) and then the attestation. The trusted key must have signed the envelope. The attested files must equal the package files exactly (a changed, added or removed file fails). The Merkle root must match the manifest, and the scope note must be present. The verifier still has no HELQIX runtime dependency and no network code. CI runs it inside a Linux network namespace with no network (`unshare --net`).
+
+Samples: `docs/evidence/sample-package.intoto.dsse.json` and `docs/evidence/pybamm-adapter-package.intoto.dsse.json`, signed with the same dev key as the packages; both verify.
+
+Tests: DSSE pre-authentication encoding and base64 against the spec and RFC 4648 vectors (2); attestation of a real package verifies; changed, added and removed files fail; altered payload and altered payload type fail; wrong trusted key, an envelope signed by an untrusted key, and another package's attestation fail (4). Mutations: removing the file-set check and accepting any signature are both caught. Signing over the fixed payload type instead of the stated one survives, but it is equivalent: the type check already requires the two to be the same.
+
+### cosign (Sigstore)
+
+`scripts/cosign_package.sh <cosign> <package> <work-dir>` uses cosign v3.1.4 (Apache-2.0, official release, SHA-256 pinned in CI) on top of a package:
+
+1. `cosign sign-blob` signs `manifest.json`, which covers every file by hash and Merkle root.
+2. `cosign attest-blob` attests the same predicate HELQIX writes, with the same predicate type.
+3. `cosign verify-blob` and `cosign verify-blob-attestation` verify both offline with the public key. A tampered manifest must fail both.
+
+**Nothing is uploaded.** The signing config lists no transparency log and no timestamp service, and every HTTP(S) request goes to a dead proxy, so any attempted upload fails instead of publishing. Verification uses `--insecure-ignore-tlog` because there is deliberately no log entry. The cosign key pair in CI is generated for each run. Where a real cosign key lives (file, KMS, hardware), and whether to publish to the public Rekor log, are **founder decisions**: a public log entry is permanent and reveals the artifact hash, signer key and time.
+
+Not done: SLSA build provenance for HELQIX's own binaries, keyless (Fulcio) signing, Rekor upload, and verifying cosign bundles inside `helqix-evidence-verify` (cosign verifies its own bundles).
