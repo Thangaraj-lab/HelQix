@@ -102,7 +102,7 @@ impl fmt::Display for InterfaceMember {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} {} [{}]",
+            "{} `{}` [{}]",
             self.direction,
             self.name,
             self.dimension
