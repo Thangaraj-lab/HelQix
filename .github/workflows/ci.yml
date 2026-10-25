@@ -44,3 +44,21 @@ jobs:
       - name: 18-libraries
         working-directory: 18-libraries/python
         run: python -m pytest -q tests
+
+  battery-pybamm:
+    name: Battery domain pack and benchmarks (PyBaMM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyBaMM and test dependencies
+        run: python -m pip install pytest "pybamm>=26.6,<27"
+      - name: PyBaMM version
+        run: python -c "import pybamm; print(pybamm.__version__)"
+      - name: Battery model, calibration, integrity, pipeline (synthetic data, no network)
+        working-directory: 18-libraries/python
+        run: python -m pytest -q tests_pybamm
+      - name: SPM benchmarks (closed form, convergence, determinism)
+        run: python -m pytest -q 23-validation/benchmarks/battery

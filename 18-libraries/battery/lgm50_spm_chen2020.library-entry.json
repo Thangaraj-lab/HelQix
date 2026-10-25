@@ -1,0 +1,151 @@
+{
+  "assessed_by": "helqix-verify 0.1.0",
+  "calibration_errors": [
+    {
+      "case": "cell02_1c",
+      "peak_abs_error": 0.11698912706034603,
+      "rmse": 0.04063522149490576
+    },
+    {
+      "case": "cell02_1c5",
+      "peak_abs_error": 0.1848720763882703,
+      "rmse": 0.0489588969020084
+    },
+    {
+      "case": "cell02_c2",
+      "peak_abs_error": 0.34061498286602054,
+      "rmse": 0.085688048464483
+    },
+    {
+      "case": "cell03_1c",
+      "peak_abs_error": 0.11214474552352938,
+      "rmse": 0.03315588889097351
+    },
+    {
+      "case": "cell03_1c5",
+      "peak_abs_error": 0.22257785949441766,
+      "rmse": 0.0546021983634746
+    },
+    {
+      "case": "cell03_c2",
+      "peak_abs_error": 0.34512794829247095,
+      "rmse": 0.08291065381021118
+    },
+    {
+      "case": "cell04_1c",
+      "peak_abs_error": 0.12441726775806794,
+      "rmse": 0.04415566652742364
+    },
+    {
+      "case": "cell04_1c5",
+      "peak_abs_error": 0.18351419396816704,
+      "rmse": 0.05434835242351689
+    },
+    {
+      "case": "cell04_c2",
+      "peak_abs_error": 0.33857815560783067,
+      "rmse": 0.08518293907031715
+    }
+  ],
+  "context_of_use": {
+    "risk": "Low",
+    "risk_consequence": "A wrong research or demonstration conclusion; no safety, certification or purchase decision depends on it.",
+    "statement": "Predict the terminal voltage of an LG M50 21700 cell during constant-current discharge at 25 C (cells like those in the dataset), to reproduce when the cell reaches its 2.5 V cut-off under a given constant load. Valid only for constant current C/10 at 25 C; any other condition is not validated."
+  },
+  "dataset": {
+    "doi": "10.5281/zenodo.4032561",
+    "files": {
+      "LGM50_cell02.csv": {
+        "md5": "0bbf959cbfc367296ec69d7a74d2f5c1",
+        "sha256": "650e7f9ac5217b4db158047e50b6b464100b13f4859002421114edebca629b35"
+      },
+      "LGM50_cell03.csv": {
+        "md5": "a09cbd8eff0af55dfe9bc8728fa89908",
+        "sha256": "fcc13423786d6044f3ec41b1b278fb1d42ff55018666be743243f7c34b1b98cb"
+      },
+      "LGM50_cell04.csv": {
+        "md5": "f17615476283d2e15087165697ff9d7c",
+        "sha256": "e1cbb60e79911824d5559f12db8e8ecdd4781d077a45f5b1ecbcf103aa271d9e"
+      }
+    },
+    "licence": "CC-BY-4.0",
+    "reference": "Chen et al. 2020, J. Electrochem. Soc. 167 080534, doi:10.1149/1945-7111/ab9050"
+  },
+  "fitted_on": [
+    "cell02_1c",
+    "cell02_1c5",
+    "cell02_c2",
+    "cell03_1c",
+    "cell03_1c5",
+    "cell03_c2",
+    "cell04_1c",
+    "cell04_1c5",
+    "cell04_c2"
+  ],
+  "held_out_errors": [
+    {
+      "case": "cell02_c10",
+      "peak_abs_error": 0.3404461753778474,
+      "rmse": 0.07326770039708165
+    },
+    {
+      "case": "cell03_c10",
+      "peak_abs_error": 0.33079432839580836,
+      "rmse": 0.07109336743842505
+    },
+    {
+      "case": "cell04_c10",
+      "peak_abs_error": 0.3549353418548109,
+      "rmse": 0.07728978747643316
+    }
+  ],
+  "label": "NotVerified",
+  "model": {
+    "atol": "0x1.5798ee2308c3ap-27",
+    "contact_resistance_ohm": "0x1.02f0fed59ae0bp-6",
+    "current_interpolation": "linear",
+    "determinism_level": "Tolerance",
+    "initial_state": "from measured open-circuit voltage before discharge",
+    "lower_cutoff_v": "0x1.0000000000000p+1",
+    "mesh": {
+      "r_n": 20,
+      "r_p": 20,
+      "x_n": 20,
+      "x_p": 20,
+      "x_s": 20
+    },
+    "model": "lithium_ion.SPM",
+    "name": "PyBaMM lithium_ion.SPM + Chen2020",
+    "options": {
+      "contact resistance": "true"
+    },
+    "parameter_set": "Chen2020",
+    "rtol": "0x1.0c6f7a0b5ed8dp-20",
+    "scaled_parameters": [],
+    "sha256": "024d12543a3c3e7b1a347c361a9fba83236e2ed8f9f9b9e259ae2a25758cf08d",
+    "solver_package": "pybamm",
+    "solver_version": "26.10.1.1",
+    "thermal": "isothermal"
+  },
+  "output_unit": "V",
+  "reasons": [
+    "held-out case cell02_c10: Recorded value does not satisfy the accepted numeric threshold (RMSE 0.073268 V)",
+    "held-out case cell03_c10: Recorded value does not satisfy the accepted numeric threshold (RMSE 0.071093 V)",
+    "held-out case cell04_c10: Recorded value does not satisfy the accepted numeric threshold (RMSE 0.077290 V)"
+  ],
+  "report_date": "2026-10-25",
+  "requirement": {
+    "accepted": true,
+    "accepted_by": "founder delegation, 2026-10-25 (docs/PHASE1_INPUTS.md)",
+    "comparison": "LessThan",
+    "id": "voltage_rmse_limit",
+    "metric": "voltage_rmse",
+    "statement": "Terminal-voltage RMSE on each held-out C/10 discharge plus its 2 h rest is below 46 mV (anchor: Chen et al. 2020 Table VIII, largest published RMSE of the tuned reference model).",
+    "threshold": {
+      "unit": "mV",
+      "value": 46.0
+    }
+  },
+  "schema": "helqix.model-library-entry.v1",
+  "split_sha256": "9858fefda7fc8f779601bad7f25b0567ca4d0e676d8a69e8ac617fb9f28031db"
+}

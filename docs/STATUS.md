@@ -7,7 +7,7 @@ Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see 
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
 | 0 Hygiene (build and tests green, CI, trace, docs) | PASSED (founder accepted after review) | 2026-10-25 | 929 pass / 0 fail locally; CI run 40180917041 green; see "Gate 0 evidence" |
-| 1 Trust core and model error bound | READY TO START (inputs in [PHASE1_INPUTS.md](PHASE1_INPUTS.md)) | 2026-10-25 | |
+| 1 Trust core and model error bound | DELIVERABLES COMPLETE, model **NotVerified** (kill trigger applied); awaiting founder review | 2026-10-25 | [GATE1_VALIDATION_REPORT.md](validation/GATE1_VALIDATION_REPORT.md): held-out RMSE 71.1-77.3 mV vs < 46 mV |
 | 2 Bit-exact replay | NOT STARTED (D5 decided: Rust core) | | |
 | 3 Causal click-through | NOT STARTED | | |
 | 4 Branch intervention tests | NOT STARTED | | |
@@ -44,23 +44,32 @@ Python (pytest, Python 3.14.6 locally; 3.12 and 3.14 in CI): 19-intelligence 18 
 
 Linux CI: GitHub Actions run [40180917041](https://github.com/Thangaraj-lab/HelQix/actions/runs/40180917041) on commit `6c8b538`: all steps success (Rust "Build workspace" and "Test workspace" with `--locked`; Python suites on 3.12 and 3.14). The raw job log can only be downloaded by a repository admin, so the Linux test counts are not pasted here; the founder can open the run to read them.
 
+## Gate 1 evidence (2026-10-25)
+
+- Verdict by `helqix-validate`: **NotVerified** for the Context of Use in [PHASE1_INPUTS.md](PHASE1_INPUTS.md). Held-out C/10 RMSE 73.3 / 71.1 / 77.3 mV against < 46 mV. Published error bound and full provenance in [validation/GATE1_VALIDATION_REPORT.md](validation/GATE1_VALIDATION_REPORT.md).
+- Split fixed and committed before fitting ([validation/SPLIT_RECORD.md](validation/SPLIT_RECORD.md)); the Rust layer re-hashes it and rejects fitting on held-out cases.
+- Numerical integrity passed (verdict unchanged under 100x tighter tolerances and 2x mesh; changes below 1 mV).
+- Benchmarks pass: charge conservation, lithium mass conservation, mesh convergence (order 2.10, 2.34), bitwise repeatability.
+- Kill trigger "model error above threshold X: no Verified label" applied; no tuning on held-out data.
+- Tests (Windows, 2026-10-25): Rust 929 -> 950 pass (helqix-verify 1 -> 22), Python 52 -> 74 pass, plus 16 PyBaMM tests and 4 benchmarks; 0 failed, 0 ignored. Two full pipeline runs gave byte-identical reports.
+
 ## Per-layer score (weights from the Phase 0 prompt)
 
 | Layer | Score | Weight | Contribution | Evidence (one line) |
 |---|---|---|---|---|
-| 8 Trust | 10 | 20 | 2.0 | evidence crate compiles (1 test); gateway audit log is append-only and evidence export is sha256-hashed (`verify_local_product.py` PASS); no signing, validation, uncertainty; benchmarks empty |
+| 8 Trust | 30 | 20 | 6.0 | held-out validation with Rust-decided contextual label, split re-hashing, integrity gate, benchmarks, uncertainty and sensitivity all tested and run on real data (Gate 1); no signing yet (Phase 5); the one validated model is NotVerified |
 | 6 Time and Lineage | 40 | 15 | 6.0 | time 98+1, branch 11, search 22 pass, but RUNTIME_TRACE shows no runtime caller for Rust freeze/replay/branch and the TS freeze is unmounted; only gateway branch runs work end to end (down from 55: wiring now known absent) |
-| 3 Scenario and Physics | 35 | 12 | 4.2 | helixsim 33 pass; reality 144 pass (environment setters fixed); real PyBaMM run VERIFIED via gateway; no motor physics |
-| 1 Requirements and CoU | 35 | 10 | 3.5 | intent extraction 18 pass; explicit pass/fail thresholds exercised by `verify_local_product.py`; no Context of Use or risk level |
+| 3 Scenario and Physics | 40 | 12 | 4.8 | helixsim 33, reality 144 pass; PyBaMM SPM run on measured current profiles with a published error bound (71-77 mV at C/10); 4 solver benchmarks pass |
+| 1 Requirements and CoU | 50 | 10 | 5.0 | machine-checkable requirement + Context of Use + risk level in helqix-verify, explicit acceptance, used end to end on real data (22 tests) |
 | 7 Observation and Events | 20 | 10 | 2.0 | observation 14, failure 2, events 2, causal 1 pass; thin; not wired |
-| 2 Model and Library | 55 | 8 | 4.4 | engineering 207 and core 172 pass (core tests now run); no validated library or credibility metadata |
+| 2 Model and Library | 60 | 8 | 4.8 | engineering 207, core 172 pass; first model-library entry with identity, data and split hashes, achieved error, context and label (NotVerified) |
 | 10 Presentation and Integration | 40 | 8 | 3.2 | gateway VERIFIED running; React UI not run; app tests cannot run from a clean install (vitest undeclared); Rust SDK compiles (3 tests); API 0 tests |
 | 5 State and History | 65 | 6 | 3.9 | state 67 pass; not used by any runtime path (RUNTIME_TRACE Q1, Q3) |
 | 4 Execution Fabric | 35 | 6 | 2.1 | execution 132 pass and a lost-failed-action bug fixed; no determinism levels; no compute routing; gateway runs tools as subprocesses |
 | 9 Agent | 8 | 5 | 0.4 | optional AI review via 7 providers, shown as "AI PROPOSAL"; no permission ladder in code |
-| **Total** | | **100** | **about 32%** | |
+| **Total** | | **100** | **about 38%** | |
 
-Unweighted average of the ten scores: 34%. Change since the 2026-10-25 audit (about 32%): flat. Tests now run, which raised Model, Execution and Physics; the runtime trace proved the Rust Time and Lineage code is not wired, which lowered that layer. Running more tests did not show more product.
+Unweighted average of the ten scores: 39% (Phase 1). Before Phase 1: about 32% weighted, 34% unweighted. Change since the 2026-10-25 audit (about 32%) to Phase 0 end: flat. Tests now run, which raised Model, Execution and Physics; the runtime trace proved the Rust Time and Lineage code is not wired, which lowered that layer. Running more tests did not show more product.
 
 ## Maturity changes (from [plan/03](plan/03_FEATURE_REGISTER_AND_MATURITY.md))
 
@@ -99,6 +108,13 @@ Counted over tracked files, excluding lockfiles (`git grep -i`, lines):
 8. **Warnings left as is:** about 79 missing-docs warnings in helqix-core and an unused `ActionPayload` import in `05-execution/.../runtime.rs:76`. Not fixed (minimal-diff rule).
 9. **helqix-api has 0 tests** and depends on Postgres via `DATABASE_URL`; not run in Phase 0.
 10. **Unit vocabulary is minimal.** Only `m/s`, `m/s2`, `kg/m3` were added (D-decision 2026-10-25); other quotient units (for example `km/h`) are rejected as unknown by design.
+
+## Findings from Phase 1 (outside scope, not fixed)
+
+11. **The held-out C/10 data is spent.** Any model or method chosen after seeing the Gate 1 result must be validated on new data.
+12. **A +10% change in positive-electrode maximum concentration stops every calibration run**; cause UNKNOWN (not traced).
+13. **Report numbers must parse bit-exactly**: serde_json needs `float_roundtrip` (fixed in helqix-verify); any other Rust consumer of hashed float data needs the same.
+14. **Current is linearly interpolated between samples** at the discharge-to-rest step (about 30 s sampling); the true step is instantaneous. Effect not quantified.
 
 ## Decision log entries from Phase 0 (also recorded in plan/08)
 
