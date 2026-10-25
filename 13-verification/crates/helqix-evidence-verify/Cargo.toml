@@ -1,0 +1,12 @@
+[package]
+name = "helqix-evidence-verify"
+version = "0.1.0"
+edition = "2021"
+description = "Independent offline verifier for HELQIX evidence packages (no HELQIX runtime dependency)"
+license = "MIT"
+
+# Deliberately minimal: this verifier must not import any HELQIX runtime crate (checked in CI).
+[dependencies]
+ed25519-dalek = "2"
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
