@@ -10,6 +10,7 @@ members = [
     "07-time/crates/helqix-time",
     "07-time/crates/helqix-freeze",
     "08-observation/crates/helqix-observation",
+    "08-observation/crates/helqix-edge",
     "09-failure/crates/helqix-failure",
     "10-events-causality/crates/helqix-events",
     "10-events-causality/crates/helqix-causal",
