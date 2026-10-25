@@ -6,7 +6,8 @@ set -euo pipefail
 BASE="${1:-http://127.0.0.1:8080}"
 AUTH="Authorization: Bearer ${HELQIX_API_KEY:?set HELQIX_API_KEY}"
 JSON="Content-Type: application/json"
-show() { printf '\n$ %s\n' "$*" | sed "s/${HELQIX_API_KEY}/\$HELQIX_API_KEY/g"; }
+# The command echo goes to stderr: req's stdout is captured and parsed as JSON.
+show() { printf '\n$ %s\n' "$*" | sed "s/${HELQIX_API_KEY}/\$HELQIX_API_KEY/g" >&2; }
 req() { local method="$1" path="$2" body="${3:-}"; show curl -s -X "$method" "$BASE$path" -H "\"$AUTH\"" ${body:+-H "\"$JSON\"" -d "'$body'"}
   if [ -n "$body" ]; then curl -s -X "$method" "$BASE$path" -H "$AUTH" -H "$JSON" -d "$body"; else curl -s -X "$method" "$BASE$path" -H "$AUTH"; fi; }
 py() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }

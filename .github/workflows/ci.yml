@@ -90,8 +90,15 @@ jobs:
         run: |
           cargo build --locked -p helqix-api --bin helqix-api
           ./target/debug/helqix-api > api.log 2>&1 &
-          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/health/ready && break; sleep 1; done
-          bash scripts/k2_curl_demo.sh http://127.0.0.1:8080
+          ready=no
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/health/ready && { ready=yes; break; }; sleep 1; done
+          if [ "$ready" != yes ]; then bash scripts/ci_annotate.sh "API never became ready" api.log 40; exit 1; fi
+          bash scripts/k2_curl_demo.sh http://127.0.0.1:8080 > demo.log 2>&1 || {
+            bash scripts/ci_annotate.sh "curl demo failed" demo.log 40
+            bash scripts/ci_annotate.sh "API log" api.log 25
+            exit 1
+          }
+          cat demo.log
 
   fmi-adapter:
     name: FMI adapter benchmark (K3)
@@ -116,8 +123,15 @@ jobs:
       - name: Start PostgreSQL+pgvector, NATS, SeaweedFS, Temporal, OTel collector
         run: |
           cp deploy/dev/.env.example deploy/dev/.env
-          docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env up -d --wait --wait-timeout 180
-          docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env ps
+          dc="docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env"
+          if ! $dc up -d --wait --wait-timeout 180 > up.log 2>&1; then
+            $dc ps -a > ps.log 2>&1; $dc logs --no-color --tail 12 > logs.log 2>&1
+            bash scripts/ci_annotate.sh "compose up" up.log 25
+            bash scripts/ci_annotate.sh "compose ps" ps.log 15
+            bash scripts/ci_annotate.sh "compose logs" logs.log 60
+            exit 1
+          fi
+          $dc ps
       - name: Probe each service
         run: |
           docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env exec -T postgres psql -U helqix -d helqix -c "CREATE EXTENSION IF NOT EXISTS vector; SELECT extversion FROM pg_extension WHERE extname='vector';"
