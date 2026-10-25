@@ -744,6 +744,8 @@ name = "helqix-verify"
 version = "0.1.0"
 dependencies = [
  "helqix-core",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]
