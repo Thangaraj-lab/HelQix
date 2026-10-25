@@ -1,0 +1,5 @@
+{
+  "determinism": "Tolerance",
+  "label": "NotValidated",
+  "reason": "External solver run, schema-checked and recorded. The battery model is NotVerified for its Context of Use (Phase 1, held-out C/10 RMSE 71-77 mV); this run is not validation evidence."
+}

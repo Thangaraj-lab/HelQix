@@ -12,6 +12,7 @@ Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see 
 | 3 Causal click-through | CRITERIA MET WITH LIMITATIONS, awaiting founder review | 2026-10-25 | Synthetic ground-truth tests pass; battery reference click-through works end to end (failure at 3570 s, 3 candidate chains, all node fields); the expected stoichiometry chain is missed (nonlinear onset limitation); [CAUSALITY.md](CAUSALITY.md) |
 | 4 Branch intervention tests | CRITERIA MET, awaiting founder review | 2026-10-25 | 10 intervention tests pass (cause supported, non-cause and shared-driver effect not supported, isolation, determinism, compare alignment, budget, dose-response); `helqix-branch-demo` PASS; [BRANCHES.md](BRANCHES.md) |
 | 5 Signed evidence re-verified independently | LOCAL CRITERIA MET; second-environment (Linux CI) verification pending a push; awaiting founder review | 2026-10-25 | Sample package: verifier PASS (19 checks) and re-execution PASS on Windows; 10 tamper tests fail correctly; verifier has no runtime dependency; [EVIDENCE.md](EVIDENCE.md) |
+| 6 External solver adapter | CRITERIA MET for PyBaMM; CalculiX not built (not installed, GPL licence: founder decision); awaiting founder review | 2026-10-25 | Contract, sandbox and conformance kit: 10 tests; PyBaMM adapter 6 tests and conformance PASS; measured variation 0 V over 5 runs, declared Tolerance 4.2e-6 V; signed Tolerance package verifies; tool-output hash check mutation-tested; [ADAPTERS.md](ADAPTERS.md) |
 
 ## Gate 0 evidence
 

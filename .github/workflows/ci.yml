@@ -75,3 +75,7 @@ jobs:
         run: python -m pytest -q tests_pybamm
       - name: SPM benchmarks (closed form, convergence, determinism)
         run: python -m pytest -q 23-validation/benchmarks/battery
+      - name: PyBaMM solver adapter tests (Phase 6)
+        run: HELQIX_PYTHON="$(which python)" cargo test -p helqix-adapters --locked --features pybamm-tests --test pybamm
+      - name: Verify the PyBaMM adapter evidence package on Linux (Phase 6)
+        run: cargo run -q -p helqix-evidence-verify --locked -- docs/evidence/pybamm-adapter-package --trusted-key-file docs/evidence/sample-package.public-key.txt

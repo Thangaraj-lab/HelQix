@@ -1,0 +1,17 @@
+{
+  "conformance": {
+    "failures": [],
+    "pass": true
+  },
+  "cross_check": {
+    "closed_form": "discharge capacity = I * t / 3600",
+    "max_error_ah": 8.881784197001252e-16
+  },
+  "supports_state_restore": false,
+  "variation": {
+    "declared_tolerance_v": 4.2e-6,
+    "margin_rule": "declared = max(10 x measured max deviation, solver rtol 1e-6 x 4.2 V)",
+    "max_abs_deviation_v": 0.0,
+    "runs": 5
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "algorithm": "Ed25519",
+  "key_id": "7fcd2d56f02f8ea6",
+  "manifest_sha256": "cfb5781039754e8ae075ee5ffe916c51048f53767655a4f3288d5f2b81e99085",
+  "public_key": "a03e42301148e574b950a2aebc5b2ca89d16104f28e1bab1cc5bde3e3d1fc21b",
+  "schema": "helqix.evidence-signature.v1",
+  "signature": "623650b78564da2eeb7d87d3d00b30cacefe71850ba2472109f1f81462af8e58f943cd80ab70e1ca8cbccc31cd3e558068429bbe76e14eb83ab3dae5e6632908",
+  "signed_at": "2026-10-25T00:00:00Z",
+  "signed_at_note": "claim by the signer; not a trusted timestamp",
+  "signer": "helqix-dev-windows"
+}

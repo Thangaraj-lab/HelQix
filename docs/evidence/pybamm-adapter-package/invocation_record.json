@@ -1,0 +1,14 @@
+{
+  "configuration": {
+    "contact_resistance_ohm": 0.0,
+    "initial_ocv_v": 4.18,
+    "schema": "helqix.pybamm-input.v1"
+  },
+  "exit_status": 0,
+  "input_sha256": "54721ef9d04d86eac8d1cc9fbf062ace159e7cb10df998f20de717dd87ab66c1",
+  "output_sha256": "c17731ea3544c30d43cb9de2b89a56f7a6aa337039c937f779b48ce81fe86358",
+  "stderr_summary": "",
+  "tool": "pybamm",
+  "tool_version": "26.10.1.1",
+  "wall_time_ms": 2405
+}

@@ -11,6 +11,7 @@ helqix-freeze = { path = "../../../07-time/crates/helqix-freeze" }
 helqix-causal = { path = "../../../10-events-causality/crates/helqix-causal" }
 helqix-investigation = { path = "../../../10-events-causality/crates/helqix-investigation" }
 helqix-branch = { path = "../../../11-branching/crates/helqix-branch" }
+helqix-adapters = { path = "../../../16-adapters/platform/adapters" }
 ed25519-dalek = "2"
 getrandom = "0.2"
 serde_json = { version = "1", features = ["float_roundtrip"] }

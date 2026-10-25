@@ -29,8 +29,10 @@ use sha2::{Digest, Sha256};
 pub const MANIFEST: &str = "manifest.json";
 /// Signature file name.
 pub const SIGNATURE: &str = "signature.json";
-/// Roles every package must contain.
+/// Roles a Bitwise (core-runtime) package must contain.
 pub const REQUIRED_ROLES: [&str; 4] = ["freeze", "state_chain", "requirement_outcome", "verdict"];
+/// Roles a Tolerance or Statistical (external-tool) package must contain.
+pub const TOOL_REQUIRED_ROLES: [&str; 3] = ["invocation_record", "tool_outputs", "verdict"];
 /// Statement printed with every result.
 pub const SCOPE_NOTE: &str = "Signing proves origin and integrity of the package, not correctness of the physics.";
 
@@ -87,7 +89,13 @@ pub fn verify_package(dir: &Path, trusted_public_key_hex: &str) -> VerifyReport 
     check("entry paths are plain file names", safe, "an entry path is not a plain file name inside the package".into(), &mut reasons);
 
     let roles: BTreeSet<&str> = entries.iter().map(|e| e.1.as_str()).collect();
-    for role in REQUIRED_ROLES { check(&format!("role {role} present"), roles.contains(role), format!("missing required role {role}"), &mut reasons); }
+    let determinism = manifest["statement"]["determinism"].as_str().unwrap_or_default().to_owned();
+    let required: &[&str] = match determinism.as_str() {
+        "Bitwise" => &REQUIRED_ROLES,
+        "Tolerance" | "Statistical" => &TOOL_REQUIRED_ROLES,
+        _ => { check("determinism declared", false, "statement must declare determinism Bitwise, Tolerance or Statistical".into(), &mut reasons); &[] }
+    };
+    for role in required { check(&format!("role {role} present"), roles.contains(role), format!("missing required role {role}"), &mut reasons); }
 
     for (path, _, expected) in &entries {
         match fs::read(dir.join(path)) {
@@ -123,6 +131,13 @@ pub fn verify_package(dir: &Path, trusted_public_key_hex: &str) -> VerifyReport 
     // Internal consistency.
     let load = |role: &str| entries.iter().find(|e| e.1 == role).and_then(|e| read_json(&dir.join(&e.0)).ok()).map(|x| x.1);
     let statement = &manifest["statement"];
+    if determinism != "Bitwise" {
+        let record = load("invocation_record").unwrap_or(Value::Null);
+        let raw = entries.iter().find(|e| e.1 == "tool_outputs").and_then(|e| fs::read(dir.join(&e.0)).ok());
+        let ok = raw.is_some_and(|b| record["output_sha256"].as_str() == Some(sha256_hex(&b).as_str()));
+        check("tool output matches its invocation record", ok, "tool output does not match the hash in its invocation record".into(), &mut reasons);
+        return VerifyReport { pass: reasons.is_empty(), checks, reasons };
+    }
     let chain = load("state_chain").unwrap_or(Value::Null);
     let last_link = chain["links"].as_array().and_then(|l| l.last()).and_then(Value::as_str);
     let final_ok = chain["final"].as_str().is_some() && chain["final"].as_str() == last_link && chain["final"] == statement["final_state_hash"];

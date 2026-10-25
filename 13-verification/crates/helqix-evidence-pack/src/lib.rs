@@ -109,7 +109,10 @@ fn reference_spec() -> RunSpec {
 }
 
 fn freeze_bytes(f: &helqix_freeze::Freeze) -> Result<Vec<u8>, PackError> {
-    let path = std::env::temp_dir().join(format!("helqix-pack-freeze-{}-{}.json", std::process::id(), &f.sha256()[..16]));
+    // One path per call: concurrent builds of the same freeze must not delete each other's file.
+    static CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("helqix-pack-freeze-{}-{n}-{}.json", std::process::id(), &f.sha256()[..16]));
     save_freeze(f, &path).map_err(build)?;
     let bytes = fs::read(&path).map_err(io)?;
     let _ = fs::remove_file(&path);

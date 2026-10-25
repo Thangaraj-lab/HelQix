@@ -1,0 +1,40 @@
+{
+  "entries": [
+    {
+      "path": "adapter_checks.json",
+      "role": "adapter_checks",
+      "sha256": "29601ea3a96b8408bdf099c29e3d3b49ea7b649b318f196ad55acd8c1cfde5d0"
+    },
+    {
+      "path": "invocation_record.json",
+      "role": "invocation_record",
+      "sha256": "c834366036f329fe17c1cdaa9d93b32b6e616163ad230fb87ab388e2ddded46e"
+    },
+    {
+      "path": "tool_input.json",
+      "role": "tool_input",
+      "sha256": "54721ef9d04d86eac8d1cc9fbf062ace159e7cb10df998f20de717dd87ab66c1"
+    },
+    {
+      "path": "tool_outputs.json",
+      "role": "tool_outputs",
+      "sha256": "c17731ea3544c30d43cb9de2b89a56f7a6aa337039c937f779b48ce81fe86358"
+    },
+    {
+      "path": "verdict.json",
+      "role": "verdict",
+      "sha256": "58ed60be739e3cf7c6f666d80486d4f8ebb118fb515394a83351157b1b2f851c"
+    }
+  ],
+  "merkle_root": "f741297da3f09d497686d0e0e807885f415381f7e7f9697b05f06e5c250dd2b5",
+  "schema": "helqix.evidence-manifest.v1",
+  "statement": {
+    "context_of_use": "Adapter conformance and provenance demonstration; not a validated physical prediction.",
+    "determinism": "Tolerance",
+    "failure_index": 0,
+    "final_state_hash": "c17731ea3544c30d43cb9de2b89a56f7a6aa337039c937f779b48ce81fe86358",
+    "label": "NotValidated",
+    "subject": "PyBaMM SPM / Chen2020 adapter reference run: 5 A for 1800 s from 4.18 V",
+    "verdict": "Conformance PASS; charge-conservation cross-check max error 8.881784197001252e-16 A.h; declared tolerance 4.2e-6 V"
+  }
+}
