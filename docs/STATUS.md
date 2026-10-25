@@ -9,7 +9,7 @@ Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see 
 | 0 Hygiene (build and tests green, CI, trace, docs) | PASSED (founder accepted after review) | 2026-10-25 | 929 pass / 0 fail locally; CI run 40180917041 green; see "Gate 0 evidence" |
 | 1 Trust core and model error bound | PASSED (founder accepted); model **NotVerified**, error bound published | 2026-10-25 | [GATE1_VALIDATION_REPORT.md](validation/GATE1_VALIDATION_REPORT.md): held-out RMSE 71.1-77.3 mV vs < 46 mV |
 | 2 Bit-exact replay | CRITERIA MET, awaiting founder review | 2026-10-25 | `helqix-replay-check` PASS (identical final hash bf36562e... twice; failure at index 1793 reproduced by replay from a reloaded freeze); 18 new tests; Rust 968 pass, 0 fail; [DETERMINISM.md](DETERMINISM.md) |
-| 3 Causal click-through | NOT STARTED | | |
+| 3 Causal click-through | CRITERIA MET WITH LIMITATIONS, awaiting founder review | 2026-10-25 | Synthetic ground-truth tests pass; battery reference click-through works end to end (failure at 3570 s, 3 candidate chains, all node fields); the expected stoichiometry chain is missed (nonlinear onset limitation); [CAUSALITY.md](CAUSALITY.md) |
 | 4 Branch intervention tests | NOT STARTED | | |
 | 5 Signed evidence re-verified independently | NOT STARTED | | |
 

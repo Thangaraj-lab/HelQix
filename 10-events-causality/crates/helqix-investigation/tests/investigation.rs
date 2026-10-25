@@ -148,3 +148,23 @@ fn replay_linked_reference_scenario() {
     assert_eq!(opened.logical_time().0, reference.index);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn json_input_round_trips_through_the_cli_format() {
+    let doc = serde_json::json!({
+        "schema": "helqix.investigation-input.v1",
+        "times_seconds": [0., 1., 2., 3., 4., 5., 6., 7.],
+        "nodes": [{"id": "load", "values": [1., 1., 2., 2., 2., 2., 2., 2.]}, {"id": "current", "values": [0., 0., 0., 0., 3., 3., 3., 3.]}, {"id": "temperature", "values": [25., 25., 25., 25., 25., 25., 90., 95.]}],
+        "relations": [{"cause": "load", "effect": "current", "relation": "eq_current", "parameters": {"gain": 1.5}}, {"cause": "current", "effect": "temperature", "relation": "eq_heat", "parameters": {"resistance": 0.2}}],
+        "requirement": {"id": "r_temp", "node": "temperature", "comparator": "at_most", "threshold": 80.0},
+        "method": {"min_relative_change": 0.05, "onset_fraction": 0.1, "path_limit": 64},
+        "state_reference": null
+    });
+    let input = helqix_investigation::input_from_json(&doc).unwrap();
+    assert_eq!(input, synthetic());
+    let report = helqix_investigation::report_json(&input, &investigate(&input).unwrap());
+    assert_eq!(report["chains"][0]["nodes"], serde_json::json!(["load", "current", "temperature"]));
+    assert_eq!(report["chains"][0]["grade"], "candidate (structural + temporal)");
+    let mut bad = doc.clone(); bad["requirement"]["comparator"] = serde_json::json!("roughly");
+    assert!(helqix_investigation::input_from_json(&bad).is_err());
+}

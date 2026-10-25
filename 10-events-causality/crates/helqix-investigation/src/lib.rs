@@ -178,3 +178,55 @@ impl Investigation {
     /// All node details.
     pub fn details(&self) -> &[NodeDetail] { &self.details }
 }
+
+/// Parses an investigation input from JSON (`helqix.investigation-input.v1`).
+pub fn input_from_json(doc: &serde_json::Value) -> Result<InvestigationInput, InvestigationError> {
+    use serde_json::Value;
+    let id = |v: &Value, what: &str| -> Result<Identifier, InvestigationError> {
+        Identifier::parse(v.as_str().ok_or_else(|| invalid(format!("{what} must be a string")))?).map_err(|e| invalid(format!("{what}: {e}")))
+    };
+    let num = |v: &Value, what: &str| v.as_f64().ok_or_else(|| invalid(format!("{what} must be a number")));
+    let nums = |v: &Value, what: &str| -> Result<Vec<f64>, InvestigationError> {
+        v.as_array().ok_or_else(|| invalid(format!("{what} must be an array")))?.iter().map(|x| num(x, what)).collect()
+    };
+    if doc["schema"] != "helqix.investigation-input.v1" { return Err(invalid("schema must be helqix.investigation-input.v1")); }
+    let nodes = doc["nodes"].as_array().ok_or_else(|| invalid("nodes must be an array"))?.iter()
+        .map(|n| Ok(NodeSeries { id: id(&n["id"], "node id")?, values: nums(&n["values"], "node values")? })).collect::<Result<_, InvestigationError>>()?;
+    let relations = doc["relations"].as_array().ok_or_else(|| invalid("relations must be an array"))?.iter().map(|r| {
+        let parameters = r["parameters"].as_object().map(|m| m.iter().map(|(k, v)| Ok((k.clone(), num(v, "parameter")?))).collect::<Result<Vec<_>, InvestigationError>>()).transpose()?.unwrap_or_default();
+        Ok(Relation { cause: id(&r["cause"], "cause")?, effect: id(&r["effect"], "effect")?, relation: id(&r["relation"], "relation")?, parameters })
+    }).collect::<Result<_, InvestigationError>>()?;
+    let q = &doc["requirement"];
+    let comparator = match q["comparator"].as_str() { Some("at_least") => Comparator::AtLeast, Some("at_most") => Comparator::AtMost, _ => return Err(invalid("comparator must be at_least or at_most")) };
+    let m = &doc["method"];
+    let state_reference = match &doc["state_reference"] {
+        Value::Null => None,
+        r => Some(StateReference { freeze_sha256: r["freeze_sha256"].as_str().ok_or_else(|| invalid("freeze_sha256"))?.to_owned(), index: r["index"].as_u64().ok_or_else(|| invalid("index"))? as usize }),
+    };
+    Ok(InvestigationInput {
+        times_seconds: nums(&doc["times_seconds"], "times_seconds")?, nodes, relations,
+        requirement: Requirement { id: id(&q["id"], "requirement id")?, node: id(&q["node"], "requirement node")?, comparator, threshold: num(&q["threshold"], "threshold")? },
+        state_reference,
+        method: CandidateMethod { min_relative_change: num(&m["min_relative_change"], "min_relative_change")?, onset_fraction: num(&m["onset_fraction"], "onset_fraction")?, path_limit: m["path_limit"].as_u64().ok_or_else(|| invalid("path_limit"))? as usize },
+    })
+}
+
+/// Serialises an investigation for a client (`helqix.investigation-report.v1`).
+pub fn report_json(input: &InvestigationInput, inv: &Investigation) -> serde_json::Value {
+    use serde_json::json;
+    json!({
+        "schema": "helqix.investigation-report.v1",
+        "failure": inv.failure().map(|f| json!({"requirement": f.requirement.as_str(), "node": f.node.as_str(), "threshold": f.threshold, "observed_value": f.observed_value, "index": f.index, "time_seconds": f.time_seconds})),
+        "method": {"min_relative_change": input.method.min_relative_change, "onset_fraction": input.method.onset_fraction, "path_limit": input.method.path_limit,
+                   "description": "structural paths of declared relations; every node changed; onsets never go backwards; ranked by root onset then length; no probabilities"},
+        "chains": inv.chains().iter().map(|c| json!({"grade": c.grade, "root_onset_index": c.root_onset_index, "root_onset_seconds": input.times_seconds[c.root_onset_index],
+            "nodes": c.nodes.iter().map(|n| n.id.as_str()).collect::<Vec<_>>()})).collect::<Vec<_>>(),
+        "details": inv.details().iter().map(|d| json!({"node": d.node.as_str(), "relation": d.relation.as_ref().map(|r| r.as_str()),
+            "parameters": d.parameters.iter().map(|(k, v)| json!({"name": k, "value": v})).collect::<Vec<_>>(),
+            "baseline_value": d.baseline_value, "previous_value": d.previous_value, "value_at_failure": d.value_at_failure, "signal": d.signal.as_str(),
+            "state_reference": d.state_reference.as_ref().map(|r| json!({"freeze_sha256": r.freeze_sha256, "index": r.index})),
+            "related_events": d.related_events.iter().map(|e| e.as_str()).collect::<Vec<_>>(), "branch_experiments": d.branch_experiments.iter().map(|e| e.as_str()).collect::<Vec<_>>(),
+            "grade": d.grade})).collect::<Vec<_>>(),
+        "events": inv.events().events().iter().map(|e| json!({"id": e.id.as_str(), "type": e.event_type.as_str(), "source": e.source.as_str()})).collect::<Vec<_>>(),
+    })
+}
