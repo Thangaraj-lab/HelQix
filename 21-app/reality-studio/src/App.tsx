@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Activity, ArrowDown, ArrowRight, Box, CarFront, ChevronDown, CircleHelp, Database, FileCheck2, FolderKanban, Gauge, GitBranch, Layers3, LogOut, Maximize2, Menu, Pause, Play, Plus, Search, Settings2, ShieldCheck, Sparkles, Wrench, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowRight, Box, CarFront, ChevronDown, CircleHelp, Database, FileCheck2, FolderKanban, Gauge, GitBranch, Layers3, Maximize2, Menu, Pause, Play, Plus, Search, Settings2, ShieldCheck, Sparkles, Wrench, X } from 'lucide-react';
 import { api, HelqixRequestError, type ActivityEvent, type BoundedSearchCandidate, type BoundedSearchPayload, type ComponentTypeDefinition, type EngineeringBranchPayload, type EngineeringReality, type EngineeringRequirement, type EVBatteryVehicleConfiguration, type EVDriveCyclePoint, type IntegrationRun, type IntentAnalysis, type ProjectPayload, type RealityComponent, type Resource, type User, type VerificationRecord, type VerificationRule } from './api';
 
 type Mode = 'Build' | 'Simulate' | 'Run' | 'Understand' | 'Improve' | 'Verify';
@@ -11,6 +11,7 @@ type StudioSearchEntry = { id: string; kind: 'project' | 'component' | 'requirem
 const EMPTY_RUNTIME_ENTITIES: Array<{ id: string; name: string; componentType: string }> = [];
 const RuntimeCanvas = lazy(() => import('./RuntimeCanvas').then((module) => ({ default: module.RuntimeCanvas })));
 const VehicleRuntimeCanvas = lazy(() => import('./RuntimeCanvas').then((module) => ({ default: module.VehicleRuntimeCanvas })));
+const ScenarioExecutionBoard = lazy(() => import('./ScenarioExecutionBoard').then((module) => ({ default: module.ScenarioExecutionBoard })));
 const modes: Array<{ name: Mode; icon: typeof Box; label: string }> = [
   { name: 'Build', icon: Box, label: 'Define reality' },
   { name: 'Simulate', icon: Gauge, label: 'Prepare analysis' },
@@ -21,17 +22,22 @@ const modes: Array<{ name: Mode; icon: typeof Box; label: string }> = [
 ];
 
 export function App() {
+  useEffect(() => {
+    if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
+      window.history.replaceState(null, '', '/');
+    }
+  }, []);
   const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Resource<ProjectPayload>[]>([]);
   const [selectedProject, setSelectedProject] = useState<Resource<ProjectPayload> | null>(null);
   const [mode, setMode] = useState<Mode>('Build');
   const [authLoading, setAuthLoading] = useState(true);
+  const [workspaceAttempt, setWorkspaceAttempt] = useState(0);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>('checking');
   const [busy, setBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [error, setError] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
@@ -136,13 +142,12 @@ export function App() {
         else if (showIntegrations) setShowIntegrations(false);
         else if (showActivity) setShowActivity(false);
         else if (showSearch) setShowSearch(false);
-        else if (showProfile) setShowProfile(false);
         else if (mobileNav) setMobileNav(false);
       }
     };
     window.addEventListener('keydown', handleShortcut);
     return () => window.removeEventListener('keydown', handleShortcut);
-  }, [showNewProject, showAddComponent, showTopology, showRequirement, showEVConfig, showProjectSettings, showHelp, showIntegrations, showActivity, showSearch, showProfile, mobileNav]);
+  }, [showNewProject, showAddComponent, showTopology, showRequirement, showEVConfig, showProjectSettings, showHelp, showIntegrations, showActivity, showSearch, mobileNav]);
 
   const loadProjects = useCallback(async () => {
     const response = await api.projects();
@@ -182,13 +187,18 @@ export function App() {
 
   useEffect(() => {
     let alive = true;
-    api.me().then(({ user: current }) => {
+    setAuthLoading(true);
+    setError('');
+    api.me().catch(() => api.localWorkspace()).then(async ({ user: current }) => {
+      await loadProjects();
       if (!alive) return;
       setUser(current);
-      return Promise.all([loadProjects(), api.integrations().then((res) => { if (alive) setTools(res.integrations ?? []); }).catch(() => undefined)]);
-    }).catch(() => undefined).finally(() => { if (alive) setAuthLoading(false); });
+      void api.integrations().then((res) => { if (alive) setTools(res.integrations ?? []); }).catch(() => undefined);
+    }).catch((cause) => {
+      if (alive) setError(cause instanceof Error ? cause.message : 'Could not open the local workspace.');
+    }).finally(() => { if (alive) setAuthLoading(false); });
     return () => { alive = false; };
-  }, [loadProjects]);
+  }, [loadProjects, workspaceAttempt]);
 
   useEffect(() => {
     let alive = true;
@@ -217,18 +227,6 @@ export function App() {
     }, 4000);
     return () => window.clearInterval(timer);
   }, [tools]);
-
-  const signIn = async (email: string, password: string, create: boolean, name: string, organization: string) => {
-    setBusy(true); setError('');
-    try {
-      const result = create ? await api.signup(name, email, password, organization) : await api.login(email, password);
-      setUser(result.user);
-      const response = await api.projects();
-      setProjects(response.data); setSelectedProject(response.data[0] ?? null); setSaveStatus('saved');
-      api.integrations().then((res) => setTools(res.integrations ?? [])).catch(() => undefined);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Sign in failed.'); }
-    finally { setBusy(false); }
-  };
 
   const createProject = async (payload: ProjectPayload) => {
     setBusy(true); setError('');
@@ -509,8 +507,6 @@ export function App() {
     }
   };
 
-  const logout = async () => { try { await api.logout(); } finally { setUser(null); setProjects([]); setSelectedProject(null); setSaveStatus('saved'); setShowProfile(false); } };
-
   const openActivity = async () => {
     if (!selectedProject) return;
     setShowIntegrations(false); setShowHelp(false);
@@ -556,9 +552,9 @@ export function App() {
     setSearchQuery('');
   };
 
-  if (authLoading) return <div className="loading-screen"><Brand /><span className="loading-orbit" /><p>Connecting to your engineering workspace</p></div>;
-  if (!user) return <AuthScreen onSubmit={signIn} busy={busy} error={error} />;
-  if (!selectedProject) return <ProjectHome user={user} projects={projects} error={error} busy={busy} onCreate={() => setShowNewProject(true)} onRefresh={loadProjects} onLogout={logout} onOpen={(p) => { setSelectedProject(p); setSaveStatus('saved'); setMode('Build'); }} />;
+  if (authLoading) return <div className="loading-screen"><Brand /><span className="loading-orbit" /><p>Opening your local engineering workspace</p></div>;
+  if (!user) return <WorkspaceUnavailable error={error} onRetry={() => setWorkspaceAttempt((attempt) => attempt + 1)} />;
+  if (!selectedProject) return <ProjectHome projects={projects} error={error} busy={busy} showNewProject={showNewProject} onCreate={() => setShowNewProject(true)} onCloseNewProject={() => setShowNewProject(false)} onCreateProject={createProject} onRefresh={loadProjects} onOpen={(p) => { setSelectedProject(p); setSaveStatus('saved'); setMode('Build'); }} />;
 
   return <main className="studio">
     <header className="topbar">
@@ -570,8 +566,6 @@ export function App() {
       <div className="top-spacer" />
       <div className={`save-state save-${saveStatus}`} role="status" aria-live="polite"><span className="save-dot" /> {saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'error' ? 'Save failed' : 'Saved'}</div>
       <button className="search-trigger" aria-label="Search this project" title="Search this project (Ctrl/⌘ K)" onClick={() => { setSearchQuery(''); setShowSearch(true); }}><Search size={15} /><span>Search</span><kbd>Ctrl K</kbd></button>
-      <button className="avatar" onClick={() => setShowProfile(!showProfile)} aria-label="Profile">{user.name.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase()}</button>
-      {showProfile && <div className="profile-menu"><b>{user.name}</b><span>{user.email}</span><button onClick={logout}><LogOut size={14} /> Sign out</button></div>}
     </header>
 
     <div className="workflow-bar" aria-label="Engineering modes">
@@ -664,17 +658,6 @@ function useModalFocus() {
   }, []);
 }
 
-function AuthScreen({ onSubmit, busy, error }: { onSubmit: (email: string, password: string, create: boolean, name: string, organization: string) => void; busy: boolean; error: string }) {
-  const [create, setCreate] = useState(false);
-  const [name, setName] = useState(''); const [organization, setOrganization] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
-  return <main className="auth-page"><div className="auth-art"><div className="auth-grid" /><div className="auth-glow" /><div className="auth-top"><Brand /><span className="auth-edition">PRIVATE ENGINEERING WORKSPACE</span></div><div className="auth-message"><div className="eyebrow"><span className="eyebrow-line" /> ENGINEERING, CONNECTED</div><h1>From first principle<br />to <em>verified reality.</em></h1><p>One continuous workspace for defining products, running real engineering models, and understanding what the evidence says.</p><div className="auth-ribbon"><span className="ribbon-node active">01</span><i /><span className="ribbon-node">02</span><i /><span className="ribbon-node">03</span><i /><span className="ribbon-node">04</span><i /><span className="ribbon-node">05</span><i /><span className="ribbon-node">06</span><span className="ribbon-caption">BUILD · SIMULATE · VERIFY</span></div></div><div className="auth-art-foot"><span>DESIGN WITH EVIDENCE</span><span>HELQIX STUDIO <b>·</b> 01.0</span></div></div>
-    <div className="auth-panel"><div className="auth-panel-inner"><div className="mobile-brand"><Brand compact /></div><div className="auth-eyebrow">WELCOME TO HELQIX</div><h2>{create ? 'Create your workspace' : 'Sign in to your workspace'}</h2><p className="auth-hint">{create ? 'Your engineering projects, models, and evidence in one place.' : 'Continue where your engineering work left off.'}</p><form onSubmit={(e) => { e.preventDefault(); onSubmit(email, password, create, name, organization); }}>
-      {create && <><label>Full name<input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required /></label><label>Organization <small>OPTIONAL</small><input value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Company or team" /></label></>}
-      <label>Work email<input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" required /></label><label>Password<input type="password" autoComplete={create ? 'new-password' : 'current-password'} minLength={create ? 12 : 1} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={create ? 'At least 12 characters' : 'Enter your password'} required /></label>
-      {error && <div className="form-error">{error}</div>}<button className="primary-button auth-submit" disabled={busy}>{busy ? 'Connecting…' : create ? 'Create workspace' : 'Sign in'}<ArrowRight size={16} /></button></form><div className="auth-switch">{create ? 'Already have an account?' : 'New to HELQIX?'} <button onClick={() => setCreate(!create)}>{create ? 'Sign in' : 'Create account'}</button></div><div className="auth-secure"><ShieldCheck size={14} /> Private by design <span>·</span> Your project data stays in your workspace</div></div><div className="auth-panel-footer"><span>© 2026 HELQIX</span><span aria-disabled="true" title="Privacy details are not configured in this prototype">Privacy & security</span><span aria-disabled="true" title="Support contact is not configured">Support</span></div></div>
-  </main>;
-}
-
 function ProjectSettingsModal({ project, busy, error, onClose, onSave }: { project: Resource<ProjectPayload> | null; busy: boolean; error: string; onClose: () => void; onSave: (name: string, domain: string, description: string) => Promise<boolean> }) {
   useModalFocus();
   const [name, setName] = useState(project?.payload.name ?? '');
@@ -694,11 +677,16 @@ function ProjectSettingsModal({ project, busy, error, onClose, onSave }: { proje
   </div>;
 }
 
-function ProjectHome({ user, projects, error, busy, onCreate, onRefresh, onLogout, onOpen }: { user: User; projects: Resource<ProjectPayload>[]; error: string; busy: boolean; onCreate: () => void; onRefresh: () => Promise<void>; onLogout: () => void; onOpen: (p: Resource<ProjectPayload>) => void }) {
+function WorkspaceUnavailable({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return <main className="loading-screen"><Brand /><div className="empty-projects gateway-unavailable" role="alert"><div className="empty-glyph"><Wrench size={22} /></div><h2>Workspace gateway unavailable</h2><p>{error || 'Start the local HELQIX gateway to open your workspace.'}</p><button className="primary-button" onClick={onRetry}>Retry connection <ArrowRight size={15} /></button></div></main>;
+}
+
+function ProjectHome({ projects, error, busy, showNewProject, onCreate, onCloseNewProject, onCreateProject, onRefresh, onOpen }: { projects: Resource<ProjectPayload>[]; error: string; busy: boolean; showNewProject: boolean; onCreate: () => void; onCloseNewProject: () => void; onCreateProject: (payload: ProjectPayload) => void; onRefresh: () => Promise<void>; onOpen: (p: Resource<ProjectPayload>) => void }) {
   const [filter, setFilter] = useState(''); const filtered = projects.filter((p) => `${p.payload.name} ${p.payload.domain ?? ''}`.toLowerCase().includes(filter.toLowerCase()));
-  return <main className="home-page"><header className="home-topbar"><Brand compact /><div className="top-spacer" /><span className="welcome-user">{user.name}</span><button className="avatar" onClick={onLogout} title="Sign out">{user.name.slice(0, 1).toUpperCase()}</button></header><section className="home-content"><div className="home-intro"><div><div className="eyebrow"><span className="eyebrow-line" /> YOUR ENGINEERING WORKSPACE</div><h1>Good to have you back,<br /><em>{user.name.split(' ')[0]}.</em></h1><p>Pick up an engineering reality or start defining something new.</p></div><button className="primary-button" onClick={onCreate}><Plus size={16} /> New project</button></div><div className="home-toolbar"><div><h2>Projects <span>{projects.length.toString().padStart(2, '0')}</span></h2><p>Your product realities and engineering studies</p></div><div className="home-filters"><div className="home-search"><Search size={15} /><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a project" /></div><button className="icon-button" title="Refresh" onClick={() => void onRefresh()}><Activity size={15} /></button></div></div>{error && <div className="form-error">{error}</div>}
+  return <main className="home-page"><header className="home-topbar"><Brand compact /><div className="top-spacer" /><span className="welcome-user">LOCAL WORKSPACE</span></header><section className="home-content"><div className="home-intro"><div><div className="eyebrow"><span className="eyebrow-line" /> YOUR ENGINEERING WORKSPACE</div><h1>Build your next<br /><em>engineering reality.</em></h1><p>Open a project or describe a new product to begin.</p></div><button className="primary-button" onClick={onCreate}><Plus size={16} /> New project</button></div><div className="home-toolbar"><div><h2>Projects <span>{projects.length.toString().padStart(2, '0')}</span></h2><p>Your product realities and engineering studies</p></div><div className="home-filters"><div className="home-search"><Search size={15} /><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a project" /></div><button className="icon-button" title="Refresh" onClick={() => void onRefresh()}><Activity size={15} /></button></div></div>{error && <div className="form-error">{error}</div>}
     {filtered.length ? <div className="project-grid">{filtered.map((project, i) => <button className="project-card" key={project.id} onClick={() => onOpen(project)}><div className={`project-card-art art-${i % 3}`}><div className="art-orbit orbit-a" /><div className="art-orbit orbit-b" /><div className="art-cube"><span /><span /><span /></div><span className="art-tag">{project.payload.domain || 'ENGINEERING SYSTEM'}</span></div><div className="project-card-body"><div className="card-topline"><span>REV {String(project.version).padStart(2, '0')}</span><span className="project-active"><i /> SAVED</span></div><h3>{project.payload.name}</h3><p>{project.payload.description || 'Engineering reality workspace'}</p><div className="card-bottom"><span>Updated {new Date(project.updated_at).toLocaleDateString()}</span><ArrowRight size={15} /></div></div></button>)}</div> : <div className="empty-projects"><div className="empty-glyph"><FolderKanban size={23} /></div><h3>{projects.length ? 'No matching projects' : 'Start with an engineering question'}</h3><p>{projects.length ? 'Try another name or product type.' : 'Create a project, describe the product you want to build, then develop its engineering reality in one workspace.'}</p><button className="primary-button" onClick={onCreate}><Plus size={16} /> Create a project</button></div>}
     <div className="home-activity"><div className="activity-marker"><Sparkles size={15} /></div><div><b>A project is a living engineering model.</b><p>HELQIX keeps product structure, connected models, execution history, alternatives, and evidence together.</p></div><button onClick={onCreate}>Get started <ArrowRight size={14} /></button></div></section>
+    {showNewProject && <NewProjectModal busy={busy} error={error} onClose={onCloseNewProject} onCreate={onCreateProject} />}
     {busy && <div className="modal-backdrop"><div className="loading-card"><span className="loading-orbit" /><p>Opening project…</p></div></div>}
   </main>;
 }
@@ -743,9 +731,10 @@ function CanvasStage({ mode, project, run, playbackIndex, playbackPlaying, onPla
   const chartSeries = Array.isArray(run?.result.series) ? run.result.series as Array<{ time_h: number; voltage_v: number; capacity_ah: number }> : null;
   const vehicleSeries = Array.isArray(run?.result.series) ? run.result.series as Array<{ time_s: number; speed_m_s: number; distance_m: number; pack_voltage_v: number; pack_current_a: number; pack_power_w: number }> : null;
   const runtimeEntities = project.payload.engineering_reality?.components ?? EMPTY_RUNTIME_ENTITIES;
-  const realityViewport = <Suspense fallback={<RuntimeFallback />}><RuntimeCanvas entities={runtimeEntities} interfaces={project.payload.engineering_reality?.interfaces} connections={project.payload.engineering_reality?.connections} selectedEntityId={selectedComponentId} onSelectEntity={onSelectComponent} viewPreset={viewPreset} showGrid={showGrid} showAxes={showAxes} fitRevision={fitRevision} /></Suspense>;
+  const renderRealityViewport = (authoritativeState?: import('./engineering/authoritativeState').AuthoritativeEngineeringState) => <Suspense fallback={<RuntimeFallback />}><RuntimeCanvas entities={runtimeEntities} reality={project.payload.engineering_reality} authoritativeState={authoritativeState} interfaces={project.payload.engineering_reality?.interfaces} connections={project.payload.engineering_reality?.connections} selectedEntityId={selectedComponentId} onSelectEntity={onSelectComponent} viewPreset={viewPreset} showGrid={showGrid} showAxes={showAxes} fitRevision={fitRevision} /></Suspense>;
+  const realityViewport = renderRealityViewport();
   if (mode === 'Simulate') return <SimulationSetupBoard project={project} tools={tools} busy={busy} realityViewport={realityViewport} onRunVehicle={onRunVehicle} onRunCell={onRunCell} onGoBuild={onGoBuild} />;
-  if (mode === 'Run') return <ExecutionBoard runs={runs} selectedRun={run} busy={busy} realityViewport={realityViewport} onConfigure={onGoSimulate} onOpenRun={onOpenRun} />;
+  if (mode === 'Run') return <ExecutionBoard project={project} runs={runs} selectedRun={run} busy={busy} realityViewport={realityViewport} renderRealityViewport={renderRealityViewport} selectedComponentId={selectedComponentId} onSelectComponent={onSelectComponent} onConfigure={onGoSimulate} onOpenRun={onOpenRun} />;
   if (mode === 'Improve') return <ImproveBoard project={project} branches={branches} searches={searches} runs={runs} busy={busy} progress={sweepProgress} realityViewport={realityViewport} onRunSweep={onRunSweep} onGoBuild={onGoBuild} onGoSimulate={onGoSimulate} />;
   if (mode === 'Verify') return <VerifyBoard project={project} requirements={requirements} records={records} compatibleRun={compatibleRun} busy={busy} realityViewport={realityViewport} onAdd={onAddRequirement} onReview={onReview} onVerify={onVerify} onExport={onExport} />;
   if (mode === 'Understand' && run?.operation === 'simulate_ev_drive_cycle' && vehicleSeries?.length) return <EVRunView run={run} series={vehicleSeries} playbackIndex={playbackIndex} playbackPlaying={playbackPlaying} onPlaybackIndexChange={onPlaybackIndexChange} onPlaybackPlayingChange={onPlaybackPlayingChange} realityViewport={realityViewport} />;
@@ -781,10 +770,12 @@ function SimulationSetupBoard({ project, tools, busy, realityViewport, onRunVehi
   </section></div>;
 }
 
-function ExecutionBoard({ runs, selectedRun, busy, realityViewport, onConfigure, onOpenRun }: { runs: IntegrationRun[]; selectedRun: IntegrationRun | null; busy: boolean; realityViewport: ReactNode; onConfigure: () => void; onOpenRun: (run: IntegrationRun) => void }) {
+function ExecutionBoard({ project, runs, selectedRun, busy, realityViewport, renderRealityViewport, selectedComponentId, onSelectComponent, onConfigure, onOpenRun }: { project: Resource<ProjectPayload>; runs: IntegrationRun[]; selectedRun: IntegrationRun | null; busy: boolean; realityViewport: ReactNode; renderRealityViewport: (state?: import('./engineering/authoritativeState').AuthoritativeEngineeringState) => ReactNode; selectedComponentId: string | null; onSelectComponent: (id: string | null) => void; onConfigure: () => void; onOpenRun: (run: IntegrationRun) => void }) {
+  const [showScenarios, setShowScenarios] = useState(false);
   const recentRuns = [...runs].sort((a, b) => b.created_at - a.created_at);
+  if (showScenarios) return <Suspense fallback={<RuntimeFallback />}><ScenarioExecutionBoard project={project} realityViewport={renderRealityViewport} selectedComponentId={selectedComponentId} onSelectComponent={onSelectComponent} onBackToRuns={() => setShowScenarios(false)} /></Suspense>;
   return <div className="canvas-stage stage-run">{realityViewport}<div className="stage-grid"/><section className="execution-board">
-    <header className="simulation-header"><div><span className="stage-kicker">EXECUTION RECORD <i/> REVISION-LINKED</span><h1>Model runs</h1><p>Completed and failed tool attempts for this project, with the recorded output and provenance.</p></div><button className="secondary-button" disabled={busy} onClick={onConfigure}><Gauge size={14}/> Configure analysis</button></header>
+    <header className="simulation-header"><div><span className="stage-kicker">EXECUTION RECORD <i/> REVISION-LINKED</span><h1>Model runs</h1><p>Completed and failed tool attempts for this project, with the recorded output and provenance.</p></div><div className="execution-actions"><button className="secondary-button" onClick={() => setShowScenarios(true)}><GitBranch size={14}/> State scenarios</button><button className="secondary-button" disabled={busy} onClick={onConfigure}><Gauge size={14}/> Configure analysis</button></div></header>
     {recentRuns.length ? <div className="execution-list">{recentRuns.map((item) => <article className={`execution-row ${selectedRun?.id === item.id ? 'execution-selected' : ''}`} key={item.id}><span className="execution-mark"><Activity size={16}/></span><div className="execution-main"><b>{item.operation === 'simulate_ev_drive_cycle' ? 'Vehicle drive-cycle analysis' : item.operation === 'simulate_bound_cell' ? 'Battery-cell discharge' : item.operation.replaceAll('_', ' ')}</b><small>{item.tool} · {item.provenance} · {new Date(item.created_at * 1000).toLocaleString()}</small></div><span className={`execution-state ${item.result.status === 'failed' ? 'state-failed' : ''}`}><i/> {item.result.status === 'failed' ? 'FAILED' : 'RECORDED'}</span><button className="secondary-button" onClick={() => onOpenRun(item)}>{item.result.status === 'failed' ? 'View details' : 'View result'} <ArrowRight size={13}/></button></article>)}</div> : <div className="execution-empty"><div className="empty-glyph"><Activity size={21}/></div><h2>No model runs yet</h2><p>Choose a supported analysis, check its declared inputs, and run it. The resulting record will appear here.</p><button className="primary-button" disabled={busy} onClick={onConfigure}><Gauge size={14}/> Choose an analysis</button></div>}
     <footer className="simulation-footer"><span><Database size={13}/> {recentRuns.length} recorded run{recentRuns.length === 1 ? '' : 's'}</span><span>Run records are scoped to this project.</span></footer>
   </section></div>;

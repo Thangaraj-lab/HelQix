@@ -68,10 +68,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () => request<{ status: string }>('/health/live'),
+  localWorkspace: () => request<{ user: User }>('/v1/auth/local-workspace', { method: 'POST' }),
   me: () => request<{ user: User }>('/v1/auth/me'),
-  login: (email: string, password: string) => request<{ user: User }>('/v1/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  signup: (name: string, email: string, password: string, organization: string) => request<{ user: User }>('/v1/auth/signup', { method: 'POST', body: JSON.stringify({ name, email, password, organization }) }),
-  logout: () => request<void>('/v1/auth/logout', { method: 'POST' }),
   projects: () => request<{ data: Resource<ProjectPayload>[] }>('/v1/projects?limit=100'),
   createProject: (payload: ProjectPayload) => request<{ data: Resource<ProjectPayload> }>('/v1/projects', { method: 'POST', body: JSON.stringify({ payload }) }),
   updateProject: (project: Resource<ProjectPayload>, payload: ProjectPayload) => request<{ data: Resource<ProjectPayload> }>(`/v1/projects/${project.id}`, { method: 'PUT', headers: { 'If-Match': `"${project.version}"` }, body: JSON.stringify({ payload }) }),
