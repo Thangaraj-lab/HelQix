@@ -123,6 +123,23 @@ mod tests {
     }
 
     #[test]
+    fn report_numbers_parse_bit_exactly() {
+        // Splits are hashed over exact f64 bits, so a 1-ulp parsing error breaks the hash.
+        let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut values = Vec::new();
+        while values.len() < 20_000 {
+            state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+            let x = f64::from_bits(state);
+            if x.is_finite() { values.push(x); }
+            values.push(4.0 + (state % 1_000_000) as f64 * 1e-7);
+        }
+        let text = format!("[{}]", values.iter().map(|v| format!("{v:?}")).collect::<Vec<_>>().join(","));
+        let parsed: Vec<f64> = serde_json::from_str::<Value>(&text).unwrap().as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+        let mismatches = values.iter().zip(&parsed).filter(|(a, b)| a.to_bits() != b.to_bits()).count();
+        assert_eq!(mismatches, 0);
+    }
+
+    #[test]
     fn parses_and_verifies_a_good_report() {
         let parsed = parse_report(&report(0.01, true)).unwrap();
         assert_eq!(parsed.validation.cases.len(), 2);
