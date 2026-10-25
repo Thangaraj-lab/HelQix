@@ -4,11 +4,11 @@
 
 | # | Decision | Status | Needed by |
 |---|---|---|---|
-| D1 | First domain pack: battery cell, motor thermal, or another | OPEN | Before Phase 1 |
-| D2 | Context of Use text and validation error threshold X | OPEN | Before Phase 1 |
+| D1 | First domain pack: battery cell, motor thermal, or another | DECIDED 2026-10-25: battery cell (LG M50, PyBaMM SPM/Chen2020); see docs/PHASE1_INPUTS.md | Done |
+| D2 | Context of Use text and validation error threshold X | DECIDED 2026-10-25: terminal-voltage RMSE < 46 mV on held-out C/10, per cell; Context of Use and risk Low in docs/PHASE1_INPUTS.md | Done |
 | D3 | V&V standard family for the first vertical (ASME V&V 10/20, V&V 40, NASA-STD-7009) | OPEN | Before pilot reports |
-| D4 | Validation rig design, data plan, held-out split protocol | OPEN | Before Phase 1 exit |
-| D5 | Authoritative runtime owner (Rust crates vs Python gateway vs TypeScript app) | Trace written (docs/RUNTIME_TRACE.md); decision OPEN | Before Phase 2 |
+| D4 | Validation rig design, data plan, held-out split protocol | DECIDED 2026-10-25 for Phase 1: public data (Zenodo 4032561), calibrate on C/2-1.5C, hold out C/10. Own rig deferred to Phase 7A | Rig: Phase 7A |
+| D5 | Authoritative runtime owner (Rust crates vs Python gateway vs TypeScript app) | DECIDED 2026-10-25: Rust core is authoritative; Python gateway calls it | Done |
 | D6 | Naming cleanup HELIX to HELQIX in code | OPEN; naming report in docs/STATUS.md | After Phase 0 report |
 | D7 | Phase 0 "hygiene" step inserted before locked step 1 | APPROVED 2026-10-25; Gate 0 PASSED 2026-10-25 | Done |
 | D8 | Which external adapter first (PyBaMM, CalculiX, OpenFOAM) | Deferred to step 6 | Later |
@@ -78,4 +78,7 @@ Protection and cut-off circuit, fuse, current and temperature limits written dow
 | 2026-10-25 | Push phase-0-hygiene and use Linux CI as the authoritative test run | CI run 40180917041 | Founder approved |
 | 2026-10-25 | Runtime trace: Rust crates have no runtime caller; app uses the Python gateway; freeze/replay not wired. D5 still open | docs/RUNTIME_TRACE.md | Claude |
 | 2026-10-25 | Gate 0 PASSED (929 Rust tests pass, 0 fail; 52 Python pass; CI green). Phase 1 not started: needs D1, D2, D4 | docs/STATUS.md "Gate 0 evidence" | Founder |
+| 2026-10-25 | D1 battery cell; D4 public data first; D5 Rust core authoritative; D2 quantity terminal voltage | chat | Founder |
+| 2026-10-25 | Threshold 46 mV RMSE (anchored to Chen et al. 2020 Table VIII), Context of Use, risk Low, dataset and C/10 hold-out split | docs/PHASE1_INPUTS.md | Claude, delegated by founder |
+| 2026-10-25 | Finding: Chen2020 parameters were tuned on the C/2, 1C, 1.5C discharges of the same dataset, so only C/10 is held out | Chen et al. 2020, validation section and Table IX | Claude |
 | (next) | | | |

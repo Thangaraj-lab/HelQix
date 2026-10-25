@@ -72,11 +72,11 @@ Signed evidence belongs to step 5. Step 0 only repairs compilation of the eviden
 
 | # | Decision | Status |
 |---|---|---|
-| D1 | First domain pack (battery cell vs motor thermal vs other) | OPEN, before Phase 1 |
-| D2 | Context of Use text and validation error threshold X | OPEN, before Phase 1 |
+| D1 | First domain pack (battery cell vs motor thermal vs other) | DECIDED: battery cell ([PHASE1_INPUTS.md](PHASE1_INPUTS.md)) |
+| D2 | Context of Use text and validation error threshold X | DECIDED: voltage RMSE < 46 mV on held-out C/10 ([PHASE1_INPUTS.md](PHASE1_INPUTS.md)) |
 | D3 | V&V standard family (ASME V&V 10/20, V&V 40, NASA-STD-7009) | OPEN, before pilot reports |
-| D4 | Validation rig design, data plan, held-out split protocol | OPEN, before Phase 1 exit |
-| D5 | Authoritative runtime owner (Rust crates vs Python gateway vs TypeScript app) | Trace written ([RUNTIME_TRACE.md](RUNTIME_TRACE.md)); decision OPEN |
+| D4 | Validation rig design, data plan, held-out split protocol | DECIDED for Phase 1: public data, C/10 held out; rig deferred to Phase 7A |
+| D5 | Authoritative runtime owner (Rust crates vs Python gateway vs TypeScript app) | DECIDED: Rust core authoritative, gateway calls it |
 | D6 | Naming cleanup HELIX -> HELQIX in code | OPEN; report in [STATUS.md](STATUS.md) |
 | D7 | Phase 0 hygiene step before locked step 1 | APPROVED by founder 2026-10-25 |
 | D8 | First external adapter | Deferred to step 6 |

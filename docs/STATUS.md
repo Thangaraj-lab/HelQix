@@ -7,8 +7,8 @@ Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see 
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
 | 0 Hygiene (build and tests green, CI, trace, docs) | PASSED (founder accepted after review) | 2026-10-25 | 929 pass / 0 fail locally; CI run 40180917041 green; see "Gate 0 evidence" |
-| 1 Trust core and model error bound | BLOCKED (needs D1, D2, D4) | | |
-| 2 Bit-exact replay | NOT STARTED (also needs D5) | | |
+| 1 Trust core and model error bound | READY TO START (inputs in [PHASE1_INPUTS.md](PHASE1_INPUTS.md)) | 2026-10-25 | |
+| 2 Bit-exact replay | NOT STARTED (D5 decided: Rust core) | | |
 | 3 Causal click-through | NOT STARTED | | |
 | 4 Branch intervention tests | NOT STARTED | | |
 | 5 Signed evidence re-verified independently | NOT STARTED | | |
