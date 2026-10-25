@@ -620,7 +620,7 @@ mod tests {
         assert_eq!(
             missing
                 .iter()
-                .map(Identifier::as_str)
+                .map(|identifier| identifier.as_str())
                 .collect::<Vec<_>>(),
             vec!["mass", "temperature"]
         );
