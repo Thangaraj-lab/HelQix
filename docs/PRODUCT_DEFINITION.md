@@ -1,5 +1,7 @@
 # HELQIX product definition
 
+> **SUPERSEDED (2026-10-25).** The locked definition is now [docs/LOCKED_PLAN.md](LOCKED_PLAN.md) and the full document set in [docs/plan/](plan/00_README_INDEX.md). The 2026-10-25 audit found claims in this file that the code contradicts (see [docs/plan/05_GAPS_MISTAKES_AND_FIXES.md](plan/05_GAPS_MISTAKES_AND_FIXES.md), item B12). Kept unchanged below for history.
+
 **Status:** product boundary and implementation target, 10 October 2026  
 **Product:** HELQIX — Engineering Reality
 
