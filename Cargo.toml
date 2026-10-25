@@ -13,6 +13,7 @@ members = [
     "09-failure/crates/helqix-failure",
     "10-events-causality/crates/helqix-events",
     "10-events-causality/crates/helqix-causal",
+    "10-events-causality/crates/helqix-investigation",
     "11-branching/crates/helqix-branch",
     "12-search/engines/search-engine",
     "13-verification/crates/helqix-verify",

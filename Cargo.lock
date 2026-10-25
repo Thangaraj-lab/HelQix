@@ -702,6 +702,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "helqix-investigation"
+version = "0.1.0"
+dependencies = [
+ "helqix-causal",
+ "helqix-core",
+ "helqix-events",
+ "helqix-freeze",
+ "helqix-time",
+ "serde_json",
+]
+
+[[package]]
 name = "helqix-observation"
 version = "0.1.0"
 dependencies = [

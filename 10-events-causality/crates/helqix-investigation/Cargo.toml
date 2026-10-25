@@ -1,0 +1,16 @@
+[package]
+name = "helqix-investigation"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 7 failure investigation: failure event, event log, candidate chains, click-through"
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-time = { path = "../../../07-time/crates/helqix-time" }
+helqix-events = { path = "../helqix-events" }
+helqix-causal = { path = "../helqix-causal" }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[dev-dependencies]
+helqix-freeze = { path = "../../../07-time/crates/helqix-freeze" }
