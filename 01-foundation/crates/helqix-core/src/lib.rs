@@ -55,6 +55,9 @@
 // Foundation modules
 // -----------------------------------------------------------------------------
 
+/// Declared reproducibility level of a run.
+pub mod determinism;
+
 /// Structured errors produced by HELQIX Foundation.
 pub mod error;
 

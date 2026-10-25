@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use helqix_core::determinism::DeterminismLevel;
+
 use crate::{solver::{advance, DerivativeModel, IntegrationMethod}, timestep::{TimeGrid, TimeGridError}};
 
 /// Upper bound for a single in-memory result's recorded samples.
@@ -57,6 +59,11 @@ pub struct SimulationResult {
     pub configured_step_seconds: f64,
     /// Initial and accepted final states, including both time endpoints.
     pub samples: Vec<StateSample>,
+    /// Grid index of the first sample: 0 for a fresh run, k for a run resumed at step k.
+    pub start_index: usize,
+    /// Declared reproducibility: fixed-step, single-threaded, no randomness, so Bitwise
+    /// on the same build, platform and inputs (see docs/DETERMINISM.md for the scope).
+    pub determinism: DeterminismLevel,
 }
 
 /// Rejection or model failure during a simulation.
@@ -77,6 +84,13 @@ pub enum SimulationError {
     },
     /// Model callback failed; its message is retained as untrusted diagnostic data.
     Model(String),
+    /// A resume index lies beyond the run's time grid.
+    InvalidResumeIndex {
+        /// Requested grid index.
+        index: usize,
+        /// Last valid grid index.
+        last: usize,
+    },
 }
 
 impl fmt::Display for SimulationError {
@@ -87,6 +101,7 @@ impl fmt::Display for SimulationError {
             Self::InvalidModelIdentity => write!(f, "model identifier and version must be non-empty and at most 200 characters"),
             Self::OutputLimitExceeded { requested_samples, requested_state_values } => write!(f, "simulation output requests {requested_samples} samples and {requested_state_values} state values; limits are {MAX_RECORDED_SAMPLES} samples and {MAX_RECORDED_STATE_VALUES} state values"),
             Self::Model(message) => write!(f, "model evaluation failed: {message}"),
+            Self::InvalidResumeIndex { index, last } => write!(f, "resume index {index} is beyond the last grid index {last}"),
         }
     }
 }
@@ -111,6 +126,24 @@ pub fn simulate<M: ContinuousModel + ?Sized>(
     initial_state: &[f64],
     options: SimulationOptions,
 ) -> Result<SimulationResult, SimulationError> {
+    resume(model, start_seconds, end_seconds, 0, initial_state, options)
+}
+
+/// Continues a run of the same grid (`start_seconds`, `end_seconds`, `options`) from
+/// grid index `start_index`, whose state is `state_at_index`.
+///
+/// Every timestamp is computed as `start + index * step` exactly as in [`simulate`],
+/// so resuming from a recorded sample reproduces the original samples bit for bit.
+/// Restarting a fresh run at the recorded time does not (its grid is `t_k + j * step`).
+pub fn resume<M: ContinuousModel + ?Sized>(
+    model: &M,
+    start_seconds: f64,
+    end_seconds: f64,
+    start_index: usize,
+    state_at_index: &[f64],
+    options: SimulationOptions,
+) -> Result<SimulationResult, SimulationError> {
+    let initial_state = state_at_index;
     if initial_state.is_empty() || initial_state.len() > 4096 || initial_state.iter().any(|value| !value.is_finite()) {
         return Err(SimulationError::InvalidInitialState);
     }
@@ -129,12 +162,16 @@ pub fn simulate<M: ContinuousModel + ?Sized>(
     if requested_samples > MAX_RECORDED_SAMPLES || requested_state_values > MAX_RECORDED_STATE_VALUES {
         return Err(SimulationError::OutputLimitExceeded { requested_samples, requested_state_values });
     }
-    let mut samples = Vec::with_capacity(requested_samples);
-    let mut time = start_seconds;
+    if start_index > required_steps {
+        return Err(SimulationError::InvalidResumeIndex { index: start_index, last: required_steps });
+    }
+    let grid_time = |index: usize| if index == required_steps { end_seconds } else { (start_seconds + index as f64 * options.step_seconds).min(end_seconds) };
+    let mut samples = Vec::with_capacity(requested_samples - start_index);
+    let mut time = if start_index == 0 { start_seconds } else { grid_time(start_index) };
     let mut state = initial_state.to_vec();
     samples.push(StateSample { time_seconds: time, state: state.clone() });
 
-    for step_index in 1..=required_steps {
+    for step_index in (start_index + 1)..=required_steps {
         // Compute each timestamp from the start plus its integer index rather
         // than accumulating dt. This prevents long runs from drifting past
         // their validated step count due to repeated floating-point addition.
@@ -159,6 +196,7 @@ pub fn simulate<M: ContinuousModel + ?Sized>(
     Ok(SimulationResult {
         model_id: model_id.to_owned(), model_version: model_version.to_owned(),
         method: options.method, configured_step_seconds: options.step_seconds, samples,
+        start_index, determinism: DeterminismLevel::Bitwise,
     })
 }
 
@@ -243,5 +281,58 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(error, SimulationError::OutputLimitExceeded { .. }));
+    }
+
+    struct Decay;
+    impl DerivativeModel for Decay {
+        fn derivative(&self, time: f64, state: &[f64], derivative: &mut [f64]) -> Result<(), String> {
+            derivative[0] = -0.7 * state[0] + time.sin();
+            derivative[1] = state[0] - 0.1 * state[1];
+            Ok(())
+        }
+    }
+    impl ContinuousModel for Decay {
+        fn model_id(&self) -> &str { "decay" }
+        fn model_version(&self) -> &str { "1" }
+    }
+
+    #[test]
+    fn every_run_declares_bitwise_determinism() {
+        let run = simulate(&Decay, 0.0, 1.0, &[1.0, 0.0], SimulationOptions { step_seconds: 0.1, ..Default::default() }).unwrap();
+        assert_eq!(run.determinism, DeterminismLevel::Bitwise);
+        assert_eq!(run.start_index, 0);
+    }
+
+    #[test]
+    fn resuming_from_any_step_reproduces_the_original_bits() {
+        let options = SimulationOptions { step_seconds: 0.013, ..Default::default() };
+        let full = simulate(&Decay, 0.25, 3.0, &[1.0, -0.5], options).unwrap();
+        for k in [0, 1, 57, full.samples.len() - 2, full.samples.len() - 1] {
+            let resumed = resume(&Decay, 0.25, 3.0, k, &full.samples[k].state, options).unwrap();
+            assert_eq!(resumed.start_index, k);
+            assert_eq!(resumed.samples.len(), full.samples.len() - k);
+            for (a, b) in resumed.samples.iter().zip(&full.samples[k..]) {
+                assert_eq!(a.time_seconds.to_bits(), b.time_seconds.to_bits());
+                assert!(a.state.iter().zip(&b.state).all(|(x, y)| x.to_bits() == y.to_bits()));
+            }
+        }
+    }
+
+    #[test]
+    fn restarting_at_the_freeze_time_is_not_the_same_as_resuming() {
+        // Documents why resume exists: a fresh run started at t_k uses t_k + j*dt,
+        // which can differ in the last bit from start + (k + j)*dt.
+        let options = SimulationOptions { step_seconds: 0.013, ..Default::default() };
+        let full = simulate(&Decay, 0.25, 3.0, &[1.0, -0.5], options).unwrap();
+        let k = 57;
+        let restarted = simulate(&Decay, full.samples[k].time_seconds, 3.0, &full.samples[k].state, options).unwrap();
+        let identical_times = restarted.samples.iter().zip(&full.samples[k..]).all(|(a, b)| a.time_seconds.to_bits() == b.time_seconds.to_bits());
+        assert!(!identical_times, "expected restart time grid to drift from the original grid");
+    }
+
+    #[test]
+    fn resume_rejects_an_index_beyond_the_grid() {
+        let options = SimulationOptions { step_seconds: 0.5, ..Default::default() };
+        assert!(matches!(resume(&Decay, 0.0, 1.0, 3, &[1.0, 0.0], options), Err(SimulationError::InvalidResumeIndex { .. })));
     }
 }

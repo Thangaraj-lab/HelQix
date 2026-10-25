@@ -54,7 +54,7 @@ impl std::error::Error for EvidenceError {}
 mod tests {
     use super::*; use helqix_core::id::Identifier; use crate::{execution_record::{ExecutionRecord, ExecutionStatus}, provenance::Provenance}; use helqix_time::SimTime;
     fn id(s: &str) -> Identifier { Identifier::parse(s).unwrap() }
-    fn record(id_value: &str, run: &str) -> ExecutionRecord { let p = Provenance::new(id("project"), 2, id(run), id("pybamm"), "1.0", id("spm"), "Chen2020", "a".repeat(64), "b".repeat(64), "c".repeat(64)).unwrap(); ExecutionRecord::new(id(id_value), p, ExecutionStatus::Completed, SimTime::ZERO, Some(SimTime::from_secs(1).unwrap()), None).unwrap() }
+    fn record(id_value: &str, run: &str) -> ExecutionRecord { let p = Provenance::new(id("project"), 2, id(run), id("pybamm"), "1.0", id("spm"), "Chen2020", "a".repeat(64), "b".repeat(64), "c".repeat(64)).unwrap(); ExecutionRecord::new(id(id_value), p, helqix_core::determinism::DeterminismLevel::tolerance(1e-6).unwrap(), ExecutionStatus::Completed, SimTime::ZERO, Some(SimTime::from_secs(1).unwrap()), None).unwrap() }
     #[test]
     fn bundle_digest_is_order_independent_and_project_scoped() { let mut one = EvidenceBundle::new(id("project"), 3).unwrap(); one.add_execution(record("execution_a", "run_a")).unwrap(); one.add_execution(record("execution_b", "run_b")).unwrap(); let mut two = EvidenceBundle::new(id("project"), 3).unwrap(); two.add_execution(record("execution_b", "run_b")).unwrap(); two.add_execution(record("execution_a", "run_a")).unwrap(); assert_eq!(one.digest_sha256(), two.digest_sha256()); assert_eq!(one.digest_sha256().len(), 64); }
 }
