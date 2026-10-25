@@ -22,6 +22,7 @@ members = [
     "13-verification/crates/helqix-evidence-pack",
     "15-sdk/platform/sdk/rust",
     "16-adapters/platform/adapters",
+    "19-intelligence/crates/helqix-agent",
     "20-platform/crates/helqix-platform",
     "22-api/helqix-api",
 ]

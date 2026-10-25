@@ -22,6 +22,8 @@ jobs:
         run: cargo test --workspace --locked --no-fail-fast
       - name: Run-twice replay check (Phase 2)
         run: cargo run --locked -p helqix-freeze --bin helqix-replay-check
+      - name: Agent permissions demo (Phase 7B; CI approval is not a human review)
+        run: cargo run -q -p helqix-agent --locked --bin helqix-agent-demo -- --approve-as ci-non-human
       - name: Branch intervention demo (Phase 4)
         run: cargo run --locked -p helqix-branch --bin helqix-branch-demo
       - name: Evidence verifier has no HELQIX runtime dependency (Phase 5)

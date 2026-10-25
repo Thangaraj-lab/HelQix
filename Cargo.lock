@@ -691,6 +691,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "helqix-agent"
+version = "0.1.0"
+dependencies = [
+ "helqix-branch",
+ "helqix-core",
+ "helqix-freeze",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "helqix-api"
 version = "0.1.0"
 dependencies = [
