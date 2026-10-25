@@ -23,6 +23,8 @@ step "Tool register: every tool has a verified licence and a verdict"
 "$PY" -I scripts/check_tools_lock.py tools/TOOLS.lock.json
 step "Python tests"
 "$PY" -m pytest -q 15-sdk/platform/contracts/tests_py
+"$PY" -m pytest -q scripts/tests tools/assets/tests
+"$PY" -I tools/assets/check_licenses.py examples/assets
 (cd 19-intelligence/python && "$PY" -m pytest -q tests)
 (cd 15-sdk/platform/sdk/python && "$PY" -m pytest -q tests)
 (cd 18-libraries/python && "$PY" -m pytest -q tests)

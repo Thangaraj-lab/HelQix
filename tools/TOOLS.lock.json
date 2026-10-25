@@ -989,6 +989,48 @@
       "verdict": "forbidden",
       "license_source": "https://raw.githubusercontent.com/minio/minio/HEAD/LICENSE",
       "license_method": "licence text read and classified"
+    },
+    {
+      "slot": "assets",
+      "name": "KTX-Software (toktx)",
+      "role": "KTX2 texture encoding for glTF-Transform",
+      "source": "github",
+      "id": "KhronosGroup/KTX-Software",
+      "license": "Apache-2.0",
+      "version": "v4.4.2",
+      "released": null,
+      "url": "https://github.com/KhronosGroup/KTX-Software",
+      "status": "VERIFIED",
+      "license_source": "https://raw.githubusercontent.com/KhronosGroup/KTX-Software/HEAD/LICENSE.md",
+      "license_method": "licence text read",
+      "verdict": "allowed"
+    },
+    {
+      "slot": "assets",
+      "name": "Khronos glTF-Validator (npm)",
+      "role": "glTF validation gate (JS build)",
+      "source": "npm",
+      "id": "gltf-validator",
+      "license": "Apache-2.0",
+      "version": "2.0.0-dev.3.10",
+      "released": "2024-10-22",
+      "url": "https://www.npmjs.com/package/gltf-validator",
+      "status": "VERIFIED",
+      "verdict": "allowed"
+    },
+    {
+      "slot": "assets",
+      "name": "sharp / libvips (npm, via glTF-Transform)",
+      "role": "image processing inside glTF-Transform",
+      "source": "npm",
+      "id": "@img/sharp-*",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "version": "0.35.5",
+      "released": null,
+      "url": "https://www.npmjs.com/package/sharp",
+      "status": "VERIFIED",
+      "verdict": "allowed (LGPL: dynamic or separate use only)",
+      "boundary": "libvips loaded dynamically; build-time tool, not shipped"
     }
   ]
 }

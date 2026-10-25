@@ -155,6 +155,42 @@ jobs:
             tail -1 "cosign-$p.log" | sed 's/^/::notice title=cosign::/'
           done
 
+  assets:
+    name: Asset pipeline, glTF validation and renders (K6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install Blender 5.2.1 (official build, SHA-256 pinned; GPL, run as a separate program)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libxi6 libxrender1 libxkbcommon0 libsm6 libgl1 libegl1 libxfixes3 libxxf86vm1
+          curl -sSfL -o /tmp/blender.tar.xz https://download.blender.org/release/Blender5.2/blender-5.2.1-linux-x64.tar.xz
+          echo "a31f524fa99a527d3d52b7f5aaa68c34e1a19d5a1c9473f79c5cc610fd5b10e9  /tmp/blender.tar.xz" | sha256sum -c -
+          tar -xf /tmp/blender.tar.xz -C /opt
+          /opt/blender-5.2.1-linux-x64/blender --version | head -1
+      - name: Install KTX-Software 4.4.2 (toktx, Apache-2.0, SHA-256 pinned)
+        run: |
+          curl -sSfL -o /tmp/ktx.deb https://github.com/KhronosGroup/KTX-Software/releases/download/v4.4.2/KTX-Software-4.4.2-Linux-x86_64.deb
+          echo "ca635ed489d8bf54fac8d7687056c651193de0740830a7738cc034adc63e3027  /tmp/ktx.deb" | sha256sum -c -
+          sudo apt-get install -y -q /tmp/ktx.deb
+          toktx --version
+      - name: Asset tools, licence register and JS licence gate
+        run: |
+          (cd tools/assets && npm ci --no-audit --no-fund)
+          python3 -I tools/assets/check_licenses.py examples/assets
+          bash scripts/js-license-check.sh tools/assets
+          python3 -m pip install -q pytest
+          python3 -m pytest -q tools/assets/tests scripts/tests
+      - name: Build, optimise (meshopt + KTX2 required), validate and render the Example asset
+        run: |
+          python3 -I tools/assets/pipeline.py examples/assets/example-bracket --blender /opt/blender-5.2.1-linux-x64/blender --require-ktx2 --hero > pipeline.log 2>&1 || { bash scripts/ci_annotate.sh "asset pipeline" pipeline.log 60; exit 1; }
+          report=$(ls .cache/assets/example-bracket/*/report.json)
+          python3 -I -c "import json,sys; r=json.load(open(sys.argv[1])); v=r['validation']; print('::notice title=K6 asset::pass', r['pass'], '| glb', r['bytes']['final_glb'], 'B (raw', r['bytes']['raw_glb'], 'B, budget', r['bytes']['budget'], ') | validator errors', v['errors'], 'warnings', v['warnings'], '| textures', v['info']['textures'], '| extensions', v['info']['extensionsUsed'], '| build', r['build']['seconds'], 's, AO bake', r['build']['ao']['bake_seconds'], 's, optimise', r['optimize_seconds'], 's | renders', {k: (x['render_seconds'], x['denoiser'], x['cycles_has_oidn']) for k, x in r['renders'].items()} , '|', r['versions'])" "$report"
+          python3 -I tools/assets/pipeline.py examples/assets/example-bracket --blender /opt/blender-5.2.1-linux-x64/blender --require-ktx2 --hero | grep -q '"cached": true'
+
   calculix-adapter:
     name: CalculiX adapter benchmark (K3)
     runs-on: ubuntu-latest

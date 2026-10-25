@@ -1,0 +1,10 @@
+{
+  "name": "@helqix/asset-tools",
+  "private": true,
+  "description": "K6 asset pipeline tools: glTF-Transform (MIT) and the Khronos glTF-Validator (Apache-2.0). Run only by tools/assets/pipeline.py.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@gltf-transform/cli": "4.5.1",
+    "gltf-validator": "2.0.0-dev.3.10"
+  }
+}
