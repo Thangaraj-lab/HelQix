@@ -7,7 +7,7 @@ Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see 
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
 | 0 Hygiene (build and tests green, CI, trace, docs) | PASSED (founder accepted after review) | 2026-10-25 | 929 pass / 0 fail locally; CI run 40180917041 green; see "Gate 0 evidence" |
-| 1 Trust core and model error bound | DELIVERABLES COMPLETE, model **NotVerified** (kill trigger applied); awaiting founder review | 2026-10-25 | [GATE1_VALIDATION_REPORT.md](validation/GATE1_VALIDATION_REPORT.md): held-out RMSE 71.1-77.3 mV vs < 46 mV |
+| 1 Trust core and model error bound | PASSED (founder accepted); model **NotVerified**, error bound published | 2026-10-25 | [GATE1_VALIDATION_REPORT.md](validation/GATE1_VALIDATION_REPORT.md): held-out RMSE 71.1-77.3 mV vs < 46 mV |
 | 2 Bit-exact replay | NOT STARTED (D5 decided: Rust core) | | |
 | 3 Causal click-through | NOT STARTED | | |
 | 4 Branch intervention tests | NOT STARTED | | |
@@ -126,4 +126,5 @@ Counted over tracked files, excluding lockfiles (`git grep -i`, lines):
 | 2026-10-25 | Allow '/' in listed unit symbols; register m/s, m/s2, kg/m3 | commit `6c8b538` | Founder approved |
 | 2026-10-25 | Push `phase-0-hygiene` and use Linux CI as authoritative test run | chat | Founder approved |
 | 2026-10-25 | Runtime trace written; D5 still open | RUNTIME_TRACE.md | Claude |
+| 2026-10-25 | Gate 1 PASSED with the model NotVerified (held-out C/10 RMSE 71.1-77.3 mV vs < 46 mV); error bound published; search for a second LG M50 dataset for a fair re-test; Phase 2 not started | validation/GATE1_VALIDATION_REPORT.md; CI run 40185418438 | Founder |
 | 2026-10-25 | Gate 0 PASSED after review of the Phase 0 report; Phase 1 not started (needs D1, D2, D4) | Gate 0 evidence above; CI run 40180917041 | Founder |

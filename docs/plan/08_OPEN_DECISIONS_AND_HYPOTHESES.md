@@ -81,4 +81,6 @@ Protection and cut-off circuit, fuse, current and temperature limits written dow
 | 2026-10-25 | D1 battery cell; D4 public data first; D5 Rust core authoritative; D2 quantity terminal voltage | chat | Founder |
 | 2026-10-25 | Threshold 46 mV RMSE (anchored to Chen et al. 2020 Table VIII), Context of Use, risk Low, dataset and C/10 hold-out split | docs/PHASE1_INPUTS.md | Claude, delegated by founder |
 | 2026-10-25 | Finding: Chen2020 parameters were tuned on the C/2, 1C, 1.5C discharges of the same dataset, so only C/10 is held out | Chen et al. 2020, validation section and Table IX | Claude |
+| 2026-10-25 | Gate 1 result: model NotVerified (held-out C/10 RMSE 71.1-77.3 mV vs < 46 mV); kill trigger applied, no tuning on held-out data | docs/validation/GATE1_VALIDATION_REPORT.md | helqix-validate |
+| 2026-10-25 | Gate 1 PASSED with the model NotVerified (exit criterion: published error bound against measured data). C/10 data is spent as held-out evidence; look for a second LG M50 dataset for a fair re-test. Phase 2 not started | docs/STATUS.md; CI run 40185418438 | Founder |
 | (next) | | | |
