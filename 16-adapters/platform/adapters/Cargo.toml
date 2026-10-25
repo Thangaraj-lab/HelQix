@@ -20,7 +20,13 @@ helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
 [features]
 # Opt-in tests that need a Python with PyBaMM (run in the CI PyBaMM job).
 pybamm-tests = []
+# Opt-in FMI tests: need HELQIX_PYTHON with fmpy and pint, and tools/fixtures/fetch_reference_fmus.py run first.
+fmi-tests = []
 
 [[test]]
 name = "pybamm"
 required-features = ["pybamm-tests"]
+
+[[test]]
+name = "fmi"
+required-features = ["fmi-tests"]

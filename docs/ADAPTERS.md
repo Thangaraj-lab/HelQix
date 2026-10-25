@@ -32,6 +32,7 @@ Every adapter declares a `SolverContract` (`16-adapters/platform/adapters/src/so
 
 | Tool | Status | Licence | Determinism | State restore |
 |---|---|---|---|---|
+| FMI 2.0 co-simulation via FMPy 0.3.32 | **Working** (K3): 7 tests incl. regression benchmark and conformance PASS | FMPy BSD-3, Pint BSD-3; test FMUs BSD-2 | Tolerance 1e-12 (ASSUMPTION floor) | No |
 | PyBaMM 26.10 (SPM, Chen2020) | **Working**: 6 adapter tests + conformance PASS | BSD-3-Clause (used as an external process) | Tolerance 4.2e-6 V | No |
 | CalculiX | **Not built.** Not installed on this machine; licence is GPL-2.0. Running it as a separate process does not by itself make HELQIX GPL, but shipping it inside a HELQIX installer would need a licence review. **Founder decision.** | GPL-2.0 | — | — |
 | OpenModelica, FMI/FMU, Ansys, COMSOL, others | Planned, not built | varies | — | — |
@@ -41,6 +42,27 @@ Every adapter declares a `SolverContract` (`16-adapters/platform/adapters/src/so
 `PybammAdapter` runs `18-libraries/python/helqix_battery/adapter_cli.py` (stdin `helqix.pybamm-input.v1`, stdout `helqix.pybamm-output.v1`; exit 2 invalid input, exit 3 simulation incomplete). The package directory is passed as an argument, not pasted into code. It is also registered as a platform `Adapter` (`battery.cell.simulate`).
 
 **Declared tolerance rule:** declared = max(10 × measured run-to-run maximum deviation, solver rtol 1e-6 × 4.2 V). Measured on Windows over 5 runs: maximum deviation **0 V**, so the floor applies: **4.2e-6 V**. Zero variation on one machine is not proof of zero variation elsewhere, which is why the floor exists and why the level is Tolerance, not Bitwise.
+
+### FMI (K3)
+
+`FmiAdapter` runs `18-libraries/python/helqix_fmi/cli.py` (stdin `helqix.fmi-input.v1`; exit 2 invalid input, exit 3 simulation failed) through the same sandboxed runner. The caller passes parameters and times only. The adapter fixes the FMU path and output list, and adds the **FMU file's SHA-256** to the tool input, so the invocation record identifies the exact model binary. Units come from the FMU's model description and are normalized to SI base units with Pint; a variable without a unit is `"1"`. An output whose unit differs from the contract is rejected.
+
+**Benchmark** (Modelica Association Reference FMUs v0.0.42, BSD-2-Clause, fetched with a pinned SHA-256 by `tools/fixtures/fetch_reference_fmus.py`; Example data, not committed):
+
+| Check | Result |
+|---|---|
+| Dahlquist (dx/dt = -k x) against the reference output shipped inside the FMU | max deviation 0, within the declared 1e-12 |
+| Same model against the closed form of its scheme, x_n = (1 - k h)^n, for k = 0.5, 1, 2 | within 1e-12 (CALCULATED) |
+| Same model against the exact ODE solution e^(-k t) | differs by more than 1e-3 (the FMU uses fixed-step Euler); the test asserts the gap stays visible |
+| BouncingBall height against its shipped reference; units `s`, `m`, `m/s` | within 1e-12; asking for `mm` is a unit mismatch |
+| Two runs on this machine | byte-identical output |
+| Invalid inputs (caller-supplied FMU path, unknown variable, negative step, missing FMU), 1.5 s timeout on a long run, conformance kit | typed errors; PASS |
+
+A 1e-9 relative perturbation of the tool output fails 3 of the 7 tests (mutation check).
+
+Limits: the Reference FMUs integrate with a compiled-in fixed solver step (0.1 s), so a smaller requested step does not refine the solution. Only FMI 2.0 co-simulation is wired. An FMU contains native code, so running one runs that code: only run FMUs from trusted sources. Status and Cancel are synchronous (hard timeout), not an asynchronous job API. The invocation record contains the FMU's local path.
+
+The adapter trait gained `tool_input()`: the exact document sent to the tool. The conformance kit checks the recorded input hash against those bytes.
 
 ## Reference run and evidence package
 

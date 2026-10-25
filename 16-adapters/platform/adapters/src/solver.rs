@@ -104,6 +104,9 @@ pub const BASE_ENV_ALLOWLIST: [&str; 12] = ["PATH", "SYSTEMROOT", "SystemRoot", 
 pub trait SolverAdapter {
     fn contract(&self) -> &SolverContract;
     fn run(&self, input: &Value) -> Result<ToolRun, SolverError>;
+    /// The exact document the adapter sends to the tool for `input` (the invocation record hashes
+    /// this). Adapters that add provenance, such as a model file hash, override it.
+    fn tool_input(&self, input: &Value) -> Result<Value, SolverError> { Ok(input.clone()) }
 }
 
 fn sha256_hex(data: &[u8]) -> String { format!("{:x}", Sha256::digest(data)) }
@@ -201,7 +204,7 @@ pub fn conformance(adapter: &dyn SolverAdapter, good: &Value, bad: &[Value]) -> 
             }
             if run.outputs.iter().any(|o| o.origin != "Simulated" || o.status != "Unverified") { failures.push("outputs must enter as Simulated / Unverified".into()); }
             let r = &run.record;
-            let input_hash = serde_json::to_vec(good).map(|b| sha256_hex(&b)).unwrap_or_default();
+            let input_hash = adapter.tool_input(good).ok().and_then(|v| serde_json::to_vec(&v).ok()).map(|b| sha256_hex(&b)).unwrap_or_default();
             if r.tool_version.is_empty() || r.input_sha256 != input_hash || r.output_sha256.len() != 64 || r.exit_status != Some(0) {
                 failures.push("invocation record is incomplete or not hash-consistent".into());
             }

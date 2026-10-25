@@ -42,3 +42,4 @@ dist/
 # Signing keys (development keys only; never commit)
 /.keys/
 *.key
+/.cache/
