@@ -1,0 +1,20 @@
+[package]
+name = "helqix-frames"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX run frames: Parquet storage, BLAKE3 content addressing, chain-verified reads, getFrame/runFrames"
+license = "MIT"
+publish = false
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-freeze = { path = "../helqix-freeze" }
+helqix-contracts = { path = "../../../15-sdk/platform/contracts" }
+arrow-array = "60"
+arrow-schema = "60"
+# No compression codecs: frames are stored uncompressed, which keeps the build free of C codecs.
+parquet = { version = "60", default-features = false, features = ["arrow"] }
+blake3 = "1.8"
+bytes = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }

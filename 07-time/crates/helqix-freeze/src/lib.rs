@@ -197,6 +197,13 @@ fn link(prev: &str, index: usize, time: f64, state: &[f64]) -> String {
     hex(&h.finalize())
 }
 
+/// The state-chain link of one sample (`helqix.chain.v1`): SHA-256 over the previous link, the grid
+/// index, the time bits and the state bits. Exposed so stored frames can be re-verified.
+pub fn chain_link(prev: &str, index: usize, time: f64, state: &[f64]) -> String { link(prev, index, time, state) }
+
+/// The chain genesis of a specification (the link before index 0).
+pub fn chain_genesis(spec: &RunSpec) -> String { genesis(spec) }
+
 fn build_model(m: &PointMassSpec) -> Result<PointMassModel, FreezeError> {
     let err = |e: &dyn std::fmt::Display| FreezeError::Simulation(e.to_string());
     let gravity = GravityField::new(Vector3::new(m.gravity_m_s2, GravityField::unit()).map_err(|e| err(&e))?).map_err(|e| err(&e))?;

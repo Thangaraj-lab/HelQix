@@ -87,7 +87,9 @@ jobs:
           DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix
           HELQIX_API_KEY: ci-only-api-key-0123456789abcdef0123456789
           HELQIX_ALLOWED_ORIGINS: http://localhost:5173
+          HELQIX_FRAME_STORE: /tmp/helqix-frames
         run: |
+          cargo run -q --locked -p helqix-frames --bin helqix-frames-record -- /tmp/helqix-frames
           cargo build --locked -p helqix-api --bin helqix-api
           ./target/debug/helqix-api > api.log 2>&1 &
           ready=no
@@ -99,6 +101,13 @@ jobs:
             exit 1
           }
           cat demo.log
+          bash scripts/k4_frames_demo.sh http://127.0.0.1:8080 > frames-demo.log 2>&1 || { bash scripts/ci_annotate.sh "K4 frames demo failed" frames-demo.log 30; bash scripts/ci_annotate.sh "API log" api.log 25; exit 1; }
+          cat frames-demo.log
+          grep -E "^(frames file|t=)" frames-demo.log | sed 's/^/::notice title=K4 frames demo::/'
+      - name: Frame benchmark (release, Linux runner)
+        run: |
+          cargo run -q --release --locked -p helqix-frames --bin helqix-frames-bench | tee bench.log
+          grep -E "^ +[0-9]" bench.log | sed 's/^/::notice title=K4 frame benchmark (frames bytes B\/frame encode_ms load_ms getFrame_us runFrames_us)::/'
 
   fmi-adapter:
     name: FMI adapter benchmark (K3)

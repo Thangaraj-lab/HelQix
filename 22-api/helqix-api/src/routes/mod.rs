@@ -4,7 +4,7 @@ use axum::{Json, Router, extract::State, http::{HeaderName, HeaderValue, Method,
 use serde::Serialize;
 use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
-use crate::{auth, builds, error::ApiError, request_id, resources, sources, state::AppState};
+use crate::{auth, builds, error::ApiError, frames, request_id, resources, sources, state::AppState};
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -28,6 +28,8 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
         .route("/v1/builds/{id}/redo", axum::routing::post(builds::redo))
         .route("/v1/builds/{id}/commit", axum::routing::post(builds::commit))
         .route("/v1/sources", get(sources::list))
+        .route("/v1/runs/{id}/frames", get(frames::run_frames))
+        .route("/v1/runs/{id}/frame", get(frames::get_frame))
         .route("/v1/{resource}", get(resources::list).post(resources::create))
         .route("/v1/{resource}/query", axum::routing::post(resources::search))
         .route("/v1/{resource}/{id}", get(resources::get).put(resources::replace).delete(resources::delete))

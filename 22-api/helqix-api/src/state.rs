@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use sqlx::PgPool;
 
@@ -6,11 +6,18 @@ use sqlx::PgPool;
 pub struct AppState {
     pub database: PgPool,
     pub(crate) api_key: Arc<str>,
+    /// Directory of stored run frames (`HELQIX_FRAME_STORE`); frame routes answer 503 without it.
+    pub frame_store: Option<PathBuf>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into() }
+        Self { database, api_key: api_key.into(), frame_store: None }
+    }
+
+    pub fn with_frame_store(mut self, dir: Option<PathBuf>) -> Self {
+        self.frame_store = dir;
+        self
     }
 }
 
