@@ -82,4 +82,6 @@ Tests: DSSE pre-authentication encoding and base64 against the spec and RFC 4648
 
 **Nothing is uploaded.** The signing config lists no transparency log and no timestamp service, and every HTTP(S) request goes to a dead proxy, so any attempted upload fails instead of publishing. Verification uses `--insecure-ignore-tlog` because there is deliberately no log entry. The cosign key pair in CI is generated for each run. Where a real cosign key lives (file, KMS, hardware), and whether to publish to the public Rekor log, are **founder decisions**: a public log entry is permanent and reveals the artifact hash, signer key and time.
 
+**Result (CI run 40228704316):** the offline verifier passed both sample packages with their attestations inside `unshare --net` and refused a tampered package; cosign v3.1.4 signed, attested and verified both packages offline and refused the tampered manifest for both checks. The "nothing uploaded" guarantee rests on the empty signing config plus the dead proxy (cosign's Go HTTP client honours `HTTPS_PROXY`).
+
 Not done: SLSA build provenance for HELQIX's own binaries, keyless (Fulcio) signing, Rekor upload, and verifying cosign bundles inside `helqix-evidence-verify` (cosign verifies its own bundles).
