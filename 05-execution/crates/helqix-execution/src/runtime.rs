@@ -343,6 +343,7 @@ impl<'a, B: ExecutionBackend> Runtime<'a, B> {
                 None => return RuntimeOutcome::Completed { transitions },
             };
 
+            let scheduled_at = scheduled.scheduled_at();
             let action = scheduled.into_action();
             let id = action.id();
 
@@ -352,6 +353,11 @@ impl<'a, B: ExecutionBackend> Runtime<'a, B> {
                     transitions.push(transition);
                 }
                 Err(error) => {
+                    // A failed action stays pending at its original time so
+                    // the caller can inspect and retry it; dropping it would
+                    // lose the action, since `Failed` does not return it.
+                    // It was just taken, so re-scheduling cannot collide.
+                    let _ = self.scheduler.schedule(action, scheduled_at);
                     return RuntimeOutcome::Failed { transitions, error };
                 }
             }
