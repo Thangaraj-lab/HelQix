@@ -43,6 +43,29 @@ def default_blender() -> str:
     raise SystemExit("Blender not found: set HELQIX_BLENDER or pass --blender")
 
 
+KTX2_MAGIC = bytes([0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A])
+
+
+def glb_images(path: Path) -> list[dict]:
+    """Every image in a GLB: declared mimeType and whether its bytes carry the KTX2 signature.
+    Read from the file itself, because the pinned Khronos validator does not recognise KTX2."""
+    import struct
+    data = path.read_bytes()
+    if data[:4] != b"glTF":
+        raise ValueError("not a GLB")
+    json_len, json_type = struct.unpack_from("<II", data, 12)
+    if json_type != 0x4E4F534A:
+        raise ValueError("first GLB chunk is not JSON")
+    doc = json.loads(data[20:20 + json_len])
+    bin_start = 20 + json_len + 8
+    out = []
+    for img in doc.get("images", []):
+        view = doc["bufferViews"][img["bufferView"]] if "bufferView" in img else None
+        head = data[bin_start + view.get("byteOffset", 0): bin_start + view.get("byteOffset", 0) + 12] if view else b""
+        out.append({"mimeType": img.get("mimeType"), "ktx2_signature": head == KTX2_MAGIC})
+    return out
+
+
 def marker(output: str, name: str) -> dict:
     for line in output.splitlines():
         if line.startswith(name + "="):
@@ -117,7 +140,9 @@ def main() -> int:
 
     v = run(["node", str(HERE / "validate.mjs"), str(final)], cwd=HERE)
     validation = json.loads(v.stdout.strip().splitlines()[-1]) if v.stdout.strip() else {"errors": None, "messages": [v.stderr[-1000:]]}
-    ktx2_ok = (not require_ktx2) or (validation.get("info", {}).get("textures") and all(t == "image/ktx2" for t in validation["info"]["textures"]))
+    images = glb_images(final)
+    all_ktx2 = bool(images) and all(i["mimeType"] == "image/ktx2" and i["ktx2_signature"] for i in images)
+    ktx2_ok = (not require_ktx2) or all_ktx2
     size_ok = final.stat().st_size <= int(spec.get("budget_bytes", 2_000_000))
 
     renders = {}
@@ -135,7 +160,7 @@ def main() -> int:
         "schema": "helqix.asset-report.v1", "asset": name, "label": spec.get("label", "Example"), "key": key, "cached": False, "pass": passed,
         "versions": versions, "build": build, "optimize_seconds": optimize_seconds,
         "bytes": {"raw_glb": raw.stat().st_size, "final_glb": final.stat().st_size, "budget": int(spec.get("budget_bytes", 2_000_000))},
-        "size_within_budget": size_ok, "textures_ktx2": bool(toktx), "ktx2_required": require_ktx2,
+        "size_within_budget": size_ok, "textures_ktx2": all_ktx2, "images": images, "ktx2_required": require_ktx2,
         "validation": validation, "renders": renders, "seconds_total": round(time.time() - t0, 3),
         "note": "Renders are Rendered previews (Derived), not engineering evidence. Geometry is not simplified.",
     }

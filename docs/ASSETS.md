@@ -20,6 +20,7 @@ An asset folder holds the source model, `asset.json` (name, label, source file, 
 | 2. Build | Blender 5.2.1 (GPL), **separate process** via `build_asset.py` | Import OBJ/glTF/STL (metres, Z up), join, outward normals, PBR material from the spec, UV unwrap, **Cycles ambient-occlusion bake** wired to glTF's occlusion slot, GLB export |
 | 3. Optimise | glTF-Transform 4.5.1 (MIT) | `optimize --compress meshopt --simplify false`; **KTX2** textures (`--texture-compress ktx2`) when KTX-Software `toktx` 4.4.2 (Apache-2.0) is installed, required with `--require-ktx2` |
 | 4. Validate (gate) | Khronos glTF-Validator 2.0.0-dev.3.10 (Apache-2.0) via `validate.mjs` | Fails on any error |
+| 4b. KTX2 check | `pipeline.py` reads the GLB itself | With `--require-ktx2`, every image must declare `image/ktx2` **and** start with the 12-byte KTX2 signature. The pinned validator predates KTX2 support: it reports `image/ktx2` as two warnings ("not in list", "format not recognized"), so the KTX2 decision cannot come from it. |
 | 5. Budget | `asset.json` | Fails if the final GLB is over budget (default 2 MB) |
 | 6. Render | Blender Cycles + **Intel Open Image Denoise**, `tools/render/render.py` | Thumbnail 256×256 (32 samples); hero 1280×720 (128 samples). A `.glb` gets a neutral studio and an auto-framed camera; a `.blend` scene renders with its own camera. Rendered from the pre-compression GLB, because Blender cannot import meshopt or KTX2 (same geometry). |
 
