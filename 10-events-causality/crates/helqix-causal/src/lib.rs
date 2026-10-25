@@ -5,6 +5,8 @@
 #![forbid(unsafe_code)]
 /// Cause nodes and evidence references.
 pub mod cause;
+/// Candidate causal chains (structural + temporal + magnitude).
+pub mod candidate;
 /// Directed graph and cycle validation.
 pub mod causal_graph;
 /// Effect assertions.
@@ -13,6 +15,7 @@ pub mod effect;
 pub mod propagation;
 /// Root-cause candidate ranking.
 pub mod root_cause;
+pub use candidate::{candidate_chains, CandidateChain, CandidateMethod, NodeChange, Signal, CANDIDATE_GRADE};
 pub use cause::{Cause, CausalNode, CausalNodeKind};
 pub use causal_graph::{CausalEdge, CausalGraph, CausalGraphError};
 pub use effect::Effect;

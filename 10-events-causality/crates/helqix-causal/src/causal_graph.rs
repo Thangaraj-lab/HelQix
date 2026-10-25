@@ -4,7 +4,7 @@ use crate::{cause::{Cause, CausalNode}, effect::Effect};
 
 /// One assertion from an upstream cause to a downstream effect.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CausalEdge { pub cause: Cause, pub effect: Effect, pub confidence: f64 }
+pub struct CausalEdge { pub cause: Cause, pub effect: Effect, pub confidence: f64, pub relation: Option<helqix_core::id::Identifier> }
 /// Bounded deterministic causal graph. Confidence is metadata, not a probability unless calibrated externally.
 #[derive(Debug, Clone)]
 pub struct CausalGraph { edges: BTreeMap<(CausalNode, CausalNode), CausalEdge>, nodes: BTreeSet<CausalNode>, maximum_nodes: usize }
@@ -22,7 +22,16 @@ impl CausalGraph {
         let additional = usize::from(!self.nodes.contains(&cause.node)) + usize::from(!self.nodes.contains(&effect.node));
         if self.nodes.len().saturating_add(additional) > self.maximum_nodes { return Err(CausalGraphError::CapacityExceeded { maximum: self.maximum_nodes }); }
         self.nodes.insert(cause.node.clone()); self.nodes.insert(effect.node.clone());
-        self.edges.insert(key, CausalEdge { cause, effect, confidence }); Ok(())
+        self.edges.insert(key, CausalEdge { cause, effect, confidence, relation: None }); Ok(())
+    }
+    /// Declares a structural relation (an equation or model relation, by id) from `cause` to
+    /// `effect`. Structural links are model facts, not hypotheses, so no confidence is attached
+    /// (stored as 1.0 and not used by candidate-chain scoring).
+    pub fn add_relation(&mut self, cause: Cause, effect: Effect, relation: helqix_core::id::Identifier) -> Result<(), CausalGraphError> {
+        let key = (cause.node.clone(), effect.node.clone());
+        self.add_edge(cause, effect, 1.0)?;
+        if let Some(edge) = self.edges.get_mut(&key) { edge.relation = Some(relation); }
+        Ok(())
     }
     /// Checks graph reachability using a bounded iterative walk.
     pub fn reachable(&self, from: &CausalNode, to: &CausalNode) -> bool { let mut queue = VecDeque::from([from.clone()]); let mut visited = BTreeSet::new(); while let Some(node) = queue.pop_front() { if &node == to { return true; } if !visited.insert(node.clone()) { continue; } for edge in self.edges.values().filter(|edge| edge.cause.node == node) { queue.push_back(edge.effect.node.clone()); } } false }
