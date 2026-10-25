@@ -1,0 +1,533 @@
+{
+  "$defs": {
+    "Binding": {
+      "additionalProperties": false,
+      "description": "Motion is data: a visual channel bound to a stored state variable.",
+      "properties": {
+        "axis": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "channel": {
+          "$ref": "#/$defs/Channel"
+        },
+        "mapping": {
+          "$ref": "#/$defs/Mapping"
+        },
+        "node": {
+          "type": "string"
+        },
+        "range": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "units": {
+          "type": "string"
+        },
+        "variable": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "variable",
+        "node",
+        "channel",
+        "mapping",
+        "units"
+      ],
+      "type": "object"
+    },
+    "Channel": {
+      "enum": [
+        "rotation",
+        "translation",
+        "scale",
+        "deformation",
+        "color",
+        "emissive",
+        "visibility",
+        "flow",
+        "vibration"
+      ],
+      "type": "string"
+    },
+    "Direction": {
+      "enum": [
+        "in",
+        "out",
+        "bi"
+      ],
+      "type": "string"
+    },
+    "Geometry": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dims": {
+              "items": {
+                "$ref": "#/$defs/Value"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "primitive",
+              "type": "string"
+            },
+            "shape": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "shape",
+            "dims"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "import",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "assetId"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Mapping": {
+      "enum": [
+        "linear",
+        "table",
+        "integrate"
+      ],
+      "type": "string"
+    },
+    "Maturity": {
+      "enum": [
+        "validated_model",
+        "unvalidated_model",
+        "placeholder",
+        "user_defined"
+      ],
+      "type": "string"
+    },
+    "Origin": {
+      "enum": [
+        "observed",
+        "simulated",
+        "derived",
+        "ai_hypothesis",
+        "user_stated"
+      ],
+      "type": "string"
+    },
+    "PortRef": {
+      "additionalProperties": false,
+      "properties": {
+        "part": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "part",
+        "port"
+      ],
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "asOf": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ProvenanceKind"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ProvenanceKind": {
+      "enum": [
+        "user_stated",
+        "from_source",
+        "inferred"
+      ],
+      "type": "string"
+    },
+    "Status": {
+      "enum": [
+        "verified",
+        "unverified"
+      ],
+      "type": "string"
+    },
+    "Transform": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "type": "string"
+        },
+        "pos": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "rot": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "scale": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "pos",
+        "rot",
+        "scale",
+        "frame"
+      ],
+      "type": "object"
+    },
+    "Value": {
+      "additionalProperties": false,
+      "description": "An engineering number. A bare number is never an engineering value.",
+      "properties": {
+        "mock": {
+          "description": "True for anything produced by a mock engine; the UI must show a MOCK tag.",
+          "type": "boolean"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "v": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "v",
+        "unit",
+        "origin",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One change to a staged model. Every path that builds a model emits these.",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "geometry": {
+          "$ref": "#/$defs/Geometry"
+        },
+        "id": {
+          "type": "string"
+        },
+        "maturity": {
+          "$ref": "#/$defs/Maturity"
+        },
+        "name": {
+          "type": "string"
+        },
+        "op": {
+          "const": "part.add",
+          "type": "string"
+        },
+        "prov": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "name",
+        "geometry",
+        "maturity",
+        "prov"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "op": {
+          "const": "part.setParam",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "key",
+        "value"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "op": {
+          "const": "part.place",
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "transform"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "op": {
+          "const": "port.add",
+          "type": "string"
+        },
+        "part": {
+          "type": "string"
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "part",
+        "id",
+        "kind",
+        "direction"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/PortRef"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "op": {
+          "const": "connection.add",
+          "type": "string"
+        },
+        "to": {
+          "$ref": "#/$defs/PortRef"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "from",
+        "to",
+        "kind"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "materialId": {
+          "type": "string"
+        },
+        "op": {
+          "const": "material.assign",
+          "type": "string"
+        },
+        "part": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "part",
+        "materialId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "binding": {
+          "$ref": "#/$defs/Binding"
+        },
+        "op": {
+          "const": "binding.add",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "binding"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "op": {
+          "const": "requirement.add",
+          "type": "string"
+        },
+        "prov": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "id",
+        "text",
+        "prov"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "op": {
+          "const": "part.remove",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "id"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "op": {
+          "const": "connection.remove",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "id"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "ModelOp"
+}

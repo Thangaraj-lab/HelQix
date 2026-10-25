@@ -1,20 +1,11 @@
 #![forbid(unsafe_code)]
 
-mod auth;
-mod config;
-mod error;
-mod resources;
-mod request_id;
-mod routes;
-mod state;
-mod store;
-
 use anyhow::Context;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 use std::time::Duration;
 
-use crate::{config::Config, state::AppState};
+use helqix_api::{config::Config, routes, state::AppState, store};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

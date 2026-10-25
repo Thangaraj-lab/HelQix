@@ -12,6 +12,8 @@ step "Rust lint (clippy: errors fail, warnings reported)"
 cargo clippy --workspace --locked --quiet
 step "Rust tests"
 cargo test --workspace --locked --quiet
+step "Contract tests (serde fixtures, committed schemas match the code)"
+cargo test --locked --quiet -p helqix-contracts --features schema
 step "Rust licence, advisory and source gate (cargo-deny)"
 cargo deny --locked check licenses bans sources
 cargo deny --locked check advisories || { echo "advisories: see output above (network required)"; exit 1; }
@@ -20,6 +22,7 @@ scripts/js-license-check.sh 21-app/reality-studio
 step "Tool register: every tool has a verified licence and a verdict"
 "$PY" -I scripts/check_tools_lock.py tools/TOOLS.lock.json
 step "Python tests"
+"$PY" -m pytest -q 15-sdk/platform/contracts/tests_py
 (cd 19-intelligence/python && "$PY" -m pytest -q tests)
 (cd 15-sdk/platform/sdk/python && "$PY" -m pytest -q tests)
 (cd 18-libraries/python && "$PY" -m pytest -q tests)

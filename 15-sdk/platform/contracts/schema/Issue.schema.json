@@ -1,0 +1,49 @@
+{
+  "$defs": {
+    "Severity": {
+      "enum": [
+        "blocking",
+        "warning"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "fix": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "description": "Stable id derived from code and subject, so the same problem keeps the same id.",
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity"
+    },
+    "subject": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "severity",
+    "code",
+    "message",
+    "subject"
+  ],
+  "title": "Issue",
+  "type": "object"
+}

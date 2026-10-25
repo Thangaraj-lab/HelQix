@@ -1,0 +1,51 @@
+{
+  "$defs": {
+    "Origin": {
+      "enum": [
+        "observed",
+        "simulated",
+        "derived",
+        "ai_hypothesis",
+        "user_stated"
+      ],
+      "type": "string"
+    },
+    "Status": {
+      "enum": [
+        "verified",
+        "unverified"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "An engineering number. A bare number is never an engineering value.",
+  "properties": {
+    "mock": {
+      "description": "True for anything produced by a mock engine; the UI must show a MOCK tag.",
+      "type": "boolean"
+    },
+    "origin": {
+      "$ref": "#/$defs/Origin"
+    },
+    "status": {
+      "$ref": "#/$defs/Status"
+    },
+    "unit": {
+      "type": "string"
+    },
+    "v": {
+      "format": "double",
+      "type": "number"
+    }
+  },
+  "required": [
+    "v",
+    "unit",
+    "origin",
+    "status"
+  ],
+  "title": "Value",
+  "type": "object"
+}

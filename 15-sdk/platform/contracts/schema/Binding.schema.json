@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "Channel": {
+      "enum": [
+        "rotation",
+        "translation",
+        "scale",
+        "deformation",
+        "color",
+        "emissive",
+        "visibility",
+        "flow",
+        "vibration"
+      ],
+      "type": "string"
+    },
+    "Mapping": {
+      "enum": [
+        "linear",
+        "table",
+        "integrate"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Motion is data: a visual channel bound to a stored state variable.",
+  "properties": {
+    "axis": {
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "channel": {
+      "$ref": "#/$defs/Channel"
+    },
+    "mapping": {
+      "$ref": "#/$defs/Mapping"
+    },
+    "node": {
+      "type": "string"
+    },
+    "range": {
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "units": {
+      "type": "string"
+    },
+    "variable": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "variable",
+    "node",
+    "channel",
+    "mapping",
+    "units"
+  ],
+  "title": "Binding",
+  "type": "object"
+}

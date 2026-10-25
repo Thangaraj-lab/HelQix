@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "asOf": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "example": {
+      "description": "Example data shipped for demos and tests; must be labelled Example in the UI.",
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "kind"
+  ],
+  "title": "Source",
+  "type": "object"
+}

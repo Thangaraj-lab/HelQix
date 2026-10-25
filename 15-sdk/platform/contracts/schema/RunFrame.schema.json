@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "Origin": {
+      "enum": [
+        "observed",
+        "simulated",
+        "derived",
+        "ai_hypothesis",
+        "user_stated"
+      ],
+      "type": "string"
+    },
+    "Status": {
+      "enum": [
+        "verified",
+        "unverified"
+      ],
+      "type": "string"
+    },
+    "Value": {
+      "additionalProperties": false,
+      "description": "An engineering number. A bare number is never an engineering value.",
+      "properties": {
+        "mock": {
+          "description": "True for anything produced by a mock engine; the UI must show a MOCK tag.",
+          "type": "boolean"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "v": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "v",
+        "unit",
+        "origin",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Stored simulation state at one time index. Scrubbing reads frames; it never computes.",
+  "properties": {
+    "determinism": {
+      "description": "`Bitwise`, `Tolerance{absolute}` or `Statistical`, as declared by the run.",
+      "type": "string"
+    },
+    "index": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "state": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Value"
+      },
+      "type": "object"
+    },
+    "stateSha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "t": {
+      "$ref": "#/$defs/Value"
+    }
+  },
+  "required": [
+    "runId",
+    "index",
+    "t",
+    "state",
+    "determinism"
+  ],
+  "title": "RunFrame",
+  "type": "object"
+}

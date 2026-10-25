@@ -53,6 +53,46 @@ jobs:
       - name: Tool register gate
         run: python3 -I scripts/check_tools_lock.py tools/TOOLS.lock.json
 
+  api:
+    name: Contracts and staged-build API (K2)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-trixie
+        env:
+          POSTGRES_USER: helqix
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: helqix
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helqix" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HELQIX_TEST_DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix
+    steps:
+      - uses: actions/checkout@v4
+      - name: Contract tests (serde fixtures, schema files up to date)
+        run: cargo test --locked -p helqix-contracts --features schema
+      - name: Contract fixtures against JSON Schema (Python)
+        run: |
+          python3 -m pip install pytest "jsonschema==4.26.0"
+          python3 -m pytest -q 15-sdk/platform/contracts/tests_py
+      - name: Model-build engine tests
+        run: cargo test --locked -p helqix-modelbuild
+      - name: API acceptance test against PostgreSQL (must not be skipped)
+        run: |
+          cargo test --locked -p helqix-api --test builds_api -- --nocapture 2>&1 | tee api-test.log
+          ! grep -q SKIPPED api-test.log
+      - name: Start the API and run the curl demonstration
+        env:
+          DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix
+          HELQIX_API_KEY: ci-only-api-key-0123456789abcdef0123456789
+          HELQIX_ALLOWED_ORIGINS: http://localhost:5173
+        run: |
+          cargo build --locked -p helqix-api --bin helqix-api
+          ./target/debug/helqix-api > api.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/health/ready && break; sleep 1; done
+          bash scripts/k2_curl_demo.sh http://127.0.0.1:8080
+
   dev-stack:
     name: Dev stack comes up (K1)
     runs-on: ubuntu-latest

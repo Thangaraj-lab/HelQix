@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A committed, authoritative model revision (`r1`, `r2`, ...).",
+  "properties": {
+    "buildId": {
+      "type": "string"
+    },
+    "committedAt": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "modelSha256": {
+      "description": "SHA-256 of the canonical JSON of the committed op list.",
+      "type": "string"
+    },
+    "number": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "opCount": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "projectId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "projectId",
+    "number",
+    "label",
+    "buildId",
+    "opCount",
+    "modelSha256",
+    "committedAt"
+  ],
+  "title": "ModelRevision",
+  "type": "object"
+}

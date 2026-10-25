@@ -4,7 +4,7 @@ use axum::{Json, Router, extract::State, http::{HeaderName, HeaderValue, Method,
 use serde::Serialize;
 use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
-use crate::{auth, error::ApiError, request_id, resources, state::AppState};
+use crate::{auth, builds, error::ApiError, request_id, resources, sources, state::AppState};
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -20,6 +20,14 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
     }
 
     let protected_api = Router::<AppState>::new()
+        .route("/v1/projects/{project_id}/builds", axum::routing::post(builds::start))
+        .route("/v1/builds/{id}", get(builds::get))
+        .route("/v1/builds/{id}/events", get(builds::events))
+        .route("/v1/builds/{id}/ops", axum::routing::post(builds::apply_ops))
+        .route("/v1/builds/{id}/undo", axum::routing::post(builds::undo))
+        .route("/v1/builds/{id}/redo", axum::routing::post(builds::redo))
+        .route("/v1/builds/{id}/commit", axum::routing::post(builds::commit))
+        .route("/v1/sources", get(sources::list))
         .route("/v1/{resource}", get(resources::list).post(resources::create))
         .route("/v1/{resource}/query", axum::routing::post(resources::search))
         .route("/v1/{resource}/{id}", get(resources::get).put(resources::replace).delete(resources::delete))
@@ -32,7 +40,7 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
         .layer(CorsLayer::new()
             .allow_origin(allowed_origins)
             .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::IF_MATCH, HeaderName::from_static("idempotency-key")])
+            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::IF_MATCH, HeaderName::from_static("idempotency-key"), HeaderName::from_static("last-event-id")])
             .expose_headers([header::ETAG]))
         .layer(TimeoutLayer::new(timeout))
         .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024))

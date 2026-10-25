@@ -1,0 +1,390 @@
+{
+  "_note": "Shared contract fixtures. Rust (serde) and Python (JSON Schema) tests both require every 'valid' item to be accepted and every 'invalid' item rejected. Values are test data, not engineering data.",
+  "ModelOp": {
+    "valid": [
+      {
+        "op": "part.add",
+        "id": "body",
+        "name": "Body",
+        "geometry": {
+          "kind": "primitive",
+          "shape": "cylinder",
+          "dims": [
+            {
+              "v": 0.1,
+              "unit": "m",
+              "origin": "user_stated",
+              "status": "unverified"
+            },
+            {
+              "v": 0.3,
+              "unit": "m",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          ]
+        },
+        "maturity": "user_defined",
+        "prov": {
+          "kind": "user_stated"
+        }
+      },
+      {
+        "op": "part.add",
+        "id": "imported",
+        "name": "Imported",
+        "geometry": {
+          "kind": "import",
+          "assetId": "asset-1"
+        },
+        "maturity": "placeholder",
+        "prov": {
+          "kind": "from_source",
+          "sourceId": "example-pack",
+          "asOf": "2026-10-25"
+        }
+      },
+      {
+        "op": "part.setParam",
+        "id": "body",
+        "key": "mass",
+        "value": {
+          "v": 2.5,
+          "unit": "kg",
+          "origin": "user_stated",
+          "status": "unverified"
+        }
+      },
+      {
+        "op": "part.place",
+        "id": "body",
+        "transform": {
+          "pos": [
+            {
+              "v": 0.0,
+              "unit": "m",
+              "origin": "user_stated",
+              "status": "unverified"
+            },
+            {
+              "v": 0.0,
+              "unit": "m",
+              "origin": "user_stated",
+              "status": "unverified"
+            },
+            {
+              "v": 0.2,
+              "unit": "m",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          ],
+          "rot": [
+            {
+              "v": 0.0,
+              "unit": "rad",
+              "origin": "user_stated",
+              "status": "unverified"
+            },
+            {
+              "v": 0.0,
+              "unit": "rad",
+              "origin": "user_stated",
+              "status": "unverified"
+            },
+            {
+              "v": 0.0,
+              "unit": "rad",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "frame": "world"
+        }
+      },
+      {
+        "op": "port.add",
+        "part": "body",
+        "id": "shaft_out",
+        "kind": "mechanical",
+        "direction": "out",
+        "unit": "N/m"
+      },
+      {
+        "op": "connection.add",
+        "id": "c1",
+        "from": {
+          "part": "body",
+          "port": "p1"
+        },
+        "to": {
+          "part": "base",
+          "port": "p2"
+        },
+        "kind": "mechanical"
+      },
+      {
+        "op": "material.assign",
+        "part": "body",
+        "materialId": "generic-steel"
+      },
+      {
+        "op": "binding.add",
+        "binding": {
+          "variable": "omega",
+          "node": "body",
+          "channel": "rotation",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "mapping": "integrate",
+          "units": "rad/s"
+        }
+      },
+      {
+        "op": "requirement.add",
+        "id": "r1",
+        "text": "temperature stays below 120 C",
+        "prov": {
+          "kind": "user_stated"
+        }
+      },
+      {
+        "op": "part.remove",
+        "id": "imported"
+      },
+      {
+        "op": "connection.remove",
+        "id": "c1"
+      }
+    ],
+    "invalid": [
+      {
+        "op": "part.setParam",
+        "id": "body",
+        "key": "mass",
+        "value": 2.5
+      },
+      {
+        "op": "part.setParam",
+        "id": "body",
+        "key": "mass",
+        "value": {
+          "v": 2.5,
+          "unit": "kg"
+        }
+      },
+      {
+        "op": "part.teleport",
+        "id": "body"
+      },
+      {
+        "op": "part.add",
+        "id": "x",
+        "name": "X",
+        "geometry": {
+          "kind": "primitive",
+          "shape": "box",
+          "dims": []
+        },
+        "maturity": "verified",
+        "prov": {
+          "kind": "user_stated"
+        }
+      },
+      {
+        "op": "part.remove",
+        "id": "x",
+        "extra": true
+      }
+    ]
+  },
+  "Value": {
+    "valid": [
+      {
+        "v": 1.0,
+        "unit": "V",
+        "origin": "simulated",
+        "status": "unverified",
+        "mock": true
+      },
+      {
+        "v": 3.0,
+        "unit": "A",
+        "origin": "user_stated",
+        "status": "unverified"
+      }
+    ],
+    "invalid": [
+      {
+        "v": 1.0,
+        "unit": "V",
+        "origin": "confident",
+        "status": "unverified"
+      },
+      {
+        "v": 1.0,
+        "unit": "V",
+        "origin": "simulated",
+        "status": "calibrated"
+      },
+      {
+        "v": "1",
+        "unit": "V",
+        "origin": "simulated",
+        "status": "unverified"
+      }
+    ]
+  },
+  "BuildEvent": {
+    "valid": [
+      {
+        "seq": 3,
+        "buildId": "b1",
+        "ts": "2026-10-25T00:00:00Z",
+        "kind": "op.applied",
+        "step": "place",
+        "op": {
+          "op": "part.place",
+          "id": "body",
+          "transform": {
+            "pos": [
+              {
+                "v": 0.0,
+                "unit": "m",
+                "origin": "user_stated",
+                "status": "unverified"
+              },
+              {
+                "v": 0.0,
+                "unit": "m",
+                "origin": "user_stated",
+                "status": "unverified"
+              },
+              {
+                "v": 0.2,
+                "unit": "m",
+                "origin": "user_stated",
+                "status": "unverified"
+              }
+            ],
+            "rot": [
+              {
+                "v": 0.0,
+                "unit": "rad",
+                "origin": "user_stated",
+                "status": "unverified"
+              },
+              {
+                "v": 0.0,
+                "unit": "rad",
+                "origin": "user_stated",
+                "status": "unverified"
+              },
+              {
+                "v": 0.0,
+                "unit": "rad",
+                "origin": "user_stated",
+                "status": "unverified"
+              }
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "frame": "world"
+          }
+        }
+      },
+      {
+        "seq": 9,
+        "buildId": "b1",
+        "ts": "2026-10-25T00:00:01Z",
+        "kind": "committed",
+        "note": "r1"
+      }
+    ],
+    "invalid": [
+      {
+        "seq": 1,
+        "buildId": "b1",
+        "ts": "t",
+        "kind": "progress.tick"
+      },
+      {
+        "seq": 1,
+        "buildId": "b1",
+        "ts": "t",
+        "kind": "committed",
+        "percent": 50
+      }
+    ]
+  },
+  "ModelRevision": {
+    "valid": [
+      {
+        "projectId": "p1",
+        "number": 1,
+        "label": "r1",
+        "buildId": "b1",
+        "opCount": 7,
+        "modelSha256": "ab",
+        "committedAt": "2026-10-25T00:00:00Z"
+      }
+    ],
+    "invalid": [
+      {
+        "projectId": "p1",
+        "number": 1,
+        "label": "r1",
+        "buildId": "b1",
+        "opCount": 7,
+        "modelSha256": "ab",
+        "committedAt": "t",
+        "confidence": 0.9
+      }
+    ]
+  },
+  "RunFrame": {
+    "valid": [
+      {
+        "runId": "run1",
+        "index": 10,
+        "t": {
+          "v": 0.01,
+          "unit": "s",
+          "origin": "simulated",
+          "status": "unverified",
+          "mock": true
+        },
+        "state": {
+          "omega": {
+            "v": 3.0,
+            "unit": "rad/s",
+            "origin": "simulated",
+            "status": "unverified",
+            "mock": true
+          }
+        },
+        "determinism": "Bitwise"
+      }
+    ],
+    "invalid": [
+      {
+        "runId": "run1",
+        "index": 10,
+        "t": 0.01,
+        "state": {},
+        "determinism": "Bitwise"
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+[package]
+name = "helqix-modelbuild"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX staged model builds: ModelOp log with undo/redo, deterministic checks, commit to a revision"
+license = "MIT"
+publish = false
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-contracts = { path = "../../../15-sdk/platform/contracts" }
+serde_json = "1"
+sha2 = "0.10"

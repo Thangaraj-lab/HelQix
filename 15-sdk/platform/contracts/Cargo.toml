@@ -1,0 +1,25 @@
+[package]
+name = "helqix-contracts"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX engine/UI contracts (file 35 section 8): Value, ModelOp, BuildEvent, ModelRevision, RunFrame, with JSON Schema"
+license = "MIT"
+publish = false
+
+[dependencies]
+schemars = { version = "1.2", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# JSON Schema generation (schemars) is for the schema tool and tests; the runtime does not need it.
+schema = ["dep:schemars"]
+
+[[bin]]
+name = "helqix-contracts-schema"
+required-features = ["schema"]
+
+[[test]]
+name = "contracts"
+required-features = ["schema"]
+
