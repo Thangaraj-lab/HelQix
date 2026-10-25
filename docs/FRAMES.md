@@ -55,6 +55,10 @@ Release build, founder's PC (AMD laptop, Windows 11), point-mass reference run w
 | 2 001 | 255 KB | 127 B | 1.6 ms | 4.7 ms | 0.65 µs | 0.59 µs per frame |
 | 20 001 | 2.58 MB | 129 B | 10.5 ms | 40.8 ms | 0.72 µs | 0.66 µs per frame |
 
+Linux CI runner (release, run 40226469580): 2 001 frames 254 959 B, load + verify 3.07 ms, getFrame 0.43 µs; 20 001 frames 2 576 226 B, load + verify 30.5 ms, getFrame 0.51 µs.
+
+**Cross-platform (VERIFIED):** the reference drop recorded by `helqix-frames-record` has the same BLAKE3 on the Linux runner and on the founder's Windows PC: `73fcfcf4e711708b2d5d10a92fecb27e800340b710153475178964a6ff4f061f` (2 001 rows). The frame file is bit-identical across the two platforms.
+
 About half of each frame is the chain link stored as 64 hex characters; storing it as 32 raw bytes and adding a pure-Rust codec would roughly halve the size (not done).
 
 ## Tests
