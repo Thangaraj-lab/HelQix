@@ -1,15 +1,31 @@
 # Rust build artifacts
 target/
 
-# Cargo lock file (optional, often kept in VCS for binaries/apps, ignored for libraries)
-# If this is a library workspace, you might want to ignore Cargo.lock, but typically it's tracked.
-# Based on standard practices for workspaces with 'target/' present:
-Cargo.lock
+# Cargo.lock stays tracked: the workspace ships binaries and claims reproducible builds.
+
+# Python environments and caches
+.venv/
+venv/
 17-integrations/gateway/.venv/
 17-integrations/gateway/__pycache__/
 __pycache__/
+*.py[cod]
 .pytest_cache/
+*.egg-info/
+build/
+
+# Local runtime data (gateway SQLite store defaults to data/integration_runs.sqlite3)
 /data/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+
+# Local secrets
+.env
+.env.*
+!.env.example
 
 # JavaScript dependency and generated build output
 node_modules/
