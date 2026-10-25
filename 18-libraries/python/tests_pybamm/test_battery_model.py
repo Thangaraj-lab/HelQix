@@ -62,6 +62,17 @@ class CalibrationTests(unittest.TestCase):
         self.assertFalse(any(cid.endswith("_c10") for cid in result.fitted_on))
         self.assertFalse(result.at_bound)
 
+    def test_trial_resistance_that_stops_the_solver_is_infeasible_not_fatal(self):
+        made = []
+        for rate, current, seconds in (("1c5", 7.5, 2380), ("c10", 0.5, 600)):
+            c = constant_current_case(f"cella_{rate}", rate, current, seconds=seconds, rest=60)
+            c.voltage_v = model.simulate(c.time_s, c.current_a, c.initial_rest_voltage_v, model.ModelConfig(contact_resistance_ohm=0.005))
+            made.append(c)
+        s = split.make_split(made)
+        result = calibrate.calibrate(s.calibration_set(), model.ModelConfig())
+        self.assertGreater(result.infeasible_evaluations, 0, "expected the search to try a resistance that stops the solver")
+        self.assertAlmostEqual(result.contact_resistance_ohm, 0.005, delta=2e-4)
+
     def test_refuses_anything_but_a_calibration_set(self):
         s = self._synthetic_split(0.01)
         with self.assertRaises(split.SplitViolation):

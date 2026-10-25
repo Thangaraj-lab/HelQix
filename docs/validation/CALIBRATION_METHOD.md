@@ -15,3 +15,7 @@ Reason for this choice: a single, physically interpretable parameter limits over
 ## Disclosure
 
 While checking the PyBaMM API (scratch probe, not committed), I ran the **unfitted** model on all four cell02 cases, which exposed one held-out result: cell02_c10 RMSE 78.3 mV with resistance 0. This was a procedural slip (the probe should have used calibration cases only). The method above was chosen before the probe and is not changed because of it; the threshold, split and candidate are unchanged. Calibration cases seen in the probe (unfitted): cell02 C/2 103.3 mV, 1C 75.0 mV, 1.5C 73.4 mV.
+
+## Amendment 1 (2026-10-25, before any held-out simulation)
+
+The first real run stopped **during calibration**: the optimiser's first trial resistances (about 0.04-0.06 Ohm) drive the 1.5C calibration case below the solver's 2.0 V limit, and the code raised an error instead of rejecting the trial. No held-out case had been simulated (calibration runs first, by construction). Change: a trial resistance whose simulation does not complete on every calibration case scores a fixed penalty of 10 V (far above any real RMSE) and is counted as `infeasible_evaluations`; the chosen resistance must still run every calibration case to completion. Range, objective, optimiser and candidate are unchanged. Reproduced first by a failing synthetic test (`test_trial_resistance_that_stops_the_solver_is_infeasible_not_fatal`).
