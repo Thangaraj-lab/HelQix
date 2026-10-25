@@ -52,6 +52,7 @@ Linux CI: GitHub Actions run [40180917041](https://github.com/Thangaraj-lab/HelQ
 - Benchmarks pass: charge conservation, lithium mass conservation, mesh convergence (order 2.10, 2.34), bitwise repeatability.
 - Kill trigger "model error above threshold X: no Verified label" applied; no tuning on held-out data.
 - Tests (Windows, 2026-10-25): Rust 929 -> 950 pass (helqix-verify 1 -> 22), Python 52 -> 74 pass, plus 16 PyBaMM tests and 4 benchmarks; 0 failed, 0 ignored. Two full pipeline runs gave byte-identical reports.
+- Linux CI: GitHub Actions run [40185418438](https://github.com/Thangaraj-lab/HelQix/actions/runs/40185418438) on commit `9e6a636`: all jobs success (Rust build and test, Python 3.12 and 3.14, new PyBaMM job with battery tests and benchmarks).
 
 ## Per-layer score (weights from the Phase 0 prompt)
 
