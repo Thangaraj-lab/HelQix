@@ -99,6 +99,25 @@ class SensitivityTests(unittest.TestCase):
             sensitivity.one_at_a_time(list(s.validation), model.ModelConfig(), step=0.10)
 
 
+    def test_perturbation_that_stops_the_solver_is_reported_not_fatal(self):
+        c = constant_current_case("cella_1c5", "1c5", 7.5, seconds=2380, rest=60)
+        c.voltage_v = model.simulate(c.time_s, c.current_a, c.initial_rest_voltage_v, model.ModelConfig())
+        held = constant_current_case("cella_c10", "c10", 0.5, seconds=600, rest=60)
+        held.voltage_v = model.simulate(held.time_s, held.current_a, held.initial_rest_voltage_v, model.ModelConfig())
+        from helqix_battery import sensitivity
+        stops = "Maximum concentration in positive electrode [mol.m-3]"
+        completes = "Maximum concentration in negative electrode [mol.m-3]"
+        result = sensitivity.one_at_a_time(split.make_split([c, held]).calibration_set(), model.ModelConfig(), step=0.10, parameters=(stops, completes))
+        for e in result["entries"]:
+            if e["parameter"] == stops:
+                self.assertEqual(e["incomplete_cases"], ["cella_1c5"])
+                self.assertIsNone(e["mean_delta_rmse_v"])
+            else:
+                self.assertEqual(e["incomplete_cases"], [])
+                self.assertIsNotNone(e["mean_delta_rmse_v"])
+        self.assertEqual(result["ranking_by_max_abs_dv"][0], stops)
+
+
 class IntegrityTests(unittest.TestCase):
     def test_reports_tolerance_and_mesh_refinement_and_passes_for_a_settled_solution(self):
         c = constant_current_case("cellx_c10", "c10", 0.5, seconds=1800, rest=300)

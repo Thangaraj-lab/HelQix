@@ -37,12 +37,21 @@ def one_at_a_time(calibration_set, base: model.ModelConfig, step: float = 0.10, 
     for name in parameters:
         for factor in (1.0 - step, 1.0 + step):
             config = _config(base, name, factor)
-            d_rmse, max_dv = [], 0.0
+            d_rmse, max_dv, incomplete = [], 0.0, []
             for c in cases:
-                v = model.simulate(c.time_s, c.current_a, c.initial_rest_voltage_v, config)
+                try:
+                    v = model.simulate(c.time_s, c.current_a, c.initial_rest_voltage_v, config)
+                except model.SimulationIncomplete:
+                    incomplete.append(c.id)  # the change drives the cell below the solver's 2.0 V limit
+                    continue
                 d_rmse.append(metrics.rmse(v, c.voltage_v) - base_rmse[c.id])
                 max_dv = max(max_dv, metrics.peak_abs_error(v, baseline[c.id]))
-            entries.append({"parameter": name, "factor": factor, "mean_delta_rmse_v": sum(d_rmse) / len(d_rmse), "max_abs_dv_v": max_dv})
-    ranking = sorted({e["parameter"] for e in entries}, key=lambda n: -max(e["max_abs_dv_v"] for e in entries if e["parameter"] == n))
-    return {"method": f"one-at-a-time, each parameter scaled by 1 -/+ {step}, others fixed; local only, no interactions",
+            entries.append({"parameter": name, "factor": factor, "incomplete_cases": incomplete,
+                            "mean_delta_rmse_v": None if incomplete else sum(d_rmse) / len(d_rmse),
+                            "max_abs_dv_v": max_dv, "max_abs_dv_note": "over completed cases only" if incomplete else "all cases"})
+    # A parameter whose perturbation stops any run ranks above every parameter that completes.
+    ranking = sorted({e["parameter"] for e in entries}, key=lambda n: (-sum(len(e["incomplete_cases"]) for e in entries if e["parameter"] == n),
+                                                                       -max(e["max_abs_dv_v"] for e in entries if e["parameter"] == n)))
+    return {"method": f"one-at-a-time, each parameter scaled by 1 -/+ {step}, others fixed; local only, no interactions. "
+                      "A run that falls below the solver's 2.0 V limit is listed as incomplete and excluded from the averages.",
             "cases": [c.id for c in cases], "baseline_rmse_v": base_rmse, "entries": entries, "ranking_by_max_abs_dv": ranking}
