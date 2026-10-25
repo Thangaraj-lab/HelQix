@@ -8,6 +8,7 @@ members = [
     "05-execution/crates/helqix-execution",
     "06-simulation/engines/helixsim",
     "07-time/crates/helqix-time",
+    "07-time/crates/helqix-freeze",
     "08-observation/crates/helqix-observation",
     "09-failure/crates/helqix-failure",
     "10-events-causality/crates/helqix-events",

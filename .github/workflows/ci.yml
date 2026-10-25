@@ -20,6 +20,8 @@ jobs:
         run: cargo build --workspace --locked
       - name: Test workspace
         run: cargo test --workspace --locked --no-fail-fast
+      - name: Run-twice replay check (Phase 2)
+        run: cargo run --locked -p helqix-freeze --bin helqix-replay-check
 
   python:
     name: Python suites (${{ matrix.python }})

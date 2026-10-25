@@ -1,0 +1,12 @@
+[package]
+name = "helqix-freeze"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX Layer 6 freeze and bit-exact replay of core-runtime runs"
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helixsim = { path = "../../../06-simulation/engines/helixsim" }
+sha2 = "0.10"
+serde_json = "1"

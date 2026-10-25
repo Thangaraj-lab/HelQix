@@ -692,6 +692,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "helqix-freeze"
+version = "0.1.0"
+dependencies = [
+ "helixsim",
+ "helqix-core",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "helqix-observation"
 version = "0.1.0"
 dependencies = [

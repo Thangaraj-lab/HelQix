@@ -22,6 +22,9 @@ pub mod solver;
 pub mod timestep;
 
 pub use kernel::{ContinuousModel, SimulationOptions, SimulationResult, simulate};
+
+/// Crate version, recorded as solver identity in freezes and evidence.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub use dynamics::{PointMassModel, PointMassRun, PointMassSample, PointMassState, simulate_point_mass};
 pub use forces::{DragConfiguration, ForceBreakdown, ForceError, aerodynamic_drag_force, gravity_force, newton_unit};
 pub use solver::IntegrationMethod;
