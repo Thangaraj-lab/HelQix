@@ -11,6 +11,8 @@ pub mod branch;
 pub mod branch_point;
 pub mod branch_tree;
 pub mod comparison;
+/// Counterfactual branches from a freeze: interventions, compare, intervention tests.
+pub mod intervention;
 pub mod state_fork;
 
 pub use branch::{Branch, BranchError, BranchId};

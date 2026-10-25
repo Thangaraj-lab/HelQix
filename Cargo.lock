@@ -633,6 +633,7 @@ name = "helqix-branch"
 version = "0.1.0"
 dependencies = [
  "helqix-core",
+ "helqix-freeze",
  "helqix-state",
  "helqix-time",
 ]

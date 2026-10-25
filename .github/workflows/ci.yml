@@ -22,6 +22,8 @@ jobs:
         run: cargo test --workspace --locked --no-fail-fast
       - name: Run-twice replay check (Phase 2)
         run: cargo run --locked -p helqix-freeze --bin helqix-replay-check
+      - name: Branch intervention demo (Phase 4)
+        run: cargo run --locked -p helqix-branch --bin helqix-branch-demo
 
   python:
     name: Python suites (${{ matrix.python }})

@@ -235,6 +235,12 @@ pub fn freeze(spec: &RunSpec, run: &RecordedRun, index: usize, trigger: FreezeTr
     Ok(Freeze { spec: spec.clone(), index: sample.index, time_seconds: sample.time_seconds, state: sample.state.clone(), prior_link, trigger })
 }
 
+/// Runs `spec` forward from grid `index` with `state`, on the same grid as a fresh run of `spec`.
+/// Used by branches: a changed specification or state continues from a frozen point.
+pub fn continue_run(spec: &RunSpec, index: usize, state: &[f64], prior_link: &str) -> Result<RecordedRun, FreezeError> {
+    record(spec, index, state, prior_link)
+}
+
 /// Re-executes from a freeze using only its content; the chain continues the original's.
 pub fn replay(freeze: &Freeze) -> Result<RecordedRun, FreezeError> {
     record(&freeze.spec, freeze.index, &freeze.state, &freeze.prior_link)
@@ -309,6 +315,15 @@ impl Freeze {
 
     /// What triggered the freeze.
     pub fn trigger(&self) -> &FreezeTrigger { &self.trigger }
+
+    /// The run specification captured by the freeze.
+    pub fn spec(&self) -> &RunSpec { &self.spec }
+
+    /// The frozen state at the freeze index.
+    pub fn state(&self) -> &[f64] { &self.state }
+
+    /// Hash-chain link of the sample before the freeze index.
+    pub fn prior_link(&self) -> &str { &self.prior_link }
 
     #[doc(hidden)]
     pub fn tamper_state_for_test(&mut self, variable: usize, f: impl Fn(f64) -> f64) { self.state[variable] = f(self.state[variable]); }

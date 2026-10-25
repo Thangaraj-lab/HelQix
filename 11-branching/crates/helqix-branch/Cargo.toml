@@ -9,3 +9,4 @@ license = "MIT"
 helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
 helqix-state = { path = "../../../04-state/crates/helqix-state" }
 helqix-time = { path = "../../../07-time/crates/helqix-time" }
+helqix-freeze = { path = "../../../07-time/crates/helqix-freeze" }
