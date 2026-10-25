@@ -28,6 +28,24 @@ Purpose: one place that holds everything decided, verified, wrong, and still ope
 | 20 | PHASE8_BUILD_SPEC_RESEARCH_PROMPT | Build Spec lineage and time-boxed research. |
 | 21 | HOW_TO_RUN_PHASES_AND_REVIEW | Run loop, decisions needed per phase, review checklist, red flags. |
 | 22 | FOUNDER_TRACK_B_TOOLKIT | Interviews, pilots, prior art, rig, naming, funding (what Claude Code cannot do). |
+| 23 | UI_QUALITY_SPEC_AND_PROMPT | High-quality UI bar, sequencing, review process, UI-track Claude Code prompt. |
+| 24 | UI_SCREEN_IMAGE_PROMPTS | Style block and 16 image prompts to regenerate the uploaded screens, with honesty fixes. |
+| 25 | ANTIGRAVITY_UI_BUILD_BRIEF | Build brief for Antigravity (21-app UI track). |
+| 26 | UI_VISUAL_QUALITY_PACKAGES_AND_PROMPT | Recommended packages, visual recipe, performance budget, prompt for high visual quality. |
+| 27 | FOLDER_ARCHITECTURE | Actual repo tree (verified), layer map, proposed additions, folder order by phase. |
+| 28 | UI_LAYERS_FOLDER_ARCHITECTURE | UI-only layers (22-api, 15-sdk, 14-visual-runtime, 21-app): actual tree, screen mapping, proposed additions, new findings. |
+| 29 | USER_WORKFLOW_PER_SCREEN | One user story across all 16 screens with example prompts, engine dependency, golden demo path. |
+| 30 | MASTER_FRONTEND_PROMPT_ANALYSIS_AND_PROMPT_TO_COMPONENTS_FLOW | Critique of the 63-section master prompt, corrected flow with AI split-into-components step and manual add, data contracts, paste-ready patches. |
+| 31 | UX_REDEFINITION_STUDIO_AND_PROMPT_TO_MODEL | One Studio, two doors, prompt to 6 briefs to model, feature coverage map, motion binding, real assets. Replaces page-by-page screens. |
+| 32 | ANTIGRAVITY_MASTER_FRONTEND_PROMPT | Paste-ready master prompt for Antigravity with milestones and acceptance. |
+| 33 | TASTE_ANALYSIS_AND_VISUAL_DIRECTION_V2 | Your taste read from the images, adopt/adapt/drop table, Visual Direction v2, Studio shell v2, navigation rules. |
+| 34 | IMAGE_PROMPTS_V2_PHOTOREAL_SCREENS | 15 photoreal image prompts matching your taste. |
+| 35 | CHATGPT_HANDOFF_ANALYSIS_AND_CORRECTED_END_TO_END_FLOW | ChatGPT plan analyzed (keep/mistakes), corrected pipeline P0 to P17, layers, live-build design, contracts, golden path and tests. |
+| 36 | CLAUDE_CODE_PROMPT_NEW_PROJECT_TO_LIVE_STUDIO | Paste-ready Claude Code prompt M0 to M4: New Project, Prompt screen, live model build, bound-motion simulate. |
+| 37 | ANTIGRAVITY_FULL_FRONTEND_REFACTOR_PROMPT | Self-contained Antigravity prompt: refactor existing screens to one Studio, New Project to Prompt screen to live build, visual direction, contracts, mock engine, milestones A0 to A7. Supersedes 32 where different. |
+| 38 | FINAL_OPEN_SOURCE_STACK_RENDER_LADDER_AND_USER_TYPES | Final open-source tool stack, render ladder T0 to T3 (low-end to cinematic), user types, free-tier plan and cost model, prompts A (Antigravity), B (T2 stream spike), C (Blender pipeline). |
+| 39 | CLAUDE_CODE_PROMPT_BUILD_THE_STACK | Paste-ready Claude Code prompt K0 to K9: tool register and license gate, dev stack, real API, adapters, frames and replay, signed evidence, Blender pipeline, stream spike, metering. Splits work from Antigravity. |
+| wireframes/ | Not stored in git (about 10 MB of PNG); kept in the founder's helqix-docs zip. 11 layout diagrams (PNG) + generator source | Hero, Home, 7 Studio stages, overlays, flow map. |
 
 Prompt order: 13 (always first) + 09 (Phase 0) -> 10 (Phase 1) -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20. Never skip a gate.
 
