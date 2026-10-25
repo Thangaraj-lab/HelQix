@@ -595,6 +595,8 @@ mod tests {
         rt.submit(action(3), ns(100)).unwrap();
         rt.submit(action(1), ns(100)).unwrap();
         rt.submit(action(2), ns(100)).unwrap();
+        // run() only executes due actions; bring the clock to their time.
+        rt.clock_mut().advance_by(SimDelta::from_nanos(100)).unwrap();
 
         let outcome = rt.run();
 
@@ -611,6 +613,8 @@ mod tests {
         rt.submit(action(1), ns(300)).unwrap();
         rt.submit(action(2), ns(100)).unwrap();
         rt.submit(action(3), ns(200)).unwrap();
+        // run() only executes due actions; bring the clock past all of them.
+        rt.clock_mut().advance_by(SimDelta::from_nanos(300)).unwrap();
 
         let _ = rt.run();
 
@@ -829,6 +833,8 @@ mod tests {
                 rt.submit(action(1), ns(100)).unwrap();
                 rt.submit(action(2), ns(100)).unwrap();
                 rt.submit(action(4), ns(300)).unwrap();
+                // run() only executes due actions; bring the clock past all of them.
+                rt.clock_mut().advance_by(SimDelta::from_nanos(300)).unwrap();
                 let outcome = rt.run();
                 assert!(outcome.is_completed());
             }

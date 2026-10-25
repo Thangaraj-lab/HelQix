@@ -762,12 +762,9 @@ mod tests {
         let a = action(1, "x");
         let mut backend = TestBackend::new(0, 1);
 
-        // Build a clock at SimTime::MIN without advancing via the
-        // public delta API (which forbids going below MIN anyway).
-        let mut clock_min = Clock::new();
-        clock_min
-            .advance_by(helqix_time::SimDelta::from_nanos(i128::MIN))
-            .unwrap();
+        // Build a clock at SimTime::MIN directly; the clock is monotonic,
+        // so it cannot be advanced backwards to reach MIN.
+        let clock_min = Clock::starting_at(helqix_time::SimTime::MIN);
         assert_eq!(clock_min.now(), helqix_time::SimTime::MIN);
 
         let t = execute(&a, &clock_min, &mut backend).unwrap();

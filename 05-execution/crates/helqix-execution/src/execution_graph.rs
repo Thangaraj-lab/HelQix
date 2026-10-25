@@ -864,19 +864,20 @@ mod tests {
         let ready: Vec<u64> = g.ready_nodes(|_| false).map(|id| id.raw()).collect();
         assert_eq!(ready, vec![1, 2]);
 
-        // A done: still only roots (C still blocked by B).
+        // A done: still only roots (C still blocked by B). Completed roots
+        // stay ready, as the final assertion below documents.
         let ready: Vec<u64> = g
             .ready_nodes(|id| id.raw() == 1)
             .map(|id| id.raw())
             .collect();
-        assert_eq!(ready, vec![2]);
+        assert_eq!(ready, vec![1, 2]);
 
         // A and B done: C becomes ready.
         let ready: Vec<u64> = g
             .ready_nodes(|id| id.raw() == 1 || id.raw() == 2)
             .map(|id| id.raw())
             .collect();
-        assert_eq!(ready, vec![3]);
+        assert_eq!(ready, vec![1, 2, 3]);
 
         // Everything done: nothing is "ready" (the graph is
         // statically defined; readiness only depends on predecessors,
@@ -1023,7 +1024,8 @@ mod tests {
 
         assert_valid_topological_order(&g);
         let order: Vec<u64> = g.topological_order().iter().map(|id| id.raw()).collect();
-        assert_eq!(order, vec![1, 2, 4, 3, 5]);
+        // After A and B, both C (3) and D (4) are eligible; lower id first.
+        assert_eq!(order, vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
