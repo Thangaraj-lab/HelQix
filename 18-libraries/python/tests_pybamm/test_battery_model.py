@@ -68,6 +68,26 @@ class CalibrationTests(unittest.TestCase):
             calibrate.calibrate(list(s.validation), model.ModelConfig())
 
 
+class SensitivityTests(unittest.TestCase):
+    def test_one_at_a_time_on_calibration_data_only(self):
+        made = []
+        for rate, current in (("1c", 5.0), ("c10", 0.5)):
+            c = constant_current_case(f"cella_{rate}", rate, current, seconds=900, rest=300)
+            c.voltage_v = model.simulate(c.time_s, c.current_a, c.initial_rest_voltage_v, model.ModelConfig(contact_resistance_ohm=0.01))
+            made.append(c)
+        s = split.make_split(made)
+        from helqix_battery import sensitivity
+        result = sensitivity.one_at_a_time(s.calibration_set(), model.ModelConfig(contact_resistance_ohm=0.01), step=0.10)
+        names = {e["parameter"] for e in result["entries"]}
+        self.assertIn("Contact resistance [Ohm]", names)
+        self.assertEqual(len(result["entries"]), 2 * len(names))
+        resistance_up = next(e for e in result["entries"] if e["parameter"] == "Contact resistance [Ohm]" and e["factor"] > 1)
+        self.assertAlmostEqual(resistance_up["max_abs_dv_v"], 5.0 * 0.01 * 0.10, delta=1e-5)  # closed form: I * dR
+        self.assertEqual(result["cases"], ["cella_1c"])
+        with self.assertRaises(split.SplitViolation):
+            sensitivity.one_at_a_time(list(s.validation), model.ModelConfig(), step=0.10)
+
+
 class IntegrityTests(unittest.TestCase):
     def test_reports_tolerance_and_mesh_refinement_and_passes_for_a_settled_solution(self):
         c = constant_current_case("cellx_c10", "c10", 0.5, seconds=1800, rest=300)

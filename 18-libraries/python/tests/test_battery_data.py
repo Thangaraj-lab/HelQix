@@ -161,6 +161,13 @@ class MetricTests(unittest.TestCase):
         self.assertAlmostEqual(metrics.rmse([1.0, 2.0, 3.0], [1.0, 2.0, 5.0]), math.sqrt(4 / 3))
         self.assertEqual(metrics.peak_abs_error([1.0, 2.0], [1.5, 1.0]), 1.0)
 
+    def test_nearest_rank_percentile(self):
+        measured = [0.0] * 20
+        simulated = [float(k) for k in range(1, 21)]  # |errors| 1..20
+        self.assertEqual(metrics.percentile_abs_error(simulated, measured, 95.0), 19.0)
+        self.assertEqual(metrics.percentile_abs_error(simulated, measured, 100.0), 20.0)
+        self.assertEqual(metrics.percentile_abs_error(simulated, measured, 50.0), 10.0)
+
     def test_mismatched_or_non_finite_series_are_rejected(self):
         with self.assertRaises(ValueError):
             metrics.rmse([1.0], [1.0, 2.0])
