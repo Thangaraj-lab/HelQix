@@ -51,11 +51,11 @@ impl RealityMetadata {
     pub fn validate(&self) -> Result<(), RealityValidationError> {
         let mut errors = Vec::new();
         if let Err(error) = validate_token("metadata.name", &self.name) {
-            errors.push(error);
+            errors.extend(error.issues);
         }
         for (index, tag) in self.tags.iter().enumerate() {
             if let Err(error) = validate_token(&format!("metadata.tags[{index}]"), tag) {
-                errors.push(error);
+                errors.extend(error.issues);
             }
         }
         for (field, value) in [("created_at", &self.created_at), ("updated_at", &self.updated_at)] {
@@ -244,6 +244,20 @@ mod tests {
             extensions: Default::default(),
         };
         assert!(metadata.validate().is_ok());
+    }
+
+    #[test]
+    fn metadata_validation_collects_every_issue_with_its_path() {
+        let metadata = RealityMetadata {
+            name: " ".into(),
+            description: None,
+            tags: vec!["ok".into(), "".into()],
+            created_at: Some("not-a-date".into()),
+            updated_at: None,
+            extensions: Default::default(),
+        };
+        let paths: Vec<String> = metadata.validate().unwrap_err().issues.into_iter().map(|issue| issue.path).collect();
+        assert_eq!(paths, ["metadata.name", "metadata.tags[1]", "metadata.created_at"]);
     }
 
     #[test]
