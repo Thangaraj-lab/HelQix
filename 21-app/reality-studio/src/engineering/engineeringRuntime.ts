@@ -1,234 +1,50 @@
 import type { EngineeringReality } from '../api';
-import {
-  assertValidState,
-  captureSnapshot,
-  createInitialState,
-  restoreSnapshot,
-  type AuthoritativeEngineeringState,
-  type StateSnapshot,
-} from './authoritativeState';
-import {
-  applyBranch,
-  createBranch,
-  type BranchChange,
-  type BranchResult,
-  type EngineeringBranch,
-} from './branchEngine';
-import {
-  createScenario,
-  executeScenario,
-  type ExecutableScenario,
-  type ScenarioExecutionOptions,
-  type ScenarioExecutionResult,
-} from './scenarioEngine';
+import { assertValidState, captureSnapshot, createInitialState, restoreSnapshot, type AuthoritativeEngineeringState, type StateSnapshot } from './authoritativeState';
+import { applyBranch, createBranch, type BranchChange, type BranchResult, type EngineeringBranch } from './branchEngine';
+import { createScenario, executeScenario, type ExecutableScenario, type ScenarioExecutionOptions, type ScenarioExecutionResult } from './scenarioEngine';
+import { createEvidencePackage, verifyEvidencePackage, type EvidencePackage } from './evidenceEngine';
+import { createStateFreeze, verifyStateFreeze, type StateFreeze } from './stateFreeze';
+import { replayExecution, verifyReplayDeterminism, type ReplayResult } from './replayEngine';
 import { assertValidReality, diffReality, type RealityDiff } from './engineeringReality';
 
 export const ENGINEERING_RUNTIME_SCHEMA = 'helqix.engineering-runtime.v1' as const;
-
-export interface EngineeringRuntimeContext {
-  schema: typeof ENGINEERING_RUNTIME_SCHEMA;
-  realityRevision: number;
-  state: AuthoritativeEngineeringState;
-  snapshots: StateSnapshot[];
-  scenarios: ExecutableScenario[];
-  branches: EngineeringBranch[];
-  activeScenarioId?: string;
-  activeBranchId?: string;
-}
-
-export interface RuntimeCheckpoint {
-  snapshot: StateSnapshot;
-  stateRevision: number;
-  logicalTimeMs: number;
-  label: string;
-}
-
-export interface ReplayResult {
-  sourceSnapshotId: string;
-  state: AuthoritativeEngineeringState;
-  replayedEventCount: number;
-  targetLogicalTimeMs: number;
-}
-
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
-
-function now(): string {
-  return new Date().toISOString();
-}
-
-export function createEngineeringRuntime(reality: EngineeringReality): EngineeringRuntimeContext {
-  assertValidReality(reality);
-  const state = createInitialState(reality);
-  const initialSnapshot = captureSnapshot(state, 'initial', `initial-${reality.revision}`);
-  return {
-    schema: ENGINEERING_RUNTIME_SCHEMA,
-    realityRevision: reality.revision,
-    state,
-    snapshots: [initialSnapshot],
-    scenarios: [],
-    branches: [],
-  };
-}
-
-export function syncEngineeringRuntime(
-  context: EngineeringRuntimeContext,
-  reality: EngineeringReality,
-): EngineeringRuntimeContext {
-  assertValidReality(reality);
-  if (context.realityRevision === reality.revision) return context;
-  const nextState = createInitialState(reality, {
-    parentSnapshotId: context.snapshots.at(-1)?.id,
-  });
-  const snapshot = captureSnapshot(nextState, 'initial', `initial-${reality.revision}`);
-  return {
-    ...clone(context),
-    realityRevision: reality.revision,
-    state: nextState,
-    snapshots: [...context.snapshots, snapshot],
-    activeScenarioId: undefined,
-    activeBranchId: undefined,
-  };
-}
-
-export function saveCheckpoint(
-  context: EngineeringRuntimeContext,
-  label: string,
-  reason: StateSnapshot['reason'] = 'checkpoint',
-): EngineeringRuntimeContext {
-  const checkpointLabel = label.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'unnamed';
-  const snapshot = captureSnapshot(context.state, reason, `checkpoint-${checkpointLabel}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
-  return { ...clone(context), snapshots: [...context.snapshots, snapshot] };
-}
-
-export function restoreCheckpoint(
-  context: EngineeringRuntimeContext,
-  snapshotId: string,
-): EngineeringRuntimeContext {
-  const snapshot = context.snapshots.find((item) => item.id === snapshotId);
-  if (!snapshot) throw new Error(`Unknown state snapshot: ${snapshotId}`);
-  const state = restoreSnapshot(snapshot);
-  return { ...clone(context), state };
-}
-
-export function addScenario(
-  context: EngineeringRuntimeContext,
-  reality: EngineeringReality,
-  name: string,
-  actions: ExecutableScenario['actions'] = [],
-  description = '',
-): { context: EngineeringRuntimeContext; scenario: ExecutableScenario } {
-  if (context.realityRevision !== reality.revision) throw new Error('Runtime reality revision is stale. Synchronize before creating a scenario.');
-  const scenario = createScenario(name, reality, actions, description);
-  const next = clone(context);
-  next.scenarios.push(scenario);
-  return { context: next, scenario };
-}
-
-export function runScenario(
-  context: EngineeringRuntimeContext,
-  reality: EngineeringReality,
-  scenario: ExecutableScenario,
-  options: ScenarioExecutionOptions = {},
-): { context: EngineeringRuntimeContext; result: ScenarioExecutionResult } {
-  if (context.realityRevision !== reality.revision) throw new Error('Runtime reality revision is stale. Synchronize before executing a scenario.');
+export interface EngineeringRuntimeContext { schema: typeof ENGINEERING_RUNTIME_SCHEMA; realityRevision: number; state: AuthoritativeEngineeringState; snapshots: StateSnapshot[]; scenarios: ExecutableScenario[]; branches: EngineeringBranch[]; freezes: StateFreeze[]; replays: ReplayResult[]; evidencePackages: EvidencePackage[]; activeScenarioId?: string; activeBranchId?: string; }
+export interface RuntimeCheckpoint { snapshot: StateSnapshot; stateRevision: number; logicalTimeMs: number; label: string; }
+export interface RuntimeSnapshotReplayResult { sourceSnapshotId: string; state: AuthoritativeEngineeringState; replayedEventCount: number; targetLogicalTimeMs: number; }
+function clone<T>(value: T): T { return structuredClone(value); }
+function now(): string { return new Date().toISOString(); }
+function snapshotId(prefix: string, state: AuthoritativeEngineeringState, sequence: number): string { return `${prefix}-${state.realityRevision}-${state.stateRevision}-${state.logicalTimeMs}-${sequence}`; }
+function matchingSnapshot(context: EngineeringRuntimeContext, stateRevision: number, logicalTimeMs?: number): StateSnapshot | undefined { return context.snapshots.find((snapshot) => snapshot.state.realityRevision === context.realityRevision && snapshot.stateRevision === stateRevision && (logicalTimeMs === undefined || snapshot.logicalTimeMs === logicalTimeMs)); }
+function assertRuntimeContext(context: EngineeringRuntimeContext, reality: EngineeringReality): void {
+  if (context.schema !== ENGINEERING_RUNTIME_SCHEMA) throw new Error('Unsupported engineering runtime schema.');
+  if (context.realityRevision !== reality.revision) throw new Error(`Runtime is based on reality revision ${context.realityRevision}; current reality is ${reality.revision}.`);
   assertValidState(context.state, reality);
-  const result = executeScenario(scenario, reality, context.state, options);
-  const next = clone(context);
-  next.state = result.state;
-  next.activeScenarioId = scenario.id;
-  const snapshot = captureSnapshot(result.state, result.status === 'completed' ? 'run-complete' : 'failure', `scenario-${scenario.id}-${Date.now()}`);
-  next.snapshots.push(snapshot);
-  return { context: next, result };
+  const snapshotIds = new Set<string>();
+  for (const snapshot of context.snapshots) { if (snapshot.schema !== 'helqix.state-snapshot.v1') throw new Error(`Unsupported runtime snapshot schema: ${snapshot.id}.`); if (snapshotIds.has(snapshot.id)) throw new Error(`Duplicate runtime snapshot: ${snapshot.id}.`); snapshotIds.add(snapshot.id); if (snapshot.state.realityRevision !== reality.revision) throw new Error(`Snapshot ${snapshot.id} belongs to a different reality revision.`); if (snapshot.stateRevision !== snapshot.state.stateRevision || snapshot.logicalTimeMs !== snapshot.state.logicalTimeMs) throw new Error(`Snapshot ${snapshot.id} has inconsistent state identity.`); }
+  const scenarioByKey = new Map(context.scenarios.map((scenario) => [`${scenario.id}@${scenario.version}`, scenario]));
+  const freezeIds = new Set<string>();
+  for (const freeze of context.freezes) { if (freeze.schema !== 'helqix.state-freeze.v1') throw new Error(`Unsupported state freeze schema: ${freeze.id}.`); if (freezeIds.has(freeze.id)) throw new Error(`Duplicate runtime state freeze: ${freeze.id}.`); freezeIds.add(freeze.id); const scenario = scenarioByKey.get(`${freeze.scenarioId}@${freeze.scenarioVersion}`); if (!scenario) throw new Error(`State freeze ${freeze.id} references an unregistered scenario version.`); if (!verifyStateFreeze(freeze, reality, scenario)) throw new Error(`State freeze ${freeze.id} failed integrity verification.`); if (!matchingSnapshot(context, freeze.stateRevision, freeze.logicalTimeMs)) throw new Error(`State freeze ${freeze.id} has no matching runtime snapshot.`); }
+  const replayIds = new Set<string>();
+  for (const replay of context.replays) { const key = `${replay.realityRevision}:${replay.scenarioId}:${replay.initialSnapshotId}:${replay.traceDigest}`; if (replayIds.has(key)) throw new Error(`Duplicate runtime replay: ${key}.`); replayIds.add(key); if (replay.schema !== 'helqix.replay-engine.v1' || replay.realityRevision !== reality.revision) throw new Error('Runtime contains an incompatible replay result.'); if (!scenarioByKey.has(`${replay.scenarioId}@${replay.scenarioVersion}`)) throw new Error(`Replay references an unregistered scenario version: ${replay.scenarioId}.`); if (!replay.frames.length || replay.frames[0].snapshotId !== replay.initialSnapshotId) throw new Error('Replay is missing its initial provenance frame.'); }
+  const evidenceIds = new Set<string>();
+  for (const evidence of context.evidencePackages) { if (evidence.schema !== 'helqix.evidence-package.v1') throw new Error(`Unsupported evidence package schema: ${evidence.id}.`); if (evidenceIds.has(evidence.id)) throw new Error(`Duplicate runtime evidence package: ${evidence.id}.`); evidenceIds.add(evidence.id); if (evidence.realityRevision !== reality.revision) throw new Error(`Evidence package ${evidence.id} belongs to a different reality revision.`); if (!scenarioByKey.has(`${evidence.scenarioId}@${evidence.scenarioVersion}`)) throw new Error(`Evidence package ${evidence.id} references an unregistered scenario version.`); if (!matchingSnapshot(context, evidence.authoritativeStateRevision)) throw new Error(`Evidence package ${evidence.id} has no historical runtime snapshot.`); for (const artifact of evidence.artifacts) { if (artifact.kind === 'freeze' && !context.freezes.some((freeze) => freeze.id === artifact.id && freeze.freezeDigest === artifact.digest)) throw new Error(`Evidence package ${evidence.id} references an unavailable freeze.`); if (artifact.kind === 'replay' && !context.replays.some((replay) => `replay-${replay.traceDigest}` === artifact.id && replay.traceDigest === artifact.digest)) throw new Error(`Evidence package ${evidence.id} references an unavailable replay.`); } }
+  for (const scenario of context.scenarios) { if (!scenario.id.trim() || !Number.isInteger(scenario.version) || scenario.version < 1) throw new Error('Runtime contains an invalid scenario identity.'); if (scenario.createdFromRealityRevision !== reality.revision) throw new Error(`Scenario ${scenario.id} belongs to reality revision ${scenario.createdFromRealityRevision}, current reality is ${reality.revision}.`); }
+  for (const branch of context.branches) { if (!branch.id.trim() || branch.baseRealityRevision !== reality.revision) throw new Error(`Runtime contains a branch that does not belong to the current reality revision: ${branch.id}.`); }
+  if (context.activeScenarioId && !context.scenarios.some((scenario) => scenario.id === context.activeScenarioId)) throw new Error(`Unknown active scenario: ${context.activeScenarioId}.`);
+  if (context.activeBranchId && !context.branches.some((branch) => branch.id === context.activeBranchId)) throw new Error(`Unknown active branch: ${context.activeBranchId}.`);
 }
-
-export function createRuntimeBranch(
-  context: EngineeringRuntimeContext,
-  reality: EngineeringReality,
-  name: string,
-  changes: BranchChange[],
-  description = '',
-): { context: EngineeringRuntimeContext; branch: EngineeringBranch } {
-  if (context.realityRevision !== reality.revision) throw new Error('Runtime reality revision is stale. Synchronize before branching.');
-  const branch = createBranch(reality, name, description, changes, context.state.stateRevision);
-  const next = clone(context);
-  next.branches.push(branch);
-  next.activeBranchId = branch.id;
-  return { context: next, branch };
-}
-
-export function executeRuntimeBranch(
-  context: EngineeringRuntimeContext,
-  reality: EngineeringReality,
-  branch: EngineeringBranch,
-): { context: EngineeringRuntimeContext; result: BranchResult } {
-  if (context.realityRevision !== reality.revision) throw new Error('Runtime reality revision is stale. Synchronize before branching.');
-  const result = applyBranch(branch, reality, context.state);
-  const next = clone(context);
-  next.state = result.resultingState;
-  next.activeBranchId = branch.id;
-  const snapshot = result.branchSnapshot;
-  next.snapshots.push(snapshot);
-  return { context: next, result };
-}
-
-export function replayToSnapshot(
-  context: EngineeringRuntimeContext,
-  snapshotId: string,
-): ReplayResult {
-  const snapshot = context.snapshots.find((item) => item.id === snapshotId);
-  if (!snapshot) throw new Error(`Unknown state snapshot: ${snapshotId}`);
-  const state = restoreSnapshot(snapshot);
-  return {
-    sourceSnapshotId: snapshot.id,
-    state,
-    replayedEventCount: state.events.length,
-    targetLogicalTimeMs: state.logicalTimeMs,
-  };
-}
-
-export function listCheckpoints(context: EngineeringRuntimeContext): RuntimeCheckpoint[] {
-  return context.snapshots.map((snapshot) => ({
-    snapshot,
-    stateRevision: snapshot.stateRevision,
-    logicalTimeMs: snapshot.logicalTimeMs,
-    label: snapshot.reason,
-  }));
-}
-
-export function compareReality(context: EngineeringRuntimeContext, before: EngineeringReality, after: EngineeringReality): RealityDiff {
-  if (context.realityRevision !== after.revision) throw new Error(`Runtime is at reality revision ${context.realityRevision}; comparison target is ${after.revision}.`);
-  return diffReality(before, after);
-}
-
-export function runtimeSummary(context: EngineeringRuntimeContext): {
-  schema: typeof ENGINEERING_RUNTIME_SCHEMA;
-  realityRevision: number;
-  stateRevision: number;
-  logicalTimeMs: number;
-  stateStatus: AuthoritativeEngineeringState['status'];
-  componentCount: number;
-  faultedComponentCount: number;
-  eventCount: number;
-  snapshotCount: number;
-  scenarioCount: number;
-  branchCount: number;
-  generatedAt: string;
-} {
-  const faultedComponentCount = Object.values(context.state.components).filter((component) => component.status === 'faulted' || component.faultIds.length > 0).length;
-  return {
-    schema: ENGINEERING_RUNTIME_SCHEMA,
-    realityRevision: context.realityRevision,
-    stateRevision: context.state.stateRevision,
-    logicalTimeMs: context.state.logicalTimeMs,
-    stateStatus: context.state.status,
-    componentCount: Object.keys(context.state.components).length,
-    faultedComponentCount,
-    eventCount: context.state.events.length,
-    snapshotCount: context.snapshots.length,
-    scenarioCount: context.scenarios.length,
-    branchCount: context.branches.length,
-    generatedAt: now(),
-  };
-}
+export function createEngineeringRuntime(reality: EngineeringReality): EngineeringRuntimeContext { assertValidReality(reality); const state = createInitialState(reality); const initialSnapshot = captureSnapshot(state, 'initial', snapshotId('initial', state, 0)); return { schema: ENGINEERING_RUNTIME_SCHEMA, realityRevision: reality.revision, state, snapshots: [initialSnapshot], scenarios: [], branches: [], freezes: [], replays: [], evidencePackages: [] }; }
+export function syncEngineeringRuntime(context: EngineeringRuntimeContext, reality: EngineeringReality): EngineeringRuntimeContext { assertValidReality(reality); if (context.realityRevision === reality.revision) { assertRuntimeContext(context, reality); return clone(context); } const nextState = createInitialState(reality); const snapshot = captureSnapshot(nextState, 'initial', snapshotId('initial', nextState, 0)); return { schema: ENGINEERING_RUNTIME_SCHEMA, realityRevision: reality.revision, state: nextState, snapshots: [snapshot], scenarios: [], branches: [], freezes: [], replays: [], evidencePackages: [], activeScenarioId: undefined, activeBranchId: undefined }; }
+export function saveCheckpoint(context: EngineeringRuntimeContext, label: string, reason: StateSnapshot['reason'] = 'checkpoint'): EngineeringRuntimeContext { const normalizedLabel = label.trim() || 'checkpoint'; const snapshot = captureSnapshot(context.state, reason, snapshotId(normalizedLabel, context.state, context.snapshots.length)); const next = { ...clone(context), snapshots: [...context.snapshots, snapshot] }; if (next.state.realityRevision !== next.realityRevision) throw new Error('Checkpoint state does not belong to the runtime reality revision.'); if (next.snapshots.some((item, index) => next.snapshots.findIndex((candidate) => candidate.id === item.id) !== index)) throw new Error(`Duplicate checkpoint snapshot: ${snapshot.id}.`); return next; }
+export function restoreCheckpoint(context: EngineeringRuntimeContext, snapshotIdValue: string): EngineeringRuntimeContext { const snapshot = context.snapshots.find((item) => item.id === snapshotIdValue); if (!snapshot) throw new Error(`Unknown state snapshot: ${snapshotIdValue}`); if (snapshot.state.realityRevision !== context.realityRevision) throw new Error(`Snapshot ${snapshot.id} belongs to a different reality revision.`); const restored = restoreSnapshot(snapshot); const next = { ...clone(context), state: restored }; next.activeScenarioId = next.scenarios.find((scenario) => scenario.id === restored.metadata.scenarioId)?.id; return next; }
+export function addScenario(context: EngineeringRuntimeContext, reality: EngineeringReality, name: string, actions: ExecutableScenario['actions'] = [], description = ''): { context: EngineeringRuntimeContext; scenario: ExecutableScenario } { assertRuntimeContext(context, reality); const scenario = createScenario(name, reality, actions, description); const next = clone(context); next.scenarios.push(scenario); next.activeScenarioId = scenario.id; return { context: next, scenario }; }
+export function runScenario(context: EngineeringRuntimeContext, reality: EngineeringReality, scenario: ExecutableScenario, options: ScenarioExecutionOptions = {}): { context: EngineeringRuntimeContext; result: ScenarioExecutionResult; freeze: StateFreeze; evidence: EvidencePackage } { assertRuntimeContext(context, reality); const storedScenario = context.scenarios.find((item) => item.id === scenario.id); if (!storedScenario) throw new Error(`Scenario ${scenario.id} is not registered in this runtime.`); if (storedScenario.version !== scenario.version) throw new Error(`Scenario ${scenario.id} version mismatch.`); if (storedScenario.createdFromRealityRevision !== reality.revision) throw new Error(`Scenario ${scenario.id} belongs to a stale reality revision.`); const result = executeScenario(storedScenario, reality, context.state, options); const next = clone(context); next.state = result.state; next.activeScenarioId = storedScenario.id; const snapshot = captureSnapshot(result.state, result.status === 'completed' ? 'run-complete' : 'failure', snapshotId(`scenario-${storedScenario.id}`, result.state, next.snapshots.length)); next.snapshots.push(snapshot); const freeze = createStateFreeze(reality, result.state, storedScenario, { deterministic: result.status === 'completed' }); const existingFreeze = next.freezes.find((item) => item.id === freeze.id); if (existingFreeze && existingFreeze.freezeDigest !== freeze.freezeDigest) throw new Error('Content-addressed freeze identity collision detected.'); if (!existingFreeze) next.freezes.push(freeze); const evidence = createEvidencePackage({ reality, scenario: storedScenario, state: result.state, freeze, deterministic: result.status === 'completed' }); const existingEvidence = next.evidencePackages.find((item) => item.id === evidence.id); if (!existingEvidence) next.evidencePackages.push(evidence); return { context: next, result, freeze, evidence }; }
+export function createRuntimeEvidence(context: EngineeringRuntimeContext, reality: EngineeringReality, scenarioId?: string): { context: EngineeringRuntimeContext; evidence: EvidencePackage } { assertRuntimeContext(context, reality); const selectedScenarioId = scenarioId ?? context.activeScenarioId; if (!selectedScenarioId) throw new Error('No active scenario is available for evidence generation.'); const scenario = context.scenarios.find((item) => item.id === selectedScenarioId); if (!scenario) throw new Error(`Unknown scenario for evidence generation: ${selectedScenarioId}.`); const existingFreeze = context.freezes.find((item) => item.scenarioId === scenario.id && item.scenarioVersion === scenario.version && item.stateRevision === context.state.stateRevision && item.logicalTimeMs === context.state.logicalTimeMs); const freeze = existingFreeze ?? createStateFreeze(reality, context.state, scenario); const evidence = createEvidencePackage({ reality, scenario, state: context.state, freeze }); const next = clone(context); if (!existingFreeze) next.freezes.push(freeze); const snapshot = matchingSnapshot(next, context.state.stateRevision, context.state.logicalTimeMs); if (!snapshot) next.snapshots.push(captureSnapshot(context.state, 'checkpoint', snapshotId('evidence', context.state, next.snapshots.length))); if (!next.evidencePackages.some((item) => item.id === evidence.id)) next.evidencePackages.push(evidence); return { context: next, evidence }; }
+export function createRuntimeReplay(context: EngineeringRuntimeContext, reality: EngineeringReality, scenarioId: string, initialSnapshotId?: string): { context: EngineeringRuntimeContext; replay: ReplayResult; verification: { deterministic: boolean; reason: string } } { assertRuntimeContext(context, reality); const scenario = context.scenarios.find((item) => item.id === scenarioId); if (!scenario) throw new Error(`Unknown scenario for replay: ${scenarioId}.`); const snapshot = initialSnapshotId ? context.snapshots.find((item) => item.id === initialSnapshotId) : context.snapshots.find((item) => item.reason === 'initial'); if (!snapshot) throw new Error('No initial snapshot is available for replay.'); if (snapshot.state.realityRevision !== reality.revision) throw new Error('Replay snapshot belongs to a different reality revision.'); const first = replayExecution(reality, scenario, snapshot); const second = replayExecution(reality, scenario, snapshot); const verification = verifyReplayDeterminism(first, second); const replay: ReplayResult = { ...first, deterministic: first.deterministic && verification.deterministic, ...(verification.deterministic ? {} : { error: verification.reason }) }; const next = clone(context); const existing = next.replays.find((item) => item.traceDigest === replay.traceDigest && item.scenarioId === replay.scenarioId && item.initialSnapshotId === replay.initialSnapshotId); if (!existing) next.replays.push(replay); return { context: next, replay, verification }; }
+export function verifyRuntimeEvidence(context: EngineeringRuntimeContext, reality: EngineeringReality, evidenceId: string): boolean { try { const evidence = context.evidencePackages.find((item) => item.id === evidenceId); if (!evidence) return false; const scenario = context.scenarios.find((item) => item.id === evidence.scenarioId && item.version === evidence.scenarioVersion); if (!scenario) return false; const snapshot = matchingSnapshot(context, evidence.authoritativeStateRevision); if (!snapshot) return false; const state = restoreSnapshot(snapshot); const freezeArtifact = evidence.artifacts.find((artifact) => artifact.kind === 'freeze'); if (freezeArtifact) { const freeze = context.freezes.find((item) => item.id === freezeArtifact.id); if (!freeze || freeze.freezeDigest !== freezeArtifact.digest || !verifyStateFreeze(freeze, reality, scenario)) return false; if (freeze.stateRevision !== state.stateRevision || freeze.logicalTimeMs !== state.logicalTimeMs) return false; } const replayArtifact = evidence.artifacts.find((artifact) => artifact.kind === 'replay'); if (replayArtifact && !context.replays.some((item) => `replay-${item.traceDigest}` === replayArtifact.id && item.traceDigest === replayArtifact.digest && item.deterministic)) return false; return verifyEvidencePackage(evidence, reality, scenario, state); } catch { return false; } }
+export function createRuntimeBranch(context: EngineeringRuntimeContext, reality: EngineeringReality, name: string, changes: BranchChange[], description = ''): { context: EngineeringRuntimeContext; branch: EngineeringBranch } { assertRuntimeContext(context, reality); const branch = createBranch(reality, name, description, changes, context.state.stateRevision); const next = clone(context); next.branches.push(branch); next.activeBranchId = branch.id; return { context: next, branch }; }
+export function executeRuntimeBranch(context: EngineeringRuntimeContext, reality: EngineeringReality, branch: EngineeringBranch): { context: EngineeringRuntimeContext; result: BranchResult } { assertRuntimeContext(context, reality); const registeredBranch = context.branches.find((item) => item.id === branch.id); if (!registeredBranch) throw new Error(`Branch ${branch.id} is not registered in this runtime.`); if (JSON.stringify(registeredBranch) !== JSON.stringify(branch)) throw new Error(`Branch ${branch.id} does not match the registered runtime definition.`); if (branch.baseStateRevision !== undefined && branch.baseStateRevision !== context.state.stateRevision) throw new Error(`Branch ${branch.id} is based on state revision ${branch.baseStateRevision}, current state is ${context.state.stateRevision}.`); const result = applyBranch(branch, reality, context.state); const next = clone(context); next.activeBranchId = branch.id; if (result.status === 'completed') { next.state = result.resultingState; next.snapshots.push(result.branchSnapshot); } return { context: next, result }; }
+export function replayToSnapshot(context: EngineeringRuntimeContext, snapshotIdValue: string): RuntimeSnapshotReplayResult { const snapshot = context.snapshots.find((item) => item.id === snapshotIdValue); if (!snapshot) throw new Error(`Unknown state snapshot: ${snapshotIdValue}`); if (snapshot.state.realityRevision !== context.realityRevision) throw new Error(`Snapshot ${snapshot.id} belongs to a different reality revision.`); const state = restoreSnapshot(snapshot); return { sourceSnapshotId: snapshot.id, state, replayedEventCount: state.events.length, targetLogicalTimeMs: state.logicalTimeMs }; }
+export function listCheckpoints(context: EngineeringRuntimeContext): RuntimeCheckpoint[] { return context.snapshots.map((snapshot) => ({ snapshot, stateRevision: snapshot.stateRevision, logicalTimeMs: snapshot.logicalTimeMs, label: snapshot.reason })); }
+export function compareReality(context: EngineeringRuntimeContext, before: EngineeringReality, after: EngineeringReality): RealityDiff { assertValidReality(before); assertValidReality(after); if (context.realityRevision !== after.revision) throw new Error(`Runtime is at reality revision ${context.realityRevision}; comparison target is ${after.revision}.`); return diffReality(before, after); }
+export function runtimeSummary(context: EngineeringRuntimeContext): { schema: typeof ENGINEERING_RUNTIME_SCHEMA; realityRevision: number; stateRevision: number; logicalTimeMs: number; stateStatus: AuthoritativeEngineeringState['status']; componentCount: number; faultedComponentCount: number; eventCount: number; snapshotCount: number; scenarioCount: number; branchCount: number; freezeCount: number; replayCount: number; evidencePackageCount: number; generatedAt: string } { const faultedComponentCount = Object.values(context.state.components).filter((component) => component.status === 'faulted' || component.faultIds.length > 0).length; return { schema: ENGINEERING_RUNTIME_SCHEMA, realityRevision: context.realityRevision, stateRevision: context.state.stateRevision, logicalTimeMs: context.state.logicalTimeMs, stateStatus: context.state.status, componentCount: Object.keys(context.state.components).length, faultedComponentCount, eventCount: context.state.events.length, snapshotCount: context.snapshots.length, scenarioCount: context.scenarios.length, branchCount: context.branches.length, freezeCount: context.freezes.length, replayCount: context.replays.length, evidencePackageCount: context.evidencePackages.length, generatedAt: now() }; }

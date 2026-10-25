@@ -1,7 +1,0 @@
-.compare-header { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--hq-sp-4); align-items: center; margin-bottom: var(--hq-sp-4); }
-.compare-side { padding: var(--hq-sp-3) var(--hq-sp-4); border-radius: var(--hq-radius-md); border: 1px solid var(--hq-border-default); background: var(--hq-bg-raised); }
-.compare-side--right { border-color: rgba(53,182,166,.4); }
-.compare-vs { color: var(--hq-text-muted); font-weight: 700; letter-spacing: .1em; }
-.delta-pos { color: var(--hq-success); }
-.delta-neg { color: var(--hq-failure); }
-.compare-selects { display: flex; gap: var(--hq-sp-3); flex-wrap: wrap; margin-bottom: var(--hq-sp-4); }

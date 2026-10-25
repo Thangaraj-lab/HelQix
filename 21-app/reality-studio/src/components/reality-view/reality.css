@@ -1,5 +1,0 @@
-.reality-view { position: relative; width: 100%; height: 100%; background: radial-gradient(900px 500px at 50% 30%, rgba(53,182,166,.05), transparent 65%), var(--hq-bg-sunken); border: 1px solid var(--hq-border-subtle); border-radius: var(--hq-radius-lg); overflow: hidden; }
-.reality-view canvas { display: block; outline: none; }
-.reality-view__controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; z-index: 2; }
-.reality-view__controls button { padding: 4px 9px; font-size: var(--hq-text-xs); }
-.reality-view__legend { position: absolute; bottom: 10px; left: 12px; font-size: var(--hq-text-xs); color: var(--hq-text-muted); z-index: 2; }
