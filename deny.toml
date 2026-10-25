@@ -1,0 +1,44 @@
+# cargo-deny licence, advisory and ban gate (K1). Policy: docs/TOOLS.md.
+# Run: cargo deny check
+
+[graph]
+all-features = true
+
+[licenses]
+# Allowed for linked dependencies. GPL/AGPL/SSPL/BUSL are not listed, so they fail.
+# LGPL is not listed either: an LGPL crate would be statically linked, so it needs a decision.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "BSL-1.0",
+    "Unlicense",
+    "0BSD",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+# HELQIX's own unpublished crates are not dependencies; their licence is a founder decision (docs/TOOLS.md).
+private = { ignore = true }
+
+[advisories]
+# RUSTSEC advisories; unmaintained crates reported for workspace dependencies.
+yanked = "deny"
+unmaintained = "workspace"
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

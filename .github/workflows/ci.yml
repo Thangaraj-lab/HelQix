@@ -36,6 +36,46 @@ jobs:
       - name: Re-execute the sample package on Linux (cross-platform bitwise check)
         run: cargo run --locked -p helqix-evidence-pack --bin helqix-evidence-pack -- reexecute docs/evidence/sample-package
 
+  licence-gates:
+    name: Licence gates (K1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-deny 0.20.2
+        run: cargo install cargo-deny --locked --version 0.20.2
+      - name: cargo-deny (licences, bans, sources, advisories)
+        run: cargo deny --locked check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: JS licence gate (reality-studio)
+        run: bash scripts/js-license-check.sh 21-app/reality-studio
+      - name: Tool register gate
+        run: python3 -I scripts/check_tools_lock.py tools/TOOLS.lock.json
+
+  dev-stack:
+    name: Dev stack comes up (K1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL+pgvector, NATS, SeaweedFS, Temporal, OTel collector
+        run: |
+          cp deploy/dev/.env.example deploy/dev/.env
+          docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env up -d --wait --wait-timeout 180
+          docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env ps
+      - name: Probe each service
+        run: |
+          docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env exec -T postgres psql -U helqix -d helqix -c "CREATE EXTENSION IF NOT EXISTS vector; SELECT extversion FROM pg_extension WHERE extname='vector';"
+          curl -sf http://127.0.0.1:8222/healthz
+          for i in $(seq 1 30); do curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8333/ | grep -qE "200|403" && break; sleep 2; done
+          curl -s -o /dev/null -w "seaweedfs s3 HTTP %{http_code}\n" http://127.0.0.1:8333/
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:8233/ && break; sleep 2; done
+          curl -sf -o /dev/null -w "temporal ui HTTP %{http_code}\n" http://127.0.0.1:8233/
+          curl -s -o /dev/null -w "otlp http HTTP %{http_code}\n" -X POST -H "Content-Type: application/json" -d '{}' http://127.0.0.1:4318/v1/traces
+      - name: Stop
+        if: always()
+        run: docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env down -v
+
   python:
     name: Python suites (${{ matrix.python }})
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 # Tool register and licence audit (K0)
 
-Machine-readable register: [`tools/TOOLS.lock.json`](../tools/TOOLS.lock.json) (70 tools). It is produced by two scripts that read primary sources only:
+Machine-readable register: [`tools/TOOLS.lock.json`](../tools/TOOLS.lock.json) (69 tools). It is produced by two scripts that read primary sources only:
 
 ```bash
 python -I tools/register/fetch_tools.py .         # licence, version, release date from crates.io, PyPI, npm, GitHub, Forgejo

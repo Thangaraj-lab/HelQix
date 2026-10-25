@@ -1,0 +1,51 @@
+# HELQIX development stack (K1). Local development only: no TLS, development passwords from .env.
+#   cp deploy/dev/.env.example deploy/dev/.env
+#   docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env up -d --wait
+#   docker compose -f deploy/dev/compose.yaml --env-file deploy/dev/.env down        (add -v to delete the volumes)
+# Licences: docs/TOOLS.md. Object store is SeaweedFS (Apache-2.0); Garage and MinIO are AGPL and not used.
+name: helqix-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17-trixie
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-helqix}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2.15.1
+    command: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
+    ports: ["127.0.0.1:${NATS_PORT:-4222}:4222", "127.0.0.1:${NATS_MONITOR_PORT:-8222}:8222"]
+    volumes: [nats-data:/data]
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.50
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-master.volumeSizeLimitMB=1024"]
+    ports: ["127.0.0.1:${S3_PORT:-8333}:8333"]
+    volumes: [seaweedfs-data:/data]
+
+  temporal:
+    image: temporalio/temporal:1.9.1
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db"]
+    ports: ["127.0.0.1:${TEMPORAL_PORT:-7233}:7233", "127.0.0.1:${TEMPORAL_UI_PORT:-8233}:8233"]
+    volumes: [temporal-data:/data]
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.163.2
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports: ["127.0.0.1:${OTLP_GRPC_PORT:-4317}:4317", "127.0.0.1:${OTLP_HTTP_PORT:-4318}:4318"]
+    volumes: ["./otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
+
+volumes:
+  postgres-data:
+  nats-data:
+  seaweedfs-data:
+  temporal-data:

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX Layer 06 — HELIXSIM deterministic physical consequence engine."
 license = "MIT"
+publish = false
 
 [dependencies]
 helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

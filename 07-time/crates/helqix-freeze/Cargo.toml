@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX Layer 6 freeze and bit-exact replay of core-runtime runs"
 license = "MIT"
+publish = false
 
 [dependencies]
 helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX Layer 11 — deterministic state branching and comparison."
 license = "MIT"
+publish = false
 
 [dependencies]
 helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

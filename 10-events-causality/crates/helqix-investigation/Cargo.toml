@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX Layer 7 failure investigation: failure event, event log, candidate chains, click-through"
 license = "MIT"
+publish = false
 
 [dependencies]
 helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX engineering models, parameters, dependencies, and constraints"
 license = "MIT"
+publish = false
 
 [dependencies]
 helqix-core = { path = "../../../01-foundation/crates/helqix-core" }

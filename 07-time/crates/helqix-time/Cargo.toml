@@ -4,3 +4,4 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX deterministic simulation time, timelines, snapshots, and replay"
 license = "MIT"
+publish = false

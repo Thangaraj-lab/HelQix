@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.70"
 description = "Rust SDK models for the HELQIX reality platform"
 license = "UNLICENSED"
+publish = false
 
 [lib]
 path = "src/lib.rs"

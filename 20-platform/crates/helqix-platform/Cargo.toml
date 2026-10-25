@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 description = "HELQIX Layer 20 — platform policy, job admission and audit contracts."
 license = "UNLICENSED"
+publish = false
 
 [dependencies]

@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.94"
 description = "Authenticated HTTP API for the HELQIX platform"
 license = "UNLICENSED"
+publish = false
 
 [[bin]]
 name = "helqix-api"

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Independent offline verifier for HELQIX evidence packages (no HELQIX runtime dependency)"
 license = "MIT"
+publish = false
 
 # Deliberately minimal: this verifier must not import any HELQIX runtime crate (checked in CI).
 [dependencies]
