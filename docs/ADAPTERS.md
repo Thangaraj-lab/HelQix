@@ -34,7 +34,7 @@ Every adapter declares a `SolverContract` (`16-adapters/platform/adapters/src/so
 |---|---|---|---|---|
 | FMI 2.0 co-simulation via FMPy 0.3.32 | **Working** (K3): 7 tests incl. regression benchmark and conformance PASS | FMPy BSD-3, Pint BSD-3; test FMUs BSD-2 | Tolerance 1e-12 (ASSUMPTION floor) | No |
 | PyBaMM 26.10 (SPM, Chen2020) | **Working**: 6 adapter tests + conformance PASS | BSD-3-Clause (used as an external process) | Tolerance 4.2e-6 V | No |
-| CalculiX | **Not built.** Not installed on this machine; licence is GPL-2.0. Running it as a separate process does not by itself make HELQIX GPL, but shipping it inside a HELQIX installer would need a licence review. **Founder decision.** | GPL-2.0 | — | — |
+| CalculiX ccx (Ubuntu `calculix-ccx`) | **Built** (K3): cantilever benchmark, linearity, timeout, invalid input, conformance; verified in Linux CI only (no ccx on the founder's PC) | GPL-2.0, run only as a separate program | Tolerance 1e-12 m (ASSUMPTION floor) | No |
 | OpenModelica, FMI/FMU, Ansys, COMSOL, others | Planned, not built | varies | — | — |
 
 ### PyBaMM
@@ -63,6 +63,24 @@ A 1e-9 relative perturbation of the tool output fails 3 of the 7 tests (mutation
 Limits: the Reference FMUs integrate with a compiled-in fixed solver step (0.1 s), so a smaller requested step does not refine the solution. Only FMI 2.0 co-simulation is wired. An FMU contains native code, so running one runs that code: only run FMUs from trusted sources. Status and Cancel are synchronous (hard timeout), not an asynchronous job API. The invocation record contains the FMU's local path.
 
 The adapter trait gained `tool_input()`: the exact document sent to the tool. The conformance kit checks the recorded input hash against those bytes.
+
+### CalculiX (K3)
+
+`CalculixAdapter` runs `18-libraries/python/helqix_calculix/cli.py`, which writes a CalculiX input deck and starts `ccx` as a **separate program** (GPL boundary: no linking, not shipped with HELQIX; CI installs Ubuntu's `calculix-ccx`). The ccx path is fixed when the adapter is built and passed as a launcher argument; a request cannot choose which program runs. ccx runs single-threaded with a 300 s cap of its own.
+
+Case (Example, a benchmark not a design): cantilever, 1 m long, 50 mm x 50 mm, E = 210 GPa, nu = 0.3, 1 kN tip load, clamped end, 20 x 2 x 2 C3D8I bricks (bending without shear locking). Output: mean tip deflection of the end-face nodes, plus two closed forms computed by the tool (CALCULATED): Euler-Bernoulli F L^3 / (3 E I) and Timoshenko (adds F L / (k G A), k = 5/6).
+
+| Check | Pass rule |
+|---|---|
+| FE tip deflection vs Timoshenko closed form | within 2 % (ASSUMPTION for this mesh); the measured number is published as a CI notice |
+| Doubling the load, doubling E | deflection ratio 2 within 1e-6 (linear static) |
+| Two runs | identical output hash |
+| Request names a program; Poisson ratio 0.7; missing ccx; 20 000-element run with a 0.8 s limit | typed errors (invalid input, exit 2, exit 3, timeout) |
+| Conformance kit | PASS |
+
+Python unit tests (no ccx needed, run everywhere): input validation, mesh counts, every brick has positive volume, the load sums to -1 kN on the end face, the `.dat` parser.
+
+Limits: one benchmark geometry only; no general mesh import yet; the result is a model of a beam, not validation of a real part.
 
 ## Reference run and evidence package
 

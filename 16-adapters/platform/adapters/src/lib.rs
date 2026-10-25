@@ -9,6 +9,7 @@ pub mod solver;
 /// PyBaMM solver adapter.
 pub mod pybamm;
 pub mod fmi;
+pub mod calculix;
 
 pub use adapter::{
     Adapter, AdapterContext, AdapterError, AdapterRequest, AdapterResponse,

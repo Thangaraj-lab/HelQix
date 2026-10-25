@@ -115,6 +115,23 @@ jobs:
       - name: FMI adapter tests (benchmark, units, timeout, invalid input, conformance)
         run: HELQIX_PYTHON="$(which python)" cargo test --locked -p helqix-adapters --features fmi-tests --test fmi
 
+  calculix-adapter:
+    name: CalculiX adapter benchmark (K3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CalculiX ccx from Ubuntu (GPL-2.0, run as a separate program)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q calculix-ccx
+          dpkg -s calculix-ccx | grep -E '^(Version|Package)'
+      - name: CalculiX adapter tests (beam benchmark, linearity, timeout, invalid input, conformance)
+        run: |
+          set -o pipefail
+          HELQIX_PYTHON="$(which python3)" HELQIX_CCX="$(which ccx)" cargo test --locked -p helqix-adapters --features calculix-tests --test calculix -- --nocapture --test-threads 1 2>&1 | tee calculix.log
+          grep BENCHMARK calculix.log | sed 's/^/::notice title=CalculiX benchmark::/'
+          dpkg -s calculix-ccx | grep '^Version' | sed 's/^/::notice title=calculix-ccx package::/'
+
   dev-stack:
     name: Dev stack comes up (K1)
     runs-on: ubuntu-latest
