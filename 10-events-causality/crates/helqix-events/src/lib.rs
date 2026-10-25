@@ -4,12 +4,15 @@
 pub mod event;
 /// Ordered event queue.
 pub mod event_bus;
+/// Append-only ordered event log.
+pub mod event_log;
 /// Event routing.
 pub mod propagation;
 /// Event-trigger rules.
 pub mod trigger;
 pub use event::{Event, EventError, EventValue};
 pub use event_bus::{EventBus, EventBusError, DEFAULT_MAX_PENDING_EVENTS};
+pub use event_log::{EventLog, EventLogError};
 pub use propagation::{EventDelivery, EventRouter, RouterError, Subscription};
 pub use trigger::{PayloadCondition, Trigger, TriggerEngine, TriggerError, TriggeredAction};
 
