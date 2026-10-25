@@ -24,6 +24,15 @@ jobs:
         run: cargo run --locked -p helqix-freeze --bin helqix-replay-check
       - name: Branch intervention demo (Phase 4)
         run: cargo run --locked -p helqix-branch --bin helqix-branch-demo
+      - name: Evidence verifier has no HELQIX runtime dependency (Phase 5)
+        run: |
+          deps=$(cargo tree --locked -p helqix-evidence-verify -e normal --prefix none | awk '{print $1}' | grep '^helqix' | grep -v '^helqix-evidence-verify$' || true)
+          if [ -n "$deps" ]; then echo "verifier depends on: $deps"; exit 1; fi
+          echo "verifier is independent of the HELQIX runtime"
+      - name: Verify the Windows-built sample evidence package on Linux (Phase 5)
+        run: cargo run --locked -p helqix-evidence-verify --bin helqix-evidence-verify -- docs/evidence/sample-package --trusted-key-file docs/evidence/sample-package.public-key.txt
+      - name: Re-execute the sample package on Linux (cross-platform bitwise check)
+        run: cargo run --locked -p helqix-evidence-pack --bin helqix-evidence-pack -- reexecute docs/evidence/sample-package
 
   python:
     name: Python suites (${{ matrix.python }})

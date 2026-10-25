@@ -1,0 +1,45 @@
+{
+  "entries": [
+    {
+      "path": "freeze.json",
+      "role": "freeze",
+      "sha256": "d587ae9133ab11d863e190243e06bcb460aac354e1e6d2c245ad07ea23ea3e14"
+    },
+    {
+      "path": "interventions.json",
+      "role": "branch_records",
+      "sha256": "08362f97c65e9c82d8b8b4bd420087bd89008df880bb40b3cd2f7b28f7d00d1d"
+    },
+    {
+      "path": "investigation.json",
+      "role": "causal_chains",
+      "sha256": "242f6f32070a447ca8104cb0a0869deaf3cb64471605b04f9eee714baadf0b39"
+    },
+    {
+      "path": "requirement_outcome.json",
+      "role": "requirement_outcome",
+      "sha256": "996b1ac79f49b7be52c3fd3820ff8dc7104a1b5e737c848c59ebda1c70e7647d"
+    },
+    {
+      "path": "state_chain.json",
+      "role": "state_chain",
+      "sha256": "f963ee9605ceb52e8ed1f7913ccdb725f48196f88121edf7fb44e63d4b6c8fdf"
+    },
+    {
+      "path": "verdict.json",
+      "role": "verdict",
+      "sha256": "ebe6d194b4d08e04b2e154f4f39a3071c858bf8f648994cfc0027012977571cd"
+    }
+  ],
+  "merkle_root": "6c06839c7ff6041bce6da4f98cea4ef7e96ea30653ecbb221b4dcc540db92147",
+  "schema": "helqix.evidence-manifest.v1",
+  "statement": {
+    "context_of_use": "Demonstration of the HELQIX evidence chain on the deterministic core runtime; not a validated physical prediction.",
+    "determinism": "Bitwise",
+    "failure_index": 2061,
+    "final_state_hash": "65f5de798a3c10f31edec8c11437a849680ef04f257304a5682609ecadfdf323",
+    "label": "NotValidated",
+    "subject": "core-runtime reference: 0.5 kg body dropped from 20 m with quadratic drag",
+    "verdict": "Requirement 'stay above ground' violated at t = 2.061 s in the model; candidate cause velocity_y -> height supported by intervention (model-causal)."
+  }
+}

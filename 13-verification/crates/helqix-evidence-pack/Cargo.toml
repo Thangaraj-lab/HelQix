@@ -1,0 +1,21 @@
+[package]
+name = "helqix-evidence-pack"
+version = "0.1.0"
+edition = "2021"
+description = "HELQIX evidence package builder: Merkle manifest, Ed25519 signature, re-execution check"
+license = "MIT"
+
+[dependencies]
+helqix-core = { path = "../../../01-foundation/crates/helqix-core" }
+helqix-freeze = { path = "../../../07-time/crates/helqix-freeze" }
+helqix-causal = { path = "../../../10-events-causality/crates/helqix-causal" }
+helqix-investigation = { path = "../../../10-events-causality/crates/helqix-investigation" }
+helqix-branch = { path = "../../../11-branching/crates/helqix-branch" }
+ed25519-dalek = "2"
+getrandom = "0.2"
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+helqix-evidence-verify = { path = "../helqix-evidence-verify" }
+serde_json = "1"

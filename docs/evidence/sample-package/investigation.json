@@ -1,0 +1,84 @@
+{
+  "chains": [
+    {
+      "grade": "candidate (structural + temporal)",
+      "nodes": [
+        "velocity_y",
+        "height"
+      ],
+      "root_onset_index": 192,
+      "root_onset_seconds": 0.192
+    }
+  ],
+  "details": [
+    {
+      "baseline_value": 0.0,
+      "branch_experiments": [],
+      "grade": "candidate (structural + temporal)",
+      "node": "velocity_y",
+      "parameters": [],
+      "previous_value": -18.691222032152844,
+      "related_events": [
+        "onset_velocity_y"
+      ],
+      "relation": null,
+      "signal": "velocity_y",
+      "state_reference": {
+        "freeze_sha256": "0434743cb4700fdd401252ed53e79b63346d72cf433b5eb7dcabb9a1b8109983",
+        "index": 2061
+      },
+      "value_at_failure": -18.69899624045513
+    },
+    {
+      "baseline_value": 20.0,
+      "branch_experiments": [],
+      "grade": "candidate (structural + temporal)",
+      "node": "height",
+      "parameters": [],
+      "previous_value": 0.014188722024175572,
+      "related_events": [
+        "onset_height",
+        "failure_stay_above_ground"
+      ],
+      "relation": "kinematics_y",
+      "signal": "height",
+      "state_reference": {
+        "freeze_sha256": "0434743cb4700fdd401252ed53e79b63346d72cf433b5eb7dcabb9a1b8109983",
+        "index": 2061
+      },
+      "value_at_failure": -0.0045063872512354376
+    }
+  ],
+  "events": [
+    {
+      "id": "onset_velocity_y",
+      "source": "velocity_y",
+      "type": "onset"
+    },
+    {
+      "id": "onset_height",
+      "source": "height",
+      "type": "onset"
+    },
+    {
+      "id": "failure_stay_above_ground",
+      "source": "height",
+      "type": "failure"
+    }
+  ],
+  "failure": {
+    "index": 2061,
+    "node": "height",
+    "observed_value": -0.0045063872512354376,
+    "requirement": "stay_above_ground",
+    "threshold": 0.0,
+    "time_seconds": 2.061
+  },
+  "method": {
+    "description": "structural paths of declared relations; every node changed; onsets never go backwards; ranked by root onset then length; no probabilities",
+    "min_relative_change": 0.05,
+    "onset_fraction": 0.1,
+    "path_limit": 64
+  },
+  "schema": "helqix.investigation-report.v1"
+}

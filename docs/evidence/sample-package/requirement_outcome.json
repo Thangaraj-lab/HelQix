@@ -1,0 +1,11 @@
+{
+  "comparator": "at_least",
+  "failure": {
+    "index": 2061,
+    "time_seconds": 2.061,
+    "value": -0.0045063872512354376
+  },
+  "node": "height",
+  "requirement": "stay_above_ground",
+  "threshold": 0.0
+}

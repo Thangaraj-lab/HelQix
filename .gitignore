@@ -38,3 +38,7 @@ dist/
 # Local editor settings and temporary validation artifacts
 .vscode/
 /scratch/
+
+# Signing keys (development keys only; never commit)
+/.keys/
+*.key

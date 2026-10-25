@@ -1,0 +1,71 @@
+{
+  "determinism": "Bitwise",
+  "index": 2061,
+  "model_sha256": "66c8b317d16b1c742a22b52b23bd5e8f803dc6c4afe8c11e0e113f6504cf7457",
+  "prior_link": "d5bedd24f08a55c1f2e1fde842febc3b3f11734dfcbcfa8e7e09ee17fa8df762",
+  "schema": "helqix.freeze.v1",
+  "sha256": "0434743cb4700fdd401252ed53e79b63346d72cf433b5eb7dcabb9a1b8109983",
+  "spec": {
+    "grid": {
+      "end_seconds": "4010000000000000",
+      "start_seconds": "0000000000000000",
+      "step_seconds": "3f50624dd2f1a9fc"
+    },
+    "initial_state": [
+      "0000000000000000",
+      "4034000000000000",
+      "0000000000000000",
+      "4008000000000000",
+      "0000000000000000",
+      "0000000000000000"
+    ],
+    "model": {
+      "air_density_kg_m3": "3ff399999999999a",
+      "applied_force_n": [
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000"
+      ],
+      "drag_coefficient": "3fde147ae147ae14",
+      "gravity_m_s2": [
+        "0000000000000000",
+        "c0239d013a92a305",
+        "0000000000000000"
+      ],
+      "kind": "helixsim.point_mass",
+      "mass_kg": "3fe0000000000000",
+      "reference_area_m2": "3f847ae147ae147b",
+      "wind_m_s": [
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000"
+      ]
+    },
+    "seeds": [],
+    "solver": {
+      "max_steps": 250000,
+      "method": "RungeKutta4",
+      "name": "helixsim",
+      "version": "0.1.0"
+    }
+  },
+  "state": [
+    "4017aa9746f4dfd4",
+    "bf72754a1ddfeb12",
+    "0000000000000000",
+    "40053830647f5d0e",
+    "c032b2f16ae8c820",
+    "0000000000000000"
+  ],
+  "time_seconds": "40007ced916872b0",
+  "trigger": {
+    "comparator": "at_least",
+    "index": 2061,
+    "kind": "failure",
+    "limit": "stay above ground",
+    "threshold": "0000000000000000",
+    "time_seconds": "40007ced916872b0",
+    "value": "bf72754a1ddfeb12",
+    "variable": 1
+  }
+}

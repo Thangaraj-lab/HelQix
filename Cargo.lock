@@ -755,6 +755,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "helqix-evidence-pack"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "getrandom 0.2.17",
+ "helqix-branch",
+ "helqix-causal",
+ "helqix-core",
+ "helqix-evidence-verify",
+ "helqix-freeze",
+ "helqix-investigation",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "helqix-evidence-verify"
 version = "0.1.0"
 dependencies = [

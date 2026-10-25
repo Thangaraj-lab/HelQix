@@ -1,0 +1,7 @@
+{
+  "candidate": "velocity_y -> height",
+  "causal_grade": "model-causal",
+  "label": "NotValidated",
+  "reason": "The requirement is violated in the model and the candidate cause is supported by an intervention inside the model. No measured data exists for this model, so nothing here is validated.",
+  "validation_evidence": null
+}

@@ -1,0 +1,33 @@
+{
+  "freeze_index": 500,
+  "freeze_time_seconds": 0.5,
+  "results": [
+    {
+      "branch": "stop_vertical_velocity",
+      "branch_failure_seconds": 2.495,
+      "grade": "model-causal",
+      "intervention": "State { variable: 4, value: 0.0 }",
+      "parent_failure_seconds": 2.061,
+      "parent_freeze_sha256": "fa5716bead91bbfc31eeeb642b008b2c95ac0a8f7e45fdedf262d2d5aad913a2",
+      "verdict": "InterventionSupported"
+    },
+    {
+      "branch": "move_out_of_plane",
+      "branch_failure_seconds": 2.061,
+      "grade": "not supported by intervention",
+      "intervention": "State { variable: 2, value: 5.0 }",
+      "parent_failure_seconds": 2.061,
+      "parent_freeze_sha256": "fa5716bead91bbfc31eeeb642b008b2c95ac0a8f7e45fdedf262d2d5aad913a2",
+      "verdict": "NotSupported"
+    },
+    {
+      "branch": "more_drag",
+      "branch_failure_seconds": 2.122,
+      "grade": "model-causal",
+      "intervention": "Parameter { parameter: DragCoefficient, value: 1.2 }",
+      "parent_failure_seconds": 2.061,
+      "parent_freeze_sha256": "fa5716bead91bbfc31eeeb642b008b2c95ac0a8f7e45fdedf262d2d5aad913a2",
+      "verdict": "InterventionSupported"
+    }
+  ]
+}
