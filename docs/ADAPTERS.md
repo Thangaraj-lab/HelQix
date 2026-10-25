@@ -34,7 +34,7 @@ Every adapter declares a `SolverContract` (`16-adapters/platform/adapters/src/so
 |---|---|---|---|---|
 | FMI 2.0 co-simulation via FMPy 0.3.32 | **Working** (K3): 7 tests incl. regression benchmark and conformance PASS | FMPy BSD-3, Pint BSD-3; test FMUs BSD-2 | Tolerance 1e-12 (ASSUMPTION floor) | No |
 | PyBaMM 26.10 (SPM, Chen2020) | **Working**: 6 adapter tests + conformance PASS | BSD-3-Clause (used as an external process) | Tolerance 4.2e-6 V | No |
-| CalculiX ccx (Ubuntu `calculix-ccx`) | **Built** (K3): cantilever benchmark, linearity, timeout, invalid input, conformance; verified in Linux CI only (no ccx on the founder's PC) | GPL-2.0, run only as a separate program | Tolerance 1e-12 m (ASSUMPTION floor) | No |
+| CalculiX ccx (Ubuntu `calculix-ccx`) | **Working** (K3): 5 adapter tests PASS in Linux CI run 40224066677 (no ccx on the founder's PC) | GPL-2.0, run only as a separate program | Tolerance 1e-12 m (ASSUMPTION floor) | No |
 | OpenModelica, FMI/FMU, Ansys, COMSOL, others | Planned, not built | varies | — | — |
 
 ### PyBaMM
@@ -72,7 +72,7 @@ Case (Example, a benchmark not a design): cantilever, 1 m long, 50 mm x 50 mm, E
 
 | Check | Pass rule |
 |---|---|
-| FE tip deflection vs Timoshenko closed form | within 2 % (ASSUMPTION for this mesh); the measured number is published as a CI notice |
+| FE tip deflection vs Timoshenko closed form | within 2 % (ASSUMPTION for this mesh). **Measured** (CI run 40224066677, ccx 2.21, Ubuntu calculix-ccx 2.21-1): 3.019590e-3 m vs Timoshenko 3.053562e-3 m (Euler-Bernoulli 3.047619e-3 m): relative error 1.11 %, FE slightly stiffer as expected for a coarse mesh |
 | Doubling the load, doubling E | deflection ratio 2 within 1e-6 (linear static) |
 | Two runs | identical output hash |
 | Request names a program; Poisson ratio 0.7; missing ccx; 20 000-element run with a 0.8 s limit | typed errors (invalid input, exit 2, exit 3, timeout) |
