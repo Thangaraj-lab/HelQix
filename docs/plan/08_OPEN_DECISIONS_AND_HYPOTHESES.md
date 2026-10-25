@@ -8,9 +8,9 @@
 | D2 | Context of Use text and validation error threshold X | OPEN | Before Phase 1 |
 | D3 | V&V standard family for the first vertical (ASME V&V 10/20, V&V 40, NASA-STD-7009) | OPEN | Before pilot reports |
 | D4 | Validation rig design, data plan, held-out split protocol | OPEN | Before Phase 1 exit |
-| D5 | Authoritative runtime owner (Rust crates vs Python gateway) | Needs trace (Phase 0) | After Phase 0 |
-| D6 | Naming cleanup HELIX to HELQIX in code | OPEN | After Phase 0 report |
-| D7 | Phase 0 "hygiene" step inserted before locked step 1 | Recommended, not yet approved | Now |
+| D5 | Authoritative runtime owner (Rust crates vs Python gateway vs TypeScript app) | Trace written (docs/RUNTIME_TRACE.md); decision OPEN | Before Phase 2 |
+| D6 | Naming cleanup HELIX to HELQIX in code | OPEN; naming report in docs/STATUS.md | After Phase 0 report |
+| D7 | Phase 0 "hygiene" step inserted before locked step 1 | APPROVED 2026-10-25; Gate 0 PASSED 2026-10-25 | Done |
 | D8 | Which external adapter first (PyBaMM, CalculiX, OpenFOAM) | Deferred to step 6 | Later |
 | D9 | Requirements language format | OPEN | Phase 1 |
 | D10 | Pricing, buyer, unit economics | After pilots | Later |
@@ -72,4 +72,10 @@ Protection and cut-off circuit, fuse, current and temperature limits written dow
 | 2026-10-25 | Repo audit completed; spec contradicted by code on motor physics, evidence compile, tests | 04 | Claude |
 | 2026-10-25 | Proposal: insert Phase 0 hygiene | 04, 05 | Claude, pending approval |
 | 2026-10-25 | Proposal: battery first as wedge | 04; see scoring above, close | Claude, pending approval |
+| 2026-10-25 | D7 approved: Phase 0 hygiene runs before locked step 1 | chat | Founder |
+| 2026-10-25 | Correct 7 wrong test expectations (helqix-execution 6, helqix-search 1) | commits 9eb8c9c, 6e08ba1; docs/STATUS.md | Founder approved |
+| 2026-10-25 | Allow '/' in listed unit symbols; register m/s, m/s2, kg/m3 in helqix-core | commit 6c8b538 | Founder approved |
+| 2026-10-25 | Push phase-0-hygiene and use Linux CI as the authoritative test run | CI run 40180917041 | Founder approved |
+| 2026-10-25 | Runtime trace: Rust crates have no runtime caller; app uses the Python gateway; freeze/replay not wired. D5 still open | docs/RUNTIME_TRACE.md | Claude |
+| 2026-10-25 | Gate 0 PASSED (929 Rust tests pass, 0 fail; 52 Python pass; CI green). Phase 1 not started: needs D1, D2, D4 | docs/STATUS.md "Gate 0 evidence" | Founder |
 | (next) | | | |
