@@ -669,6 +669,7 @@ name = "helqix-evidence"
 version = "0.1.0"
 dependencies = [
  "helqix-core",
+ "helqix-time",
  "helqix-verify",
  "sha2 0.10.9",
 ]
