@@ -129,6 +129,7 @@ jobs:
             bash scripts/ci_annotate.sh "compose up" up.log 25
             bash scripts/ci_annotate.sh "compose ps" ps.log 15
             bash scripts/ci_annotate.sh "compose logs" logs.log 60
+            for s in $($dc ps -a --status exited --services); do $dc logs --no-color --tail 20 "$s" > "exited-$s.log" 2>&1; bash scripts/ci_annotate.sh "exited: $s" "exited-$s.log" 20; done
             exit 1
           fi
           $dc ps

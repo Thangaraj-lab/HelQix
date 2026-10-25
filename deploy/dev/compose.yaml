@@ -34,9 +34,9 @@ services:
 
   temporal:
     image: temporalio/temporal:1.9.1
-    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/data/temporal.db"]
+    # In-memory dev server: workflow history is lost when the container stops (development only).
+    command: ["server", "start-dev", "--ip", "0.0.0.0"]
     ports: ["127.0.0.1:${TEMPORAL_PORT:-7233}:7233", "127.0.0.1:${TEMPORAL_UI_PORT:-8233}:8233"]
-    volumes: [temporal-data:/data]
 
   otel-collector:
     image: otel/opentelemetry-collector:0.163.2
@@ -48,4 +48,3 @@ volumes:
   postgres-data:
   nats-data:
   seaweedfs-data:
-  temporal-data:

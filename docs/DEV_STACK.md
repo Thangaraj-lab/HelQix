@@ -27,7 +27,7 @@ make dev-down                                    # stop (volumes kept); add -v b
 | PostgreSQL 17 + pgvector 0.8.7 | `pgvector/pgvector:0.8.7-pg17-trixie` | PostgreSQL | 5432 | `postgres-data` |
 | NATS with JetStream | `nats:2.15.1` | Apache-2.0 | 4222, monitor 8222 | `nats-data` |
 | SeaweedFS (S3 API) | `chrislusf/seaweedfs:4.50` | Apache-2.0 | 8333 | `seaweedfs-data` |
-| Temporal dev server | `temporalio/temporal:1.9.1` (`server start-dev`, SQLite file) | MIT | 7233, UI 8233 | `temporal-data` |
+| Temporal dev server | `temporalio/temporal:1.9.1` (`server start-dev`, in memory) | MIT | 7233, UI 8233 | none: history is lost on restart (a file in a named volume failed in CI) |
 | OpenTelemetry Collector | `otel/opentelemetry-collector:0.163.2` | Apache-2.0 | OTLP 4317 gRPC, 4318 HTTP | — |
 
 Ports bind to 127.0.0.1 only. The Temporal dev server and the debug-only collector are development settings, not production. SeaweedFS replaces Garage, which is AGPL-3.0 (forbidden).
