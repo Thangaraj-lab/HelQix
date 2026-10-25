@@ -113,10 +113,10 @@ mod tests {
     #[test]
     fn into_parts_returns_all_values() {
         let t = Transition::new(ActionId::from_raw(42), ns(123), change(9, 1, 2));
-        let (action, time, change) = t.into_parts();
+        let (action, time, extracted) = t.into_parts();
         assert_eq!(action.raw(), 42);
         assert_eq!(time, ns(123));
-        assert_eq!(change, change(9, 1, 2));
+        assert_eq!(extracted, change(9, 1, 2));
     }
 
     #[test]

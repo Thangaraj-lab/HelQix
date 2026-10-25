@@ -571,7 +571,7 @@ mod tests {
         assert_eq!(t.applied_at(), SimTime::ZERO);
         assert_eq!(t.change(), &id(1));
 
-        assert_eq!(backend.executed, vec![id(1)]);
+        assert_eq!(rt.backend().executed, vec![id(1)]);
         assert!(rt.is_idle());
         assert_eq!(rt.completed_ids().collect::<Vec<_>>(), vec![id(1)]);
     }
@@ -626,7 +626,7 @@ mod tests {
         let outcome = rt.run();
         assert!(outcome.is_completed());
         assert!(outcome.transitions().is_empty());
-        assert!(backend.executed.is_empty());
+        assert!(rt.backend().executed.is_empty());
         assert_eq!(rt.pending_count(), 1);
     }
 
@@ -710,7 +710,7 @@ mod tests {
             _ => unreachable!(),
         }
         // Nothing executed.
-        assert!(backend.executed.is_empty());
+        assert!(rt.backend().executed.is_empty());
         // Scheduler still has both.
         assert_eq!(rt.pending_count(), 2);
     }
@@ -760,7 +760,7 @@ mod tests {
             _ => unreachable!(),
         }
         // Action 1 executed; actions 2 and 3 did not.
-        assert_eq!(backend.executed, vec![id(1)]);
+        assert_eq!(rt.backend().executed, vec![id(1)]);
         // Scheduler still holds the unexecuted actions.
         assert_eq!(rt.pending_count(), 2);
         // Action 1 is marked completed.
@@ -783,7 +783,7 @@ mod tests {
             _ => unreachable!(),
         }
         // No side effects.
-        assert!(backend.executed.is_empty());
+        assert!(rt.backend().executed.is_empty());
         // Not marked completed.
         assert_eq!(rt.completed_ids().count(), 0);
         // Still pending.
@@ -923,7 +923,7 @@ mod tests {
 
         // Run 1: nothing eligible yet.
         assert!(rt.run().transitions().is_empty());
-        assert_eq!(backend.executed.len(), 0);
+        assert_eq!(rt.backend().executed.len(), 0);
 
         // Advance to 100.
         rt.clock_mut()
@@ -931,7 +931,7 @@ mod tests {
             .unwrap();
         let r2 = rt.run();
         assert_eq!(r2.transitions().len(), 1);
-        assert_eq!(backend.executed, vec![id(1)]);
+        assert_eq!(rt.backend().executed, vec![id(1)]);
 
         // Advance to 300.
         rt.clock_mut()
@@ -998,7 +998,7 @@ mod tests {
         assert_eq!(transitions[1].action(), id(2));
 
         assert_eq!(rt.pending_count(), 1);
-        assert_eq!(backend.executed, vec![id(1), id(2)]);
+        assert_eq!(rt.backend().executed, vec![id(1), id(2)]);
         assert_eq!(
             rt.completed_ids().map(|a| a.raw()).collect::<Vec<_>>(),
             vec![1, 2]
