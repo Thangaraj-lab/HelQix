@@ -99,26 +99,39 @@ class Session:
         self.webrtc = self.pipe.get_by_name("webrtc")
         if server.turn:
             self.webrtc.set_property("turn-server", server.turn)
-        self.webrtc.connect("on-negotiation-needed", self.on_negotiation_needed)
         self.webrtc.connect("on-ice-candidate", self.on_ice_candidate)
         self.pipe.set_state(Gst.State.PLAYING)
+        # Create the data channel once the pipeline runs, then negotiate exactly once. Creating it
+        # inside on-negotiation-needed started a second negotiation and the offer came back empty.
+        self.channel = self.webrtc.emit("create-data-channel", "input", None)
+        if self.channel is None:
+            raise RuntimeError("webrtcbin could not create the data channel (is the SCTP plugin installed?)")
+        self.channel.connect("on-message-string", lambda _ch, msg: self.loop.call_soon_threadsafe(self.server.on_input, msg))
+        self.webrtc.connect("on-negotiation-needed", self.on_negotiation_needed)
+        GLib.timeout_add(500, self._offer_if_needed)
         self.sampler = Sampler()
 
     def send(self, obj: dict) -> None:
         self.loop.call_soon_threadsafe(lambda: asyncio.ensure_future(self.ws.send_str(json.dumps(obj))))
 
     def on_negotiation_needed(self, element) -> None:
-        if self.offer_sent:
-            return
-        self.offer_sent = True
-        self.channel = element.emit("create-data-channel", "input", None)
-        self.channel.connect("on-message-string", lambda _ch, msg: self.loop.call_soon_threadsafe(self.server.on_input, msg))
-        promise = Gst.Promise.new_with_change_func(self.on_offer_created, element, None)
-        element.emit("create-offer", None, promise)
+        self._offer_if_needed()
+
+    def _offer_if_needed(self) -> bool:
+        if not self.offer_sent:
+            self.offer_sent = True
+            promise = Gst.Promise.new_with_change_func(self.on_offer_created, self.webrtc, None)
+            self.webrtc.emit("create-offer", None, promise)
+        return False  # one-shot GLib timeout
 
     def on_offer_created(self, promise, element, _) -> None:
-        promise.wait()
-        offer = promise.get_reply().get_value("offer")
+        reply = promise.get_reply()
+        offer = reply.get_value("offer") if reply else None
+        if offer is None:
+            err = reply.get_value("error") if reply and reply.has_field("error") else "no reply"
+            log(f"webrtcbin could not create an offer: {err}")
+            self.send({"type": "error", "message": f"server could not create an offer: {err}"})
+            return
         element.emit("set-local-description", offer, Gst.Promise.new())
         self.send({"type": "offer", "sdp": offer.sdp.as_text()})
 
