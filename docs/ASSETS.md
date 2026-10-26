@@ -45,7 +45,9 @@ Founder's PC (AMD laptop CPU, Blender 5.2.1, no KTX2 tool installed; MEASURED):
 | Cached re-run | 2 s (tool version probes only) |
 | Cycles built with OIDN (`_cycles.with_openimagedenoise`) | true |
 
-CI (Linux, KTX2 required) publishes its own numbers as a notice.
+Linux CI runner (run 40231658736, KTX2 required; MEASURED): build 2.45 s (AO bake 1.82 s); optimise with KTX2 7.1 s; final GLB **68 408 B with a KTX2 texture vs 64 564 B raw with PNG**; validator 0 errors and 2 warnings (both are the validator not knowing KTX2); thumbnail 1.38 s; hero 24.0 s; OIDN on; the second run was served from the cache.
+
+KTX2 made this file slightly **larger**: a small, smooth occlusion map compresses better as PNG. KTX2's gain is GPU memory and upload time (the GPU uses it without decoding), not download size. Whether to require KTX2 for small textures is a choice to revisit with real assets.
 
 ## Licence gates
 
