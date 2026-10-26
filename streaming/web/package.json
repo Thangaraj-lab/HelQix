@@ -1,0 +1,9 @@
+{
+  "name": "@helqix/stream-web",
+  "private": true,
+  "description": "K7 spike scene and viewer pages; three.js is served locally, never from a CDN.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}

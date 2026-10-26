@@ -191,6 +191,25 @@ jobs:
           python3 -I -c "import json,sys; r=json.load(open(sys.argv[1])); v=r['validation']; print('::notice title=K6 asset::pass', r['pass'], '| glb', r['bytes']['final_glb'], 'B (raw', r['bytes']['raw_glb'], 'B, budget', r['bytes']['budget'], ') | validator errors', v['errors'], 'warnings', v['warnings'], '| textures', v['info']['textures'], '| extensions', v['info']['extensionsUsed'], '| build', r['build']['seconds'], 's, AO bake', r['build']['ao']['bake_seconds'], 's, optimise', r['optimize_seconds'], 's | renders', {k: (x['render_seconds'], x['denoiser'], x['cycles_has_oidn']) for k, x in r['renders'].items()} , '|', r['versions'])" "$report"
           python3 -I tools/assets/pipeline.py examples/assets/example-bracket --blender /opt/blender-5.2.1-linux-x64/blender --require-ktx2 --hero | grep -q '"cached": true'
 
+  stream-spike:
+    name: Cloud render spike, CPU baseline (K7)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (session guards, encoder pipelines, tracer parsing)
+        run: |
+          python3 -m pip install -q pytest
+          python3 -m pytest -q streaming/tests
+      - name: Build the stream image (Xvfb, Chromium, GStreamer, coturn)
+        run: docker build -t helqix-stream streaming/ > build.log 2>&1 || { bash scripts/ci_annotate.sh "K7 image build" build.log 60; exit 1; }
+      - name: Measure the software baseline (x264; RTT 0/40/80 ms; TURN relay; idle and hard-cap guards)
+        run: |
+          mkdir -p out
+          docker run --rm --cap-add NET_ADMIN --shm-size 2g -v "$PWD/out:/out" helqix-stream python3 /app/measure.py --out /out --encoder x264 > measure.log 2>&1 || { bash scripts/ci_annotate.sh "K7 measure" measure.log 80; exit 1; }
+          cat out/results.md
+          grep -E '^\| RTT' out/results.md | sed 's/^/::notice title=K7 software baseline (case | p50 | p95 | min-max | samples | kbps | fps | dropped | decode ms | encode ms | CPU %)::/'
+          grep -E '^(Encoder|Idle)' out/results.md | sed 's/^/::notice title=K7 environment and guards::/'
+
   calculix-adapter:
     name: CalculiX adapter benchmark (K3)
     runs-on: ubuntu-latest
