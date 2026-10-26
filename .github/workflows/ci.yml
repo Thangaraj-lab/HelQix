@@ -205,7 +205,12 @@ jobs:
       - name: Measure the software baseline (x264; RTT 0/40/80 ms; TURN relay; idle and hard-cap guards)
         run: |
           mkdir -p out
-          docker run --rm --cap-add NET_ADMIN --shm-size 2g -v "$PWD/out:/out" helqix-stream python3 /app/measure.py --out /out --encoder x264 > measure.log 2>&1 || { bash scripts/ci_annotate.sh "K7 measure" measure.log 80; exit 1; }
+          docker run --rm --cap-add NET_ADMIN --shm-size 2g -v "$PWD/out:/out" helqix-stream python3 /app/measure.py --out /out --encoder x264 > measure.log 2>&1 || {
+            bash scripts/ci_annotate.sh "K7 measure" measure.log 40
+            bash scripts/ci_annotate.sh "K7 server log" out/server.log 70
+            bash scripts/ci_annotate.sh "K7 results" out/results.md 20
+            exit 1
+          }
           cat out/results.md
           grep -E '^\| RTT' out/results.md | sed 's/^/::notice title=K7 software baseline (case | p50 | p95 | min-max | samples | kbps | fps | dropped | decode ms | encode ms | CPU %)::/'
           grep -E '^(Encoder|Idle)' out/results.md | sed 's/^/::notice title=K7 environment and guards::/'

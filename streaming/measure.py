@@ -21,6 +21,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -43,36 +44,54 @@ def netem(rtt_ms: int) -> None:
         subprocess.run(["tc", "qdisc", "add", "dev", "lo", "root", "netem", "delay", f"{rtt_ms / 2:g}ms"], check=True)
 
 
-def start_server(token: str, *extra: str) -> tuple[subprocess.Popen, dict]:
-    p = subprocess.Popen([sys.executable, str(SERVER), "--bind", "127.0.0.1", "--port", str(PORT), "--token", token, *extra],
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+class Server:
+    """A stream server subprocess whose output is drained continuously into a log (never blocks)."""
+
+    def __init__(self, token: str, log_path: Path, *extra: str) -> None:
+        self.lines: list[str] = []
+        self.log = open(log_path, "a", encoding="utf-8")
+        self.p = subprocess.Popen([sys.executable, "-u", str(SERVER), "--bind", "127.0.0.1", "--port", str(PORT), "--token", token, *extra],
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        threading.Thread(target=self._drain, daemon=True).start()
+
+    def _drain(self) -> None:
+        for line in self.p.stdout:
+            self.lines.append(line.rstrip())
+            self.log.write(line)
+            self.log.flush()
+
+    def marker(self, name: str) -> dict | None:
+        for line in reversed(self.lines):
+            if line.startswith(name + "="):
+                return json.loads(line.split("=", 1)[1])
+        return None
+
+    def tail(self, n: int = 60) -> str:
+        return "\n".join(self.lines[-n:])
+
+
+def start_server(token: str, log_path: Path, *extra: str) -> tuple[Server, dict]:
+    s = Server(token, log_path, *extra)
     deadline = time.time() + 120
-    lines = []
     while time.time() < deadline:
-        line = p.stdout.readline()
-        if not line:
-            if p.poll() is not None:
-                break
-            continue
-        lines.append(line.rstrip())
-        if line.startswith("HELQIX_STREAM_READY="):
-            return p, json.loads(line.split("=", 1)[1])
-    p.kill()
-    raise RuntimeError("stream server did not become ready:\n" + "\n".join(lines[-40:]))
-
-
-def wait_end(p: subprocess.Popen, timeout_s: float) -> tuple[dict | None, float]:
-    t0 = time.time()
-    end = None
-    while time.time() - t0 < timeout_s:
-        line = p.stdout.readline()
-        if line.startswith("HELQIX_STREAM_END="):
-            end = json.loads(line.split("=", 1)[1])
-        if not line and p.poll() is not None:
+        ready = s.marker("HELQIX_STREAM_READY")
+        if ready:
+            return s, ready
+        if s.p.poll() is not None:
             break
-    if p.poll() is None:
-        p.kill()
-    return end, round(time.time() - t0, 1)
+        time.sleep(0.2)
+    s.p.kill()
+    raise RuntimeError("stream server did not become ready:\n" + s.tail())
+
+
+def wait_end(s: Server, timeout_s: float) -> tuple[dict | None, float]:
+    t0 = time.time()
+    while time.time() - t0 < timeout_s and s.p.poll() is None:
+        time.sleep(0.25)
+    if s.p.poll() is None:
+        s.p.kill()
+    time.sleep(0.3)
+    return s.marker("HELQIX_STREAM_END"), round(time.time() - t0, 1)
 
 
 def stats(token: str) -> dict:
@@ -117,7 +136,7 @@ def main() -> int:
         time.sleep(1.0)
         turn = f"127.0.0.1:3478:helqix:{pw_turn}"
 
-    server, ready = start_server(token, "--encoder", args.encoder, "--idle-timeout", "25", "--max-session", "1800", *(["--turn", turn] if turn else []))
+    server, ready = start_server(token, out / "server.log", "--encoder", args.encoder, "--idle-timeout", "60", "--max-session", "1800", *(["--turn", turn] if turn else []))
     cases = [("RTT 0 ms", 0, False), ("RTT 40 ms", 40, False), ("RTT 80 ms", 80, False)] + ([("RTT 0 ms via TURN relay", 0, True)] if turn else [])
     results = []
     chrome = None
@@ -130,20 +149,27 @@ def main() -> int:
         finally:
             netem(0)
         time.sleep(2.0)  # let the server record the closed session
-        s = stats(token)
-        sess = s["sessions"][-1] if s["sessions"] else {}
+        try:
+            s = stats(token)
+            sess = s["sessions"][-1] if s["sessions"] else {}
+        except OSError as e:
+            sess = {"error": f"stats unavailable: {e}"}
+            problems.append(f"{name}: server not answering (exit code {server.p.poll()}); see server.log")
         results.append({"case": name, "rtt_ms": rtt, "relay": relay, "viewer": res, "server": sess})
         if res.get("error") or not res.get("measured"):
             problems.append(f"{name}: no latency samples ({res.get('error') or res})")
+        if server.p.poll() is not None:
+            problems.append(f"stream server exited during {name} with code {server.p.returncode}")
+            break
     if ready["encoder"] != (args.encoder if args.encoder != "auto" else ready["encoder"]):
         problems.append(f"encoder {ready['encoder']} differs from the request {args.encoder}")
 
-    # Guard 1: no input -> idle shutdown (idle timeout 25 s, counted from the last input).
+    # Guard 1: no input -> idle shutdown (idle timeout 60 s, longer than a viewer's 30 s start-up wait).
     end_idle, idle_after = wait_end(server, 90)
     if not end_idle or end_idle.get("reason") != "idle" or not end_idle.get("temp_removed"):
         problems.append(f"idle shutdown did not happen as expected: {end_idle}")
     # Guard 2: hard cap of 8 s with a long idle timeout.
-    capped, _ = start_server(token, "--encoder", "x264", "--idle-timeout", "600", "--max-session", "8")
+    capped, _ = start_server(token, out / "server-hardcap.log", "--encoder", "x264", "--idle-timeout", "600", "--max-session", "8")
     end_cap, cap_after = wait_end(capped, 60)
     if not end_cap or end_cap.get("reason") != "hard-cap":
         problems.append(f"hard-cap shutdown did not happen as expected: {end_cap}")
@@ -160,7 +186,7 @@ def main() -> int:
     }
     doc = {"schema": "helqix.k7-spike.v1", "label": "MEASURED" if not problems else "MEASURED (with failures)", "environment": env,
            "resolution": f"{ready.get('width', 1280)}x{ready.get('height', 720)}", "cases": results,
-           "guards": {"idle": {"end": end_idle, "seconds_after_last_viewer": idle_after, "idle_timeout_s": 25}, "hard_cap": {"end": end_cap, "seconds": cap_after, "max_session_s": 8}},
+           "guards": {"idle": {"end": end_idle, "seconds_after_last_viewer": idle_after, "idle_timeout_s": 60}, "hard_cap": {"end": end_cap, "seconds": cap_after, "max_session_s": 8}},
            "problems": problems,
            "note": "Software encode (x264) is the CPU fallback, not a GPU result. Go/no-go needs a GPU run (file 38 section 7)."}
     (out / "results.json").write_text(json.dumps(doc, indent=2) + "\n")
