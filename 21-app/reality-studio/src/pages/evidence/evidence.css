@@ -1,5 +1,0 @@
-.evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--hq-sp-3); }
-.evidence-card h3 { font-size: var(--hq-text-md); margin-bottom: 6px; }
-.provenance-chain { display: flex; flex-wrap: wrap; gap: var(--hq-sp-2); align-items: center; font-size: var(--hq-text-sm); }
-.provenance-chain__link { padding: 5px 12px; border-radius: var(--hq-radius-pill); border: 1px solid var(--hq-border-default); background: var(--hq-bg-raised); }
-.provenance-chain__sep { color: var(--hq-accent); }

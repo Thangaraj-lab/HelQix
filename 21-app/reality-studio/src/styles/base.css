@@ -1,44 +1,68 @@
-/* HELQIX global base styles — reset, typography, focus, scrollbars. */
-*,
-*::before,
-*::after { box-sizing: border-box; }
+@import "tailwindcss";
+@import './tokens.css';
+@import './effects.css';
 
-html, body, #root { height: 100%; }
+* {
+  box-sizing: border-box;
+}
 
-body {
+html, body, #root {
+  width: 100%;
+  height: 100%;
   margin: 0;
-  background: var(--hq-bg-base);
-  color: var(--hq-text-primary);
-  font-family: var(--hq-font-ui);
-  font-size: var(--hq-text-md);
-  line-height: var(--hq-leading-normal);
+  padding: 0;
+  overflow: hidden;
+  background-color: #050B18;
+  color: #E2E8F0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4 { margin: 0; line-height: var(--hq-leading-tight); font-weight: 600; }
-p { margin: 0; }
-a { color: var(--hq-accent-strong); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-button { font: inherit; }
-
-:focus-visible { outline: none; box-shadow: var(--hq-focus-ring); border-radius: var(--hq-radius-sm); }
-
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--hq-border-default); border-radius: 5px; border: 2px solid var(--hq-bg-base); }
-
-.mono { font-family: var(--hq-font-mono); font-variant-numeric: tabular-nums; }
-
-.label {
-  font-size: var(--hq-text-xs);
-  letter-spacing: var(--hq-tracking-label);
-  text-transform: uppercase;
-  color: var(--hq-text-secondary);
-  font-weight: 600;
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(5, 11, 24, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(47, 123, 255, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.6);
 }
 
-.sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+/* Tabular Numerals for Engineering Precision */
+.tabular-nums, .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Glass panel glow animation */
+.glass-panel {
+  background: linear-gradient(135deg, rgba(13, 25, 54, 0.78) 0%, rgba(7, 15, 34, 0.85) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(47, 123, 255, 0.28);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.08), 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  border-radius: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glass-panel:hover {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: inset 0 1px 2px 0 rgba(34, 211, 238, 0.15), 0 12px 36px rgba(5, 11, 24, 0.7);
+}
+
+.glass-panel-elevated {
+  background: linear-gradient(145deg, rgba(16, 31, 68, 0.88) 0%, rgba(9, 18, 42, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(47, 123, 255, 0.45);
+  box-shadow: inset 0 1px 2px 0 rgba(34, 211, 238, 0.2), 0 16px 48px rgba(0, 0, 0, 0.7);
+  border-radius: 16px;
 }
