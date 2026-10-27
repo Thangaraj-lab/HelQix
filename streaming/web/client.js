@@ -46,27 +46,32 @@ addEventListener("keydown", (e) => send({ t: "key", key: e.key === " " ? "Space"
 
 // Marker detection on decoded frames.
 const probe = document.createElement("canvas");
-probe.width = probe.height = 8;
+probe.width = 16; probe.height = 9;
 const pctx = probe.getContext("2d", { willReadFrequently: true });
 function markerColour() {
-  const sx = video.videoWidth / 1280, sy = video.videoHeight / 720;  // marker: 64 px square at (16, 16) in a 1280x720 frame
-  pctx.drawImage(video, (16 + 16) * sx, (16 + 16) * sy, 32 * sx, 32 * sy, 0, 0, 8, 8);
-  const d = pctx.getImageData(0, 0, 8, 8).data;
-  let r = 0, g = 0, b = 0;
-  for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
-  const n = d.length / 4; r /= n; g /= n; b /= n;
-  window.__lastRgb = [Math.round(r), Math.round(g), Math.round(b)];
-  if (r > 150 && g < 110 && b < 110) return "red";
-  if (g > 150 && r < 110 && b < 110) return "green";
+  // Look at the top-left 128 x 72 px of the frame as 16 x 9 cells of 8 px, and count cells that are
+  // clearly red or clearly green. This finds the marker wherever the capture puts it, and does not
+  // depend on one exact rectangle.
+  const sx = video.videoWidth / 1280, sy = video.videoHeight / 720;
+  pctx.drawImage(video, 0, 0, 128 * sx, 72 * sy, 0, 0, 16, 9);
+  const d = pctx.getImageData(0, 0, 16, 9).data;
+  let red = 0, green = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 150 && d[i + 1] < 110 && d[i + 2] < 110) red++;
+    else if (d[i + 1] > 150 && d[i] < 110 && d[i + 2] < 110) green++;
+  }
+  window.__lastRgb = [red, green];
+  if (red >= 4 && red > green) return "red";
+  if (green >= 4 && green > red) return "green";
   return "none";
 }
 
-/** A coarse 8x4 grid of mean colours over the whole decoded frame, to see what the viewer really receives. */
+/** The top-left 160 x 90 px of the decoded frame as 16 x 9 mean colours, to see where the marker lands. */
 function frameGrid() {
-  const g = document.createElement('canvas'); g.width = 8; g.height = 4;
+  const g = document.createElement('canvas'); g.width = 16; g.height = 9;
   const c = g.getContext('2d', { willReadFrequently: true });
-  c.drawImage(video, 0, 0, 8, 4);
-  const d = c.getImageData(0, 0, 8, 4).data;
+  c.drawImage(video, 0, 0, 160, 90, 0, 0, 16, 9);
+  const d = c.getImageData(0, 0, 16, 9).data;
   const out = [];
   for (let i = 0; i < d.length; i += 4) out.push(`${d[i]},${d[i + 1]},${d[i + 2]}`);
   return out.join(' ');
