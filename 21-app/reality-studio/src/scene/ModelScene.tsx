@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Binding } from '../contracts';
 import { getAsset } from '../app/assets';
@@ -36,6 +37,8 @@ export interface ModelSceneProps {
   insets?: { left: number; right: number };
   /** Changes when the user asks to reset the view (key F) */
   fitSignal?: number;
+  /** A user-supplied HDRI (asset id in the browser's asset store); null uses the built-in studio light */
+  environmentAssetId?: string | null;
   className?: string;
 }
 
@@ -159,7 +162,26 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
-    pmrem.dispose();
+    let hdr: { env: THREE.Texture; sky: THREE.Texture } | null = null;
+    let lastEnvId: string | null | undefined;
+    const useHdri = (id: string | null) => {
+      if (id === lastEnvId) return;
+      lastEnvId = id;
+      if (hdr) { hdr.env.dispose(); hdr.sky.dispose(); hdr = null; }
+      scene.environment = envTex;
+      scene.backgroundBlurriness = 0;
+      if (!id) return;
+      getAsset(id).then(buf => {
+        if (!buf || lastEnvId !== id) return;
+        const data = new RGBELoader().parse(buf);
+        const sky = new THREE.DataTexture(data.data as never, data.width, data.height, THREE.RGBAFormat, data.type);
+        sky.mapping = THREE.EquirectangularReflectionMapping;
+        sky.colorSpace = THREE.LinearSRGBColorSpace;
+        sky.minFilter = THREE.LinearFilter; sky.magFilter = THREE.LinearFilter; sky.generateMipmaps = false; sky.needsUpdate = true;
+        hdr = { env: pmrem.fromEquirectangular(sky).texture, sky };
+        scene.environment = hdr.env;
+      }).catch(() => undefined);
+    };
 
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
     const key = new THREE.DirectionalLight(0xe8f1ff, 2.4);
@@ -445,6 +467,11 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
       realisticFloor.visible = !eng; engineeringFloor.visible = eng;
       bg.set(eng ? 0x0b1626 : 0x030814);
       fog.color.copy(bg);
+      useHdri(props.environmentAssetId ?? null);
+      // The HDRI is the backdrop in the Realistic look; Engineering keeps its neutral floor and grid.
+      scene.background = hdr && !eng ? hdr.sky : bg;
+      scene.backgroundBlurriness = hdr && !eng ? 0.25 : 0;
+      fog.near = hdr && !eng ? 1000 : 14; fog.far = hdr && !eng ? 2000 : 40;
       const shadows = props.qualityTier !== 'Low';
       renderer.shadowMap.enabled = shadows; key.castShadow = shadows;
 
@@ -582,6 +609,8 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
       dom.removeEventListener('wheel', onWheel);
       scene.traverse(o => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); });
       envTex.dispose();
+      if (hdr) { hdr.env.dispose(); hdr.sky.dispose(); }
+      pmrem.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       container.removeChild(renderer.domElement);

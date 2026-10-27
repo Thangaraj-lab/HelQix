@@ -27,6 +27,9 @@ export interface SessionState {
   setLook: (look: 'Realistic' | 'Engineering') => void;
   qualityTier: 'Auto' | 'High' | 'Low';
   setQualityTier: (tier: 'Auto' | 'High' | 'Low') => void;
+  /** A user-supplied HDRI for lighting and the Realistic backdrop; its licence is recorded with it. */
+  environment: { assetId: string; name: string; licence: string } | null;
+  setEnvironment: (e: { assetId: string; name: string; licence: string } | null) => void;
   layers: {
     structure: boolean;
     physics: boolean;
@@ -127,6 +130,13 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [cameraPreset, setCameraPreset] = useState<SessionState['cameraPreset']>('Perspective');
   const [look, setLook] = useState<'Realistic' | 'Engineering'>('Realistic');
   const [qualityTier, setQualityTier] = useState<'Auto' | 'High' | 'Low'>('High');
+  const [environment, setEnvironmentState] = useState<SessionState['environment']>(() => {
+    try { return JSON.parse(localStorage.getItem('helqix_environment') ?? 'null'); } catch { return null; }
+  });
+  const setEnvironment = (e: SessionState['environment']) => {
+    setEnvironmentState(e);
+    try { if (e) localStorage.setItem('helqix_environment', JSON.stringify(e)); else localStorage.removeItem('helqix_environment'); } catch { /* storage blocked */ }
+  };
   const [layers, setLayers] = useState<SessionState['layers']>({
     structure: true,
     physics: true,
@@ -242,6 +252,8 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setLook,
       qualityTier,
       setQualityTier,
+      environment,
+      setEnvironment,
       layers,
       toggleLayer
     },

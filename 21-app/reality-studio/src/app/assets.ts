@@ -34,6 +34,15 @@ export function checkGltf(name: string, bytes: ArrayBuffer): AssetCheck {
   return { ok: false, reason: 'Not a glTF file. Use a .glb or a self-contained .gltf.' };
 }
 
+/** A Radiance .hdr environment map (what Poly Haven and similar sources provide). */
+export function checkHdr(name: string, bytes: ArrayBuffer): AssetCheck {
+  if (bytes.byteLength === 0) return { ok: false, reason: 'The file is empty.' };
+  if (bytes.byteLength > MAX_ASSET_BYTES) return { ok: false, reason: `The file is larger than ${MAX_ASSET_BYTES / 1024 / 1024} MB.` };
+  const head = new TextDecoder().decode(new Uint8Array(bytes, 0, Math.min(10, bytes.byteLength)));
+  if (!/\.hdr$/i.test(name) || !(head.startsWith('#?RADIANCE') || head.startsWith('#?RGBE'))) return { ok: false, reason: 'Not a Radiance .hdr file.' };
+  return { ok: true, kind: 'glb' };
+}
+
 const DB = 'helqix_assets';
 const STORE = 'files';
 

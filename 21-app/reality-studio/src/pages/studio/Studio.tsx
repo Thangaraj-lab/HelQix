@@ -379,6 +379,7 @@ const StudioInner: React.FC<{ projectId: string }> = ({ projectId }) => {
               qualityTier={session.qualityTier}
               draft={isAssembling}
               fitSignal={fitSignal}
+              environmentAssetId={session.environment?.assetId ?? null}
               insets={stage === 'define' && step !== 'assemble' ? { left: 0, right: 0 } : { left: window.innerWidth < 1100 ? 240 : 288, right: window.innerWidth < 1100 ? 240 : 300 }}
             />
             {scene.parts.length > 0 && stage !== 'define' && (

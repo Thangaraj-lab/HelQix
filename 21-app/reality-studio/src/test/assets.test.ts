@@ -19,3 +19,15 @@ describe('glTF import checks (files are untrusted)', () => {
     expect(checkGltf('a.obj', new TextEncoder().encode('v 0 0 0').buffer as ArrayBuffer).ok).toBe(false);
   });
 });
+
+import { checkHdr } from '../app/assets';
+describe('HDRI import checks', () => {
+  const hdr = (s: string) => new TextEncoder().encode(s).buffer as ArrayBuffer;
+  it('accepts a Radiance header and refuses other content or names', () => {
+    expect(checkHdr('studio.hdr', hdr('#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n')).ok).toBe(true);
+    expect(checkHdr('studio.hdr', hdr('#?RGBE\n')).ok).toBe(true);
+    expect(checkHdr('studio.png', hdr('#?RADIANCE\n')).ok).toBe(false);
+    expect(checkHdr('studio.hdr', hdr('not an hdr')).ok).toBe(false);
+    expect(checkHdr('studio.hdr', new ArrayBuffer(0)).ok).toBe(false);
+  });
+});
