@@ -503,6 +503,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
       </div>
 
       <DefinePartDrawer
+        nextX={parts.size * 1.5}
         open={showDefine}
         onClose={() => setShowDefine(false)}
         onAdd={async list => { await apply(list); setShowDefine(false); }}
@@ -513,7 +514,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
 
 // --- Define a part (scratch path): geometry, port, then placed at the origin; position is editable after ---
 
-const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (ops: ModelOp[]) => Promise<void> }> = ({ open, onClose, onAdd }) => {
+const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (ops: ModelOp[]) => Promise<void>; nextX: number }> = ({ open, onClose, onAdd, nextX }) => {
   const [name, setName] = useState('Custom module');
   const [shape, setShape] = useState<'box' | 'cylinder' | 'sphere' | 'plate'>('box');
   const [dims, setDims] = useState<[number, number, number]>([120, 80, 60]);
@@ -526,8 +527,14 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
   const [licence, setLicence] = useState<Licence | ''>('');
   const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
 
   const field = 'h-8 rounded-[8px] bg-void/70 border border-line px-2.5 text-[13px] focus:outline-none focus:border-accent/60 w-full';
+
+  // Each time the drawer opens it starts clean, so a second import is not named after the first.
+  useEffect(() => {
+    if (open) { setName('Custom module'); setNameTouched(false); setFile(null); setLicence(''); setFileError(null); setSource('primitive'); }
+  }, [open]);
 
   const pick = async (f: File | null) => {
     setFile(null); setFileError(null);
@@ -536,7 +543,7 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
     const c = checkGltf(f.name, bytes);
     if (c.ok === false) { setFileError(c.reason); return; }
     setFile(f);
-    if (name === 'Custom module') setName(f.name.replace(/\.(glb|gltf)$/i, ''));
+    if (!nameTouched) setName(f.name.replace(/\.(glb|gltf)$/i, '').replace(/[_-]+/g, ' '));
   };
 
   const add = async () => {
@@ -559,7 +566,7 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
     }
     void onAdd([
       { op: 'part.add', id, name: name.trim() || 'Part', geometry, maturity: 'user_defined', prov: { kind: 'user_stated', note } },
-      { op: 'part.place', id, transform: { pos: [entered(0, 'm'), entered(0.5, 'm'), entered(0, 'm')], rot: [entered(0, 'deg'), entered(0, 'deg'), entered(0, 'deg')], scale: [1, 1, 1], frame: 'world' } },
+      { op: 'part.place', id, transform: { pos: [entered(nextX, 'm'), entered(0.5, 'm'), entered(0, 'm')], rot: [entered(0, 'deg'), entered(0, 'deg'), entered(0, 'deg')], scale: [1, 1, 1], frame: 'world' } },
       { op: 'port.add', part: id, id: portName.trim() || 'port', kind: portKind, direction: portDir, unit: portUnit }
     ]);
   };
@@ -568,7 +575,7 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
     <Drawer isOpen={open} onClose={onClose} title="Define a part">
       <div className="space-y-6">
         <p className="text-xs text-muted">The part is tagged User-defined and Unverified. It is placed at the origin; edit its position in the inspector.</p>
-        <label className="block space-y-1.5"><span className="text-xs text-muted">Name</span><input className={field} value={name} onChange={e => setName(e.target.value)} /></label>
+        <label className="block space-y-1.5"><span className="text-xs text-muted">Name</span><input className={field} value={name} onChange={e => { setName(e.target.value); setNameTouched(true); }} /></label>
         <div className="space-y-1.5">
           <span className="text-xs text-muted">Geometry</span>
           <Tabs tabs={[{ id: 'primitive', label: 'Primitive' }, { id: 'gltf', label: 'Import glTF' }]} activeTab={source} onChange={id => setSource(id as typeof source)} />

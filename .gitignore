@@ -46,3 +46,6 @@ dist/
 
 # The Studio's Build stage is source, not build output.
 !21-app/reality-studio/src/pages/build/
+
+# Downloaded third-party assets (see scripts/fetch_cc0_assets.py); never committed
+assets-local/
