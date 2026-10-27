@@ -26,6 +26,8 @@ export interface ModelSceneProps {
   selectedId?: string | null;
   highlightIds?: string[];
   focusId?: string | null;
+  /** The part the Follow camera keeps in view (a part that moves because of a binding) */
+  followId?: string | null;
   onSelect?: (id: string | null) => void;
   look: Look;
   cameraPreset: CameraPreset;
@@ -233,6 +235,7 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
     const instances: Instance[] = [];
     const raycaster = new THREE.Raycaster();
     const tmpColor = new THREE.Color();
+    const followPos = new THREE.Vector3();
     const cam = { target: new THREE.Vector3(0, 0.6, 0), radius: 7, theta: 0.8, phi: 1.05 };
     const goal = { target: new THREE.Vector3(0, 0.6, 0), radius: 7, theta: 0.8, phi: 1.05 };
     let userMoved = false;
@@ -487,6 +490,11 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
         else if (!userMoved) fit();
       }
       const k = 1 - Math.pow(0.001, dt);
+      // Follow: the camera target tracks the part's current position, so a part that falls or slides stays in view.
+      if (props.cameraPreset === 'Follow' && props.followId) {
+        const fv = instances[0]?.parts.get(props.followId);
+        if (fv) { fv.group.getWorldPosition(followPos); fv.body.getWorldPosition(followPos); goal.target.copy(followPos); goal.radius = Math.max(goal.radius, 4); }
+      }
       cam.target.lerp(goal.target, k);
       cam.radius += (goal.radius - cam.radius) * k;
       cam.theta += (goal.theta - cam.theta) * k;

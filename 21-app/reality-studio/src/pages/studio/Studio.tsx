@@ -99,8 +99,11 @@ const StudioInner: React.FC<{ projectId: string }> = ({ projectId }) => {
     if (next && next !== name) { setName(next); void engine.renameProject(projectId, next).catch(() => undefined); }
   };
 
-  const setStage = (s: StudioStage) => setQuery({ stage: s });
+  // Leaving Define drops its step, so the URL names only what is on screen.
+  const setStage = (s: StudioStage) => setQuery(s === 'define' ? { stage: s } : { stage: s, step: null });
   const setStep = (st: DefineStep) => setQuery({ stage: 'define', step: st });
+  // A selection belongs to one project; do not carry it into the next.
+  useEffect(() => { selection.deselectAll(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -237,6 +240,8 @@ const StudioInner: React.FC<{ projectId: string }> = ({ projectId }) => {
   const isAssembling = stage === 'define' && step === 'assemble' && !rev;
   const committedView = !!rev && !isAssembling;
   const scene = isAssembling ? staged : committedView ? { parts: model.parts, connections: model.connections } : { parts: [], connections: [] };
+  // The Follow camera tracks the first part a translation binding moves.
+  const followId = committedView ? model.bindings.find(b => b.channel === 'translation')?.node ?? null : null;
   const duration = model.run?.duration ?? 12;
   const sceneT = stage === 'simulate' ? playback.t : stage === 'understand' ? model.failure?.t ?? duration : stage === 'improve' ? duration : 0;
   const failure = model.failure && model.failure.partId ? { partId: model.failure.partId, t: model.failure.t, text: `Over limit: ${model.failure.value} ${model.failure.requirement.unit}` } : null;
@@ -379,12 +384,13 @@ const StudioInner: React.FC<{ projectId: string }> = ({ projectId }) => {
               qualityTier={session.qualityTier}
               draft={isAssembling}
               fitSignal={fitSignal}
+              followId={followId}
               environmentAssetId={session.environment?.assetId ?? null}
               insets={stage === 'define' && step !== 'assemble' ? { left: 0, right: 0 } : { left: window.innerWidth < 1100 ? 240 : 288, right: window.innerWidth < 1100 ? 240 : 300 }}
             />
             {scene.parts.length > 0 && stage !== 'define' && (
               <div className="absolute bottom-3 right-1/2 translate-x-1/2 z-10">
-                <Tabs tabs={(['Perspective', 'Top', 'Front', 'Right'] as const).map(p => ({ id: p, label: p }))} activeTab={session.cameraPreset} onChange={id => session.setCameraPreset(id as 'Perspective')} className="!bg-black/40 backdrop-blur" />
+                <Tabs tabs={[...(['Perspective', 'Top', 'Front', 'Right'] as const), ...(followId ? (['Follow'] as const) : [])].map(p => ({ id: p, label: p }))} activeTab={session.cameraPreset} onChange={id => session.setCameraPreset(id as 'Perspective')} className="!bg-black/40 backdrop-blur" />
               </div>
             )}
             <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-2 pointer-events-none">

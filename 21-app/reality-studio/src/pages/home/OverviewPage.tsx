@@ -23,6 +23,7 @@ export const OverviewPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
+  const [runTotal, setRunTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +33,7 @@ export const OverviewPage: React.FC = () => {
       .listProjects()
       .then(async list => {
         setProjects(list);
-        Promise.all(list.map(p => engine.listRuns(p.id).catch(() => [] as RunSummary[]))).then(r => setRuns(r.flat().sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 6)));
+        Promise.all(list.map(p => engine.listRuns(p.id).catch(() => [] as RunSummary[]))).then(r => { const all = r.flat().sort((a, b) => b.startedAt.localeCompare(a.startedAt)); setRunTotal(all.length); setRuns(all.slice(0, 6)); });
         try {
           setSources(await engine.listSources(list[0]?.id ?? ''));
         } catch {
@@ -191,7 +192,7 @@ export const OverviewPage: React.FC = () => {
             <SectionLabel>Trust summary</SectionLabel>
             <dl className="space-y-2 text-[13px]">
               <div className="flex justify-between"><dt className="text-muted">Committed models</dt><dd className="num text-strong">{committed}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted">Runs</dt><dd className="num text-strong">{runs?.length ?? 0}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted">Runs</dt><dd className="num text-strong">{runTotal}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">Signed evidence</dt><dd className="num text-strong">0</dd></div>
             </dl>
             <p className="text-[11px] text-muted/80">Counts only. Nothing is verified until its criteria are shown.</p>
