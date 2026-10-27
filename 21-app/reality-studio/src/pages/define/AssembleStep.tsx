@@ -5,6 +5,7 @@ import { engine } from '../../engine';
 import type { SceneConnection, ScenePart } from '../../scene/types';
 import { useStudio } from '../../stores';
 import { createMockValue } from '../../mock/examplePack';
+import { checkGltf, getAsset, LICENCES, Licence, putAsset } from '../../app/assets';
 import { useRun } from '../simulate/useRun';
 import { SUPPORTED_CHANNELS } from '../../scene/bindings';
 import { Button, Chip, Drawer, IconButton, MockTag, PlaceholderTag, SectionLabel, StatusDot, Tabs, ValueView } from '../../components/ui/UiKit';
@@ -492,13 +493,44 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
   const [portKind, setPortKind] = useState('electrical_dc');
   const [portDir, setPortDir] = useState<'in' | 'out' | 'bi'>('in');
   const [portUnit, setPortUnit] = useState('V');
+  const [source, setSource] = useState<'primitive' | 'gltf'>('primitive');
+  const [file, setFile] = useState<File | null>(null);
+  const [licence, setLicence] = useState<Licence | ''>('');
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const field = 'h-8 rounded-[8px] bg-void/70 border border-line px-2.5 text-[13px] focus:outline-none focus:border-accent/60 w-full';
 
-  const add = () => {
+  const pick = async (f: File | null) => {
+    setFile(null); setFileError(null);
+    if (!f) return;
+    const bytes = await f.arrayBuffer();
+    const c = checkGltf(f.name, bytes);
+    if (c.ok === false) { setFileError(c.reason); return; }
+    setFile(f);
+    if (name === 'Custom module') setName(f.name.replace(/\.(glb|gltf)$/i, ''));
+  };
+
+  const add = async () => {
     const id = `part-${Date.now().toString(36)}`;
+    let geometry: GeometryKind = { kind: 'primitive', shape, dims: dims.map(d => createMockValue(d, 'mm')) };
+    let note = 'Defined from scratch';
+    if (source === 'gltf') {
+      if (!file || !licence) return;
+      setBusy(true);
+      try {
+        const asset = await putAsset(file, await file.arrayBuffer());
+        geometry = { kind: 'import', assetId: asset.id };
+        note = `Imported ${file.name}; licence: ${licence}`;
+      } catch (e) {
+        setFileError(e instanceof Error ? e.message : 'The file could not be stored.');
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
     void onAdd([
-      { op: 'part.add', id, name: name.trim() || 'Part', geometry: { kind: 'primitive', shape, dims: dims.map(d => createMockValue(d, 'mm')) }, maturity: 'user_defined', prov: { kind: 'user_stated', note: 'Defined from scratch' } },
+      { op: 'part.add', id, name: name.trim() || 'Part', geometry, maturity: 'user_defined', prov: { kind: 'user_stated', note } },
       { op: 'part.place', id, transform: { pos: [createMockValue(0, 'm'), createMockValue(0.5, 'm'), createMockValue(0, 'm')], rot: [createMockValue(0, 'deg'), createMockValue(0, 'deg'), createMockValue(0, 'deg')], scale: [1, 1, 1], frame: 'world' } },
       { op: 'port.add', part: id, id: portName.trim() || 'port', kind: portKind, direction: portDir, unit: portUnit }
     ]);
@@ -511,6 +543,24 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
         <label className="block space-y-1.5"><span className="text-xs text-muted">Name</span><input className={field} value={name} onChange={e => setName(e.target.value)} /></label>
         <div className="space-y-1.5">
           <span className="text-xs text-muted">Geometry</span>
+          <Tabs tabs={[{ id: 'primitive', label: 'Primitive' }, { id: 'gltf', label: 'Import glTF' }]} activeTab={source} onChange={id => setSource(id as typeof source)} />
+        </div>
+        {source === 'gltf' ? (
+          <div className="space-y-3 rounded-[12px] border border-line p-4">
+            <label className="block space-y-1.5"><span className="text-xs text-muted">Model file (.glb, or a self-contained .gltf, up to 40 MB)</span>
+              <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={e => void pick(e.target.files?.[0] ?? null)} className="block w-full text-xs text-muted file:mr-3 file:h-8 file:px-3 file:rounded-[8px] file:border file:border-line file:bg-raised file:text-strong" />
+            </label>
+            {fileError && <p role="alert" className="text-xs text-bad">{fileError}</p>}
+            <label className="block space-y-1.5"><span className="text-xs text-muted">Licence of this model</span>
+              <select className={field} value={licence} onChange={e => setLicence(e.target.value as Licence)} aria-label="Licence">
+                <option value="">Choose a licence</option>{LICENCES.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </label>
+            <p className="text-[11px] text-muted">The licence is recorded with the part. The model is drawn at schematic scale (largest side 1.2 units). Its own colours are kept; heat shows as a glow.</p>
+          </div>
+        ) : (
+        <>
+        <div className="space-y-1.5">
           <Tabs tabs={(['box', 'cylinder', 'sphere', 'plate'] as const).map(s => ({ id: s, label: s[0].toUpperCase() + s.slice(1) }))} activeTab={shape} onChange={id => setShape(id as typeof shape)} />
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -520,6 +570,8 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
             </label>
           ))}
         </div>
+        </>
+        )}
         <div className="space-y-3 rounded-[12px] border border-line p-4">
           <p className="text-xs font-medium text-strong">First port</p>
           <div className="grid grid-cols-2 gap-3">
@@ -537,7 +589,7 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
             </label>
           </div>
         </div>
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={add}>Add part</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={() => void add()} disabled={busy || (source === 'gltf' && (!file || !licence))}>Add part</Button></div>
       </div>
     </Drawer>
   );

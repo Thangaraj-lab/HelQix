@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Binding } from '../contracts';
+import { getAsset } from '../app/assets';
 import { CameraPreset, Look, SceneConnection, ScenePart, Series } from './types';
 import { PartVisualState, stateFor } from './bindings';
 
@@ -109,6 +111,9 @@ interface PartVisual {
   group: THREE.Group;
   body: THREE.Group;
   mesh: THREE.Mesh;
+  /** Materials of an imported model, tinted by emissive since its own colours are kept */
+  importMats: THREE.MeshStandardMaterial[];
+  loadedSize: [number, number, number] | null;
   edges: THREE.LineSegments;
   marker: THREE.Mesh | null;
   label: THREE.Sprite;
@@ -226,13 +231,27 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
       return { root, parts: new Map(), connections, connKey: '', title: null, offsetX: 0 };
     };
 
+    const gltf = new GLTFLoader();
+    const modelCache = new Map<string, Promise<THREE.Object3D | null>>();
+    const loadImported = (assetId: string): Promise<THREE.Object3D | null> => {
+      let pr = modelCache.get(assetId);
+      if (!pr) {
+        pr = getAsset(assetId).then(buf => (buf ? new Promise<THREE.Object3D | null>(res => gltf.parse(buf, '', g => res(g.scene), () => res(null))) : null)).catch(() => null);
+        modelCache.set(assetId, pr);
+      }
+      // each part gets its own copy so tinting one does not tint another
+      return pr.then(o => (o ? o.clone(true) : null)).then(o => { o?.traverse(x => { const m = x as THREE.Mesh; if (m.isMesh && !Array.isArray(m.material)) m.material = m.material.clone(); }); return o; });
+    };
+
     const buildPart = (inst: Instance, p: ScenePart, index: number): PartVisual => {
       const size = dimsOf(p);
       const geo = geometryOf(p);
       const base = new THREE.Color(METALS[index % METALS.length]);
       const mat = new THREE.MeshPhysicalMaterial({ color: base, metalness: 0.72, roughness: 0.34, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 1.1 });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.castShadow = true; mesh.receiveShadow = true;
+      const imported = p.geometry.kind === 'import';
+      mesh.castShadow = !imported; mesh.receiveShadow = !imported;
+      if (imported) mat.visible = false; // an invisible proxy for picking until the model is loaded
       mesh.userData.partId = p.id;
       const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: ACCENT, transparent: true, opacity: 0.55 }));
       const body = new THREE.Group();
@@ -244,8 +263,34 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
       group.add(label);
       // port dots
       group.userData.partId = p.id;
-      const v: PartVisual = { id: p.id, key: '', group, body, mesh, edges, marker: null, label, alert: null, size, target: new THREE.Vector3(), born: clock.elapsedTime, base, placeholder: !!p.placeholder };
+      const v: PartVisual = { id: p.id, key: '', group, body, mesh, edges, marker: null, label, alert: null, size, target: new THREE.Vector3(), born: clock.elapsedTime, base, placeholder: !!p.placeholder, importMats: [], loadedSize: null };
       inst.root.add(group);
+      if (p.geometry.kind === 'import') {
+        edges.visible = false;
+        loadImported(p.geometry.assetId).then(model => {
+          if (!model || !v.group.parent) return;
+          const box = new THREE.Box3().setFromObject(model);
+          const sz = box.getSize(new THREE.Vector3());
+          const k = 1.2 / Math.max(sz.x, sz.y, sz.z, 1e-6); // schematic: largest side drawn at 1.2 units
+          model.scale.multiplyScalar(k);
+          const b2 = new THREE.Box3().setFromObject(model);
+          const c = b2.getCenter(new THREE.Vector3());
+          model.position.sub(c);
+          const s2 = b2.getSize(new THREE.Vector3());
+          v.loadedSize = [s2.x, s2.y, s2.z]; v.size = [s2.x, s2.y, s2.z];
+          model.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (m.isMesh) {
+              m.castShadow = true; m.receiveShadow = true; m.userData.partId = p.id;
+              (Array.isArray(m.material) ? m.material : [m.material]).forEach(mm => { if ((mm as THREE.MeshStandardMaterial).isMeshStandardMaterial) v.importMats.push(mm as THREE.MeshStandardMaterial); });
+            }
+          });
+          // the proxy takes the model's size so clicks and connections line up
+          v.mesh.geometry.dispose(); v.mesh.geometry = new THREE.BoxGeometry(s2.x, s2.y, s2.z);
+          v.body.add(model);
+          label.position.set(0, s2.y / 2 + 0.34, 0);
+        });
+      }
       return v;
     };
 
@@ -262,7 +307,7 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
         if (v && v.key !== k && v.key !== '') { inst.root.remove(v.group); v.mesh.geometry.dispose(); inst.parts.delete(p.id); v = undefined; }
         if (!v) { v = buildPart(inst, p, i); inst.parts.set(p.id, v); }
         v.key = k;
-        v.size = dimsOf(p);
+        v.size = v.loadedSize ?? dimsOf(p);
         const [x, y, z] = p.pos ?? [0, 0.5 + i * 0.01, 0];
         v.target.set(x, y, z);
         if (v.group.position.lengthSq() === 0 && v.born === clock.elapsedTime) v.group.position.copy(v.target).add(new THREE.Vector3(0, 0.9, 0));
@@ -459,7 +504,7 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
           // colour and glow
           const mat = v.mesh.material as THREE.MeshPhysicalMaterial;
           const f = s.heat ?? 0;
-          heatColor(f, v.base, tmpColor); mat.color.copy(tmpColor);
+          if (v.importMats.length === 0) { heatColor(f, v.base, tmpColor); mat.color.copy(tmpColor); }
           const failing = idx === 0 && !!props.failure && props.failure.partId === id && props.t >= props.failure.t;
           const over = failing || f >= 1;
           let emis = 0;
@@ -469,6 +514,7 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
           const flash = Math.max(0, 1 - (now - v.born) / 0.9) * 0.7;
           mat.emissive.set(over ? 0xef4444 : s.glow !== null && s.heat === null ? TRACE : f > 0.55 ? 0xff7a3d : 0x2f7bff);
           mat.emissiveIntensity = emis + flash;
+          for (const im of v.importMats) { im.emissive.copy(mat.emissive); im.emissiveIntensity = emis + flash; im.transparent = props.draft || v.placeholder; im.opacity = props.draft ? 0.45 : 1; }
           mat.transparent = props.draft || v.placeholder;
           mat.opacity = props.draft ? 0.45 : v.placeholder ? 0.6 : 1;
           // edges: selection, chain highlight, hover
