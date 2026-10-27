@@ -264,10 +264,19 @@ class StreamServer:
 
         pw = await async_playwright().start()
         gl_args = ["--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] if self.encoder == "x264" else ["--ignore-gpu-blocklist", "--use-angle=vulkan", "--enable-features=Vulkan"]
-        self.browser = await pw.chromium.launch(headless=False, env={**os.environ, "DISPLAY": a.display},
-                                                args=["--kiosk", "--window-position=0,0", f"--window-size={a.width},{a.height}", "--disable-infobars", "--noerrdialogs", *gl_args])
-        self.page = await self.browser.new_page(viewport={"width": a.width, "height": a.height})
+        # One kiosk window with one tab. browser.new_page() would open a second, non-kiosk window with
+        # browser chrome and a blank page in front of the scene, and that is what the capture showed.
+        self.browser = await pw.chromium.launch_persistent_context(
+            os.path.join(self.tmp, "chrome-profile"), headless=False, viewport=None, env={**os.environ, "DISPLAY": a.display},
+            args=["--kiosk", "--window-position=0,0", f"--window-size={a.width},{a.height}", "--disable-infobars", "--noerrdialogs", "--no-first-run", *gl_args])
+        self.page = self.browser.pages[0] if self.browser.pages else await self.browser.new_page()
         await self.page.goto(f"http://127.0.0.1:{a.port}/scene.html")
+        for tool in (["xwininfo", "-root", "-tree"],):  # which windows exist on the display, for the log
+            try:
+                out = subprocess.run(tool, env={**os.environ, "DISPLAY": a.display}, capture_output=True, text=True, timeout=10).stdout
+                log("windows on the display:" + chr(10) + chr(10).join(l for l in out.splitlines() if "has no name" not in l and l.strip())[:1500])
+            except (OSError, subprocess.SubprocessError):
+                log("xwininfo is not available; window list skipped")
         await self.page.wait_for_function("window.sceneReady === true", timeout=60000)
         renderer = await self.page.evaluate("window.rendererInfo")
         print("HELQIX_STREAM_READY=" + json.dumps({"port": a.port, "token": self.token, "encoder": self.encoder, "encoder_reason": self.encoder_reason,

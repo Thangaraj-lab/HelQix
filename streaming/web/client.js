@@ -77,6 +77,25 @@ function frameGrid() {
   return out.join(' ');
 }
 
+/** The whole decoded frame as 64 x 36 characters (dark to light), with R and G where the colour is clearly red or green. */
+function frameAscii() {
+  const g = document.createElement('canvas'); g.width = 64; g.height = 36;
+  const c = g.getContext('2d', { willReadFrequently: true });
+  c.drawImage(video, 0, 0, 64, 36);
+  const d = c.getImageData(0, 0, 64, 36).data;
+  const ramp = ' .:-=+*#%@';
+  const rows = [];
+  for (let y = 0; y < 36; y++) {
+    let row = '';
+    for (let x = 0; x < 64; x++) {
+      const i = (y * 64 + x) * 4, r = d[i], gg = d[i + 1], b = d[i + 2];
+      row += r > 150 && gg < 110 && b < 110 ? 'R' : gg > 150 && r < 110 && b < 110 ? 'G' : ramp[Math.min(9, Math.floor(((r + gg + b) / 3 / 256) * 10))];
+    }
+    rows.push(row);
+  }
+  return rows.join(String.fromCharCode(10));
+}
+
 function waitFor(colour, timeoutMs) {
   return new Promise((resolve) => {
     const deadline = performance.now() + timeoutMs;
@@ -117,7 +136,7 @@ async function measure(n) {
   const secs = (w1 - w0) / 1000;
   const result = {
     samples: n, measured: lat.length, timeouts: timeouts.length,
-    diag: { grid: frameGrid(), sent, channel: channel ? channel.readyState : null, last_rgb: window.__lastRgb || null, video_size: [video.videoWidth, video.videoHeight] },
+    diag: { ascii: frameAscii(), sent, channel: channel ? channel.readyState : null, last_rgb: window.__lastRgb || null, video_size: [video.videoWidth, video.videoHeight] },
     latency_ms: { min: lat.length ? +lat[0].toFixed(1) : null, p50: pct(0.5), p95: pct(0.95), max: lat.length ? +lat[lat.length - 1].toFixed(1) : null },
     video: s1 && s0 ? {
       width: s1.frameWidth, height: s1.frameHeight, fps: s1.framesPerSecond,
