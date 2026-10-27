@@ -58,6 +58,10 @@ function frame() {
     renderer.setScissor(16, renderer.domElement.height - 80, 64, 64); // WebGL origin is bottom-left: top-left square
     renderer.setClearColor(MARKER[markerIndex]);
     renderer.clear(true, false, false);
+    // Read back what was drawn at the marker's centre, so the server can tell drawing from capture problems.
+    const px = new Uint8Array(4);
+    renderer.getContext().readPixels(48, renderer.domElement.height - 48, 1, 1, renderer.getContext().RGBA, renderer.getContext().UNSIGNED_BYTE, px);
+    window.__markerPixel = [px[0], px[1], px[2], px[3]];
     renderer.setScissorTest(false);
     renderer.setClearColor(clear);
   }

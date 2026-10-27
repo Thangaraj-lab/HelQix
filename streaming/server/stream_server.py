@@ -201,7 +201,7 @@ class StreamServer:
             if ev["key"] == "m":
                 self.m_pressed = getattr(self, "m_pressed", 0) + 1
                 if self.m_pressed <= 3 or self.m_pressed % 20 == 0:
-                    log(f"key m #{self.m_pressed}: scene marker index {await page.evaluate('window.__markerIndex()')}, inputs received {self.inputs_received}")
+                    log(f"key m #{self.m_pressed}: scene marker index {await page.evaluate('window.__markerIndex()')}, pixel drawn at marker centre {await page.evaluate('window.__markerPixel')}, inputs received {self.inputs_received}")
 
     # --- HTTP ---
     def authorised(self, request) -> bool:

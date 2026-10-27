@@ -61,6 +61,17 @@ function markerColour() {
   return "none";
 }
 
+/** A coarse 8x4 grid of mean colours over the whole decoded frame, to see what the viewer really receives. */
+function frameGrid() {
+  const g = document.createElement('canvas'); g.width = 8; g.height = 4;
+  const c = g.getContext('2d', { willReadFrequently: true });
+  c.drawImage(video, 0, 0, 8, 4);
+  const d = c.getImageData(0, 0, 8, 4).data;
+  const out = [];
+  for (let i = 0; i < d.length; i += 4) out.push(`${d[i]},${d[i + 1]},${d[i + 2]}`);
+  return out.join(' ');
+}
+
 function waitFor(colour, timeoutMs) {
   return new Promise((resolve) => {
     const deadline = performance.now() + timeoutMs;
@@ -101,7 +112,7 @@ async function measure(n) {
   const secs = (w1 - w0) / 1000;
   const result = {
     samples: n, measured: lat.length, timeouts: timeouts.length,
-    diag: { sent, channel: channel ? channel.readyState : null, last_rgb: window.__lastRgb || null, video_size: [video.videoWidth, video.videoHeight] },
+    diag: { grid: frameGrid(), sent, channel: channel ? channel.readyState : null, last_rgb: window.__lastRgb || null, video_size: [video.videoWidth, video.videoHeight] },
     latency_ms: { min: lat.length ? +lat[0].toFixed(1) : null, p50: pct(0.5), p95: pct(0.95), max: lat.length ? +lat[lat.length - 1].toFixed(1) : null },
     video: s1 && s0 ? {
       width: s1.frameWidth, height: s1.frameHeight, fps: s1.framesPerSecond,
