@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { QualityTier } from '../engineering/stateStore';
+type QualityTier = 'Auto' | 'High' | 'Low';
 import { GeometryKind } from '../contracts';
 import { createExampleAssembly, ExampleAssemblyContext } from '../mock/exampleAssembly';
 import { ExampleTag, IconButton, Tabs } from '../components/ui/UiKit';

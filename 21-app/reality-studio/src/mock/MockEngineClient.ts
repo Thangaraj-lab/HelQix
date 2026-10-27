@@ -69,6 +69,12 @@ class MockEngineClientImpl implements EngineClient {
     return Array.from(this.projects.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
+  async getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null> {
+    this.restoreState();
+    const id = this.projects.get(pid)?.modelRevisions[revisionNum - 1];
+    return (id && this.revisions.get(id)) || null;
+  }
+
   async startBuild(
     pid: string,
     input: { prompt: string; attachments?: AssetRef[] } | { scratch: true } | { importAsset: AssetRef }
@@ -276,8 +282,9 @@ class MockEngineClientImpl implements EngineClient {
   }
 
   async *runFrames(runId: string): AsyncIterable<RunFrame> {
-    for (let t = 0; t <= 12.0; t += 0.1) {
-      yield this.computeFrame(t);
+    // Integer steps: accumulating 0.1 drifts (0.30000000000000004) and breaks bit-identical replay.
+    for (let i = 0; i <= 120; i++) {
+      yield this.computeFrame(i / 10);
     }
   }
 
@@ -302,25 +309,25 @@ class MockEngineClientImpl implements EngineClient {
         parseFloat(tempVal.toFixed(1)),
         '°C',
         'simulated',
-        isOverheated ? 'unverified' : 'verified'
+        'unverified'
       ),
       rotor_angular_velocity: createMockValue(
         parseFloat(radS.toFixed(1)),
         'rad/s',
         'simulated',
-        'verified'
+        'unverified'
       ),
       phase_rms_current: createMockValue(
         parseFloat((42.0 + (t > 4.2 ? 18.5 : 0)).toFixed(1)),
         'A',
         'simulated',
-        'verified'
+        'unverified'
       ),
       shaft_torque_load: createMockValue(
         parseFloat((32.0 + (t > 4.2 ? 53.4 : 0)).toFixed(1)),
         'N·m',
         'simulated',
-        'verified'
+        'unverified'
       )
     };
 

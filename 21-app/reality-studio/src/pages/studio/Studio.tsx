@@ -9,6 +9,7 @@ import { HeroScene, ScenePart } from '../../scene/HeroScene';
 import { Button, Chip, IconButton, Logo, MockTag, PreviewTag, StatusDot, Tabs } from '../../components/ui/UiKit';
 import { DefineStage } from '../define/DefineStage';
 import { ModelStage } from '../model/ModelStage';
+import { revisionToScene, useRevision } from '../model/useRevision';
 import { SimulateStage } from '../simulate/SimulateStage';
 import { UnderstandStage } from '../understand/UnderstandStage';
 import { ImproveStage } from '../improve/ImproveStage';
@@ -54,6 +55,8 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
 
   // Parts the Assemble step has placed; the canvas shows these instead of the Example scene.
   const [stagedParts, setStagedParts] = useState<ScenePart[] | null>(null);
+  const { revision, loading: revisionLoading } = useRevision(projectId, rev);
+  const committedParts = useMemo(() => revisionToScene(revision), [revision]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showAssistant, setShowAssistant] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
@@ -110,7 +113,7 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
       }
       case 'model': return { label: 'Run simulation', run: () => setStage('simulate') };
       case 'simulate': return { label: 'Understand results', run: () => setStage('understand') };
-      case 'understand': return { label: 'Try a change', run: () => setStage('improve') };
+      case 'understand': return { label: 'Test this cause', run: () => setStage('improve') };
       case 'improve': return { label: 'Verify', run: () => setStage('verify') };
       default: return null;
     }
@@ -317,7 +320,7 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
               thermalHotspot={stage === 'understand'}
               isGhostMode={stage === 'define' && step === 'assemble' && !rev}
               repairState={stage === 'understand' ? 'fault' : stage === 'improve' ? 'repaired' : 'none'}
-              parts={stage === 'define' && step === 'assemble' ? stagedParts : null}
+              parts={stage === 'define' && step === 'assemble' ? stagedParts : stage === 'model' ? committedParts : null}
             />
           </div>
 
@@ -332,7 +335,7 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
               onPartsChange={setStagedParts}
             />
           ) : stage === 'model' ? (
-            <ModelStage onRunSimulation={() => setStage('simulate')} />
+            <ModelStage revision={revision} loading={revisionLoading} rev={rev} />
           ) : stage === 'simulate' ? (
             <SimulateStage onInvestigateFailure={() => setStage('understand')} onForkBranch={() => setStage('improve')} />
           ) : stage === 'understand' ? (
@@ -340,11 +343,11 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
           ) : stage === 'improve' ? (
             <ImproveStage onAdoptBranch={() => setStage('verify')} onBackToUnderstand={() => setStage('understand')} />
           ) : stage === 'verify' ? (
-            <VerifyStage onOpenEvidenceSheet={() => setShowEvidence(true)} />
+            <VerifyStage revision={revision} onOpenEvidenceSheet={() => setShowEvidence(true)} />
           ) : stage === 'observe' ? (
             <ObserveStage onProposeUpdate={() => setStage('improve')} />
           ) : stage === 'build' ? (
-            <BuildStage />
+            <BuildStage revision={revision} />
           ) : (
             <div className="flex-1 p-6 text-center text-muted">Unknown stage</div>
           )}
@@ -354,7 +357,7 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
       </div>
 
       <CommandPalette isOpen={showCommands} onClose={() => setShowCommands(false)} commands={commands} onSelect={onCommand} />
-      <EvidenceSheet isOpen={showEvidence} onClose={() => setShowEvidence(false)} />
+      <EvidenceSheet isOpen={showEvidence} onClose={() => setShowEvidence(false)} revision={revision} />
       <SettingsSheet isOpen={showSettings} onClose={() => setShowSettings(false)} onToggleTheme={toggleTheme} currentTheme={theme} />
       <ActivityDrawer isOpen={showActivity} onClose={() => setShowActivity(false)} projectId={projectId} />
       <SourcesManagerSheet isOpen={showSources} onClose={() => setShowSources(false)} projectId={projectId} />

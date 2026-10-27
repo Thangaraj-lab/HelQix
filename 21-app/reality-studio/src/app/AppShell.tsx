@@ -1,22 +1,13 @@
 import React from 'react';
 import { FolderOpen, Plus } from 'lucide-react';
-import { useAppState } from '../engineering/stateStore';
 import { navigate } from './router';
 import { engineMode } from '../engine';
 import { Logo, MockTag, StatusDot } from '../components/ui/UiKit';
 
 // Frame for Home (file 37 section 6.2). Stages live inside the Studio (/p/:id), not in this sidebar.
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { toast } = useAppState();
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-void text-ink">
-      {toast && (
-        <div role="status" className="fixed bottom-6 right-6 z-50 px-4 py-3 surface-glass text-xs text-strong animate-rise">
-          {toast.message}
-        </div>
-      )}
-
       <aside className="w-[200px] h-full flex flex-col justify-between border-r border-line bg-deck shrink-0">
         <div>
           <button onClick={() => navigate('/')} className="h-16 w-full px-5 flex items-center border-b border-line text-left" aria-label="HELQIX start page">

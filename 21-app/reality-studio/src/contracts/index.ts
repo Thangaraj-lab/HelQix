@@ -170,6 +170,8 @@ export interface EngineClient {
   createProject(): Promise<Project>;
   /** Home's project list (GET /v1/projects). Not in file 35 section 8; added for the Home screen. */
   listProjects(): Promise<Project[]>;
+  /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
+  getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(
     pid: string,
     input: { prompt: string; attachments?: AssetRef[] } | { scratch: true } | { importAsset: AssetRef }

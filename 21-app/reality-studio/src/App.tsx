@@ -1,5 +1,4 @@
 import React from 'react';
-import { AppStateProvider } from './engineering/stateStore';
 import { StudioStoreProvider } from './stores';
 import { AppShell } from './app/AppShell';
 import { navigate, useLocation } from './app/router';
@@ -33,9 +32,7 @@ const Routes: React.FC = () => {
 
 export const App: React.FC = () => (
   <StudioStoreProvider>
-    <AppStateProvider>
-      <Routes />
-    </AppStateProvider>
+    <Routes />
   </StudioStoreProvider>
 );
 

@@ -26,6 +26,10 @@ export class RealEngineClient implements EngineClient {
     throw new Error('RealEngineClient: listProjects not yet connected to live engine crate.');
   }
 
+  async getRevision(): Promise<ModelRevision | null> {
+    throw new Error('RealEngineClient: getRevision not yet connected to live engine crate.');
+  }
+
   async startBuild(pid: string, input: any): Promise<{ buildId: string }> {
     throw new Error('RealEngineClient: startBuild not yet connected to live engine crate.');
   }

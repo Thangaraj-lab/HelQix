@@ -3,7 +3,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MOCK_CAUSAL_CHAIN, MOCK_COMPONENTS, MOCK_VALIDATION_RULES } from '../mock/engineeringData';
+import { MockEngineClient } from '../mock/MockEngineClient';
+import { scriptedBranchTemperature } from '../mock/branches';
 
 const SRC = join(__dirname, '..');
 
@@ -57,26 +58,54 @@ describe('plan rule 4: never fake', () => {
   });
 });
 
-describe('mock data honesty (ported from the original honesty.test.mjs)', () => {
-  it('keeps a failing requirement failing', () => {
-    const failing = MOCK_VALIDATION_RULES.find((r) => !r.passed);
-    expect(failing).toBeTruthy();
-    expect(failing!.passed).toBe(false);
+describe('plan rule 4 (continued): copy that claims what the build cannot back', () => {
+  it('never says Calibrated or Confidence (verification is a checklist, not a score)', () => {
+    expect(hits(/Calibrated|Confidence/)).toEqual([]);
   });
 
-  it('calls unproven causes "Candidate root cause", never "Root cause"', () => {
-    const roots = MOCK_CAUSAL_CHAIN.filter((n) => n.isCandidateRoot);
-    expect(roots.length).toBeGreaterThan(0);
-    for (const n of roots) {
-      expect(n.label).toContain('Candidate root cause');
-      expect(n.label.startsWith('Root cause:')).toBe(false);
+  it('never claims a compliance standard (ASIL, ISO 26262, ASME V&V)', () => {
+    expect(hits(/ASIL|ISO 26262|ASME V&V/)).toEqual([]);
+  });
+
+  it('never uses a browser alert() to fake an action', () => {
+    expect(hits(/(^|[^.\w])alert\(|window\.alert\(/)).toEqual([]);
+  });
+
+  it('never renders a bare "Verified" badge string outside the verification checklist logic', () => {
+    expect(hits(/>\s*Verified\s*</)).toEqual([]);
+  });
+});
+
+describe('mock engine honesty', () => {
+  it('tags every value mock, with a unit, and never verified', async () => {
+    for (const t of [0, 4.2, 8.42, 12]) {
+      const frame = await MockEngineClient.getFrame('run', t);
+      for (const v of Object.values(frame.values)) {
+        expect(v.mock).toBe(true);
+        expect(v.unit.length).toBeGreaterThan(0);
+        expect(v.status).toBe('unverified');
+      }
     }
   });
 
-  it('gives every component explicit units', () => {
-    for (const c of MOCK_COMPONENTS) {
-      expect(c.massUnit?.length).toBeGreaterThan(0);
-      expect(c.dimUnit?.length).toBeGreaterThan(0);
+  it('is deterministic: the same time gives identical frames, however it is reached', async () => {
+    const a = await MockEngineClient.getFrame('run', 8.42);
+    await MockEngineClient.getFrame('run', 2);
+    const b = await MockEngineClient.getFrame('run', 8.42);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('replays bit-identically: every streamed frame equals getFrame at the same time', async () => {
+    for await (const f of MockEngineClient.runFrames('run')) {
+      expect(JSON.stringify(await MockEngineClient.getFrame('run', f.t))).toBe(JSON.stringify(f));
     }
+  });
+
+  it('scripted branch: no intervention changes nothing, more cooling lowers the peak, and it is repeatable', () => {
+    const base: [number, number][] = [[0, 25], [5, 80], [10, 130]];
+    expect(scriptedBranchTemperature(base, { coolingPct: 0, loadPct: 0 })).toEqual(base);
+    const cooled = scriptedBranchTemperature(base, { coolingPct: 20, loadPct: 0 });
+    expect(cooled[2][1]).toBeLessThan(130);
+    expect(scriptedBranchTemperature(base, { coolingPct: 20, loadPct: 0 })).toEqual(cooled);
   });
 });
