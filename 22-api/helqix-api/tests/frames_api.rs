@@ -71,3 +71,28 @@ async fn frame_routes_serve_verified_stored_frames() {
 
     assert_eq!(get(&self::app(None), "/v1/runs/ref/frames").await.0, StatusCode::SERVICE_UNAVAILABLE, "no store configured");
 }
+
+#[tokio::test]
+async fn stored_runs_are_listed_with_their_variables() {
+    let dir = std::env::temp_dir().join(format!("helqix-api-runs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let s = spec();
+    let r = run(&s).unwrap();
+    FrameStore::open(&dir).unwrap().put("ref", &r, &point_mass_variables(), &chain_genesis(&s)).unwrap();
+    let app = app(Some(dir.clone()));
+
+    let (status, body) = get(&app, "/v1/runs").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let runs = body["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0]["runId"], "ref");
+    assert_eq!(runs[0]["variables"][1], serde_json::json!({"name": "y", "unit": "m"}));
+    assert!(runs[0]["rows"].as_u64().unwrap() > 1);
+
+    // Without a frame store there is nothing to list, and the API says so.
+    let (status, _) = get(&app_none(), "/v1/runs").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn app_none() -> Router { app(None) }

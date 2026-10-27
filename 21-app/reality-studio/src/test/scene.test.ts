@@ -52,3 +52,12 @@ describe('requirements', () => {
     expect(parseRequirement('R1', 'x', undefined, [])).toBeNull();
   });
 });
+
+describe('translation in metres', () => {
+  it('moves the part by the real distance from the first sample when the unit is m', () => {
+    const drop: [number, number][] = [[0, 20], [1, 15.1]];
+    const slide: Binding = { id: 's', variable: 'y', node: 'ball', channel: 'translation', axis: 'y', units: 'm', range: [15.1, 20] };
+    expect(stateFor('ball', [slide], { y: drop }, 1).slide?.metres).toBeCloseTo(-4.9);
+    expect(stateFor('ball', [{ ...slide, units: 'mm' }], { y: drop }, 1).slide?.metres).toBeNull();
+  });
+});

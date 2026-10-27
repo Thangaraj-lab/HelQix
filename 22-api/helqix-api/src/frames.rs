@@ -31,6 +31,15 @@ async fn load(state: &AppState, id: String) -> Result<StoredRun, ApiError> {
     tokio::task::spawn_blocking(move || FrameStore::open(dir).and_then(|s| s.load(&id))).await.map_err(|_| ApiError::Internal)?.map_err(map)
 }
 
+/// `GET /v1/runs`: the stored runs (id, rows, determinism, variables with units). The frames are
+/// read with `/v1/runs/{id}/frames`; nothing here computes a run.
+pub async fn list_runs(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    let runs = tokio::task::spawn_blocking(move || FrameStore::open(dir).and_then(|s| s.list())).await.map_err(|_| ApiError::Internal)?.map_err(map)?;
+    let runs: Vec<Value> = runs.into_iter().map(|r| json!({"runId": r.meta.run_id, "rows": r.meta.rows, "determinism": r.meta.determinism, "variables": r.meta.variables, "framesBlake3": r.frames_blake3})).collect();
+    Ok(Json(json!({"runs": runs})))
+}
+
 pub async fn run_frames(State(state): State<AppState>, Path(id): Path<String>, Query(q): Query<FramesQuery>) -> Result<Json<Value>, ApiError> {
     let limit = q.limit.unwrap_or(1000);
     if limit == 0 || limit > 10_000 { return Err(ApiError::BadRequest("limit must be 1..10000".into())); }

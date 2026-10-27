@@ -79,3 +79,24 @@ describe('RealEngineClient against the API wire format', () => {
     expect(seen.authorization).toBe(false);
   });
 });
+
+describe('stored runs through the real client', () => {
+  it('lists stored runs with their variables and units', async () => {
+    const c = new RealEngineClient(base);
+    const runs = await c.listStoredRuns();
+    expect(runs[0]).toMatchObject({ id: 'reference-drop', determinism: 'Bitwise' });
+    expect(runs[0].variables).toContainEqual({ name: 'y', unit: 'm' });
+  });
+
+  it('reads every frame across pages, in order, with units and origin', async () => {
+    const c = new RealEngineClient(base);
+    const ts: number[] = [];
+    for await (const f of c.runFrames('reference-drop')) {
+      ts.push(f.t);
+      expect(f.values.y.unit).toBe('m');
+      expect(f.values.y.origin).toBe('simulated');
+    }
+    expect(ts).toHaveLength(101);
+    expect([...ts].sort((a, b) => a - b)).toEqual(ts);
+  });
+});

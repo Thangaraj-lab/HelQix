@@ -2,7 +2,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { Binding, ModelRevision } from '../../contracts';
 import { Requirement, requirementsOf, violates } from '../../app/requirements';
 import { SceneConnection, ScenePart, Series } from '../../scene/types';
-import { RunData, useRun } from '../simulate/useRun';
+import { RunData, RunSelection, useRunSelection } from '../simulate/useRun';
 import { revisionToScene } from '../model/useRevision';
 
 // Everything the stages share about the committed model: its parts and bindings, its requirements,
@@ -28,6 +28,8 @@ export interface ModelData {
   requirements: Requirement[];
   /** The stored run, or null when the model has no bindings (nothing in the mock engine to run) */
   run: RunData | null;
+  /** The stored runs on offer and which one is selected (the URL's run) */
+  runChoice: Pick<RunSelection, 'runs' | 'runId' | 'runsError'>;
   series: Series;
   failure: FailureInfo | null;
 }
@@ -35,7 +37,8 @@ export interface ModelData {
 const Ctx = createContext<ModelData | null>(null);
 
 export const ModelProvider: React.FC<{ projectId: string; revision: ModelRevision | null; loading: boolean; children: React.ReactNode }> = ({ projectId, revision, loading, children }) => {
-  const rawRun = useRun();
+  const selection = useRunSelection();
+  const rawRun = selection.run;
   const value = useMemo<ModelData>(() => {
     const bindings = revision ? Object.values(revision.bindings) : [];
     const requirements = requirementsOf(revision);
@@ -62,10 +65,11 @@ export const ModelProvider: React.FC<{ projectId: string; revision: ModelRevisio
       bindings,
       requirements,
       run,
+      runChoice: { runs: selection.runs, runId: selection.runId, runsError: selection.runsError },
       series,
       failure
     };
-  }, [projectId, revision, loading, rawRun]);
+  }, [projectId, revision, loading, rawRun, selection.runs, selection.runId, selection.runsError]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 };

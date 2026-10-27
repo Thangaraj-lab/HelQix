@@ -3,7 +3,7 @@ import { CircleCheck, CircleX, TriangleAlert } from 'lucide-react';
 import { limitLabel } from '../../app/requirements';
 import { replayCheck, ReplayResult, short } from '../../app/evidence';
 import { useStudio } from '../../stores';
-import { Button, Chip, ExampleTag, MockTag, Reading } from '../../components/ui/UiKit';
+import { Button, Chip, ExampleIfMock, MockTag, Reading } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { valueAtTime } from '../../scene/bindings';
 import { useModelData } from '../studio/ModelContext';
@@ -168,7 +168,7 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
       </PanelCard>
 
       {node && (
-        <PanelCard title="Node detail" aside={<ExampleTag />}>
+        <PanelCard title="Node detail" aside={<ExampleIfMock />}>
           <p className="text-[13px] font-medium text-strong">{node.title}</p>
           <div className="grid grid-cols-2 gap-4">
             <Reading label={node.isBreach ? 'Limit' : 'Before'} value={+node.before.toFixed(1)} unit={node.unit} mock />

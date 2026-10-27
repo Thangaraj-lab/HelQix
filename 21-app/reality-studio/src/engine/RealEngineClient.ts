@@ -9,7 +9,8 @@ import {
   Project,
   RunFrame,
   RunSummary,
-  Source
+  Source,
+  StoredRunInfo
 } from '../contracts';
 import { foldRevision, fromWireEvent, fromWireFrame, fromWireProject, fromWireSource, toWireOp } from './wire';
 
@@ -62,6 +63,11 @@ export class RealEngineClient implements EngineClient {
     const payload = { ...current.data.data.payload, name: name.trim() || current.data.data.payload?.name || 'Untitled project' };
     const { data } = await this.call<{ data: any }>('PUT', `/v1/projects/${pid}`, { payload }, { 'if-match': current.etag ?? `"${current.data.data.version}"` });
     return fromWireProject(data.data, 0);
+  }
+
+  async listStoredRuns(): Promise<StoredRunInfo[]> {
+    const { data } = await this.call<{ runs: any[] }>('GET', '/v1/runs');
+    return data.runs.map(r => ({ id: r.runId, rows: r.rows, determinism: r.determinism, variables: r.variables }));
   }
 
   async listRuns(): Promise<RunSummary[]> {

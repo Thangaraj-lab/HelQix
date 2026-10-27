@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, Inbox, TriangleAlert, X } from 'lucide-react';
 import { Value as ValueContract } from '../../contracts';
+import { engineMode } from '../../engine';
 
 // The honest-labelling tags (file 37 rules 2 and 10) and the shared primitives. Calm by design:
 // solid surfaces, hairline borders, one accent. Tags are the only small-caps text in the product.
@@ -8,7 +9,7 @@ import { Value as ValueContract } from '../../contracts';
 const tagBase =
   'inline-flex items-center h-[18px] px-1.5 rounded-[5px] text-[10px] font-medium tracking-[0.04em] uppercase border whitespace-nowrap';
 
-export const MockTag: React.FC<{ label?: string }> = ({ label = 'Mock' }) => (
+export const MockTag: React.FC<{ label?: string }> = ({ label = 'Mock' }) => engineMode === 'real' ? null : (
   <span className={`${tagBase} text-bad border-bad/30 bg-bad/10`} title="Demonstration data from src/mock, not an engine result">{label}</span>
 );
 
@@ -23,6 +24,9 @@ export const PlaceholderTag: React.FC<{ label?: string }> = ({ label = 'Placehol
 export const ExampleTag: React.FC<{ label?: string }> = ({ label = 'Example' }) => (
   <span className={`${tagBase} text-trace border-trace/30 bg-trace/10`}>{label}</span>
 );
+
+/** The Example tag, only while the mock engine supplies the content. */
+export const ExampleIfMock: React.FC = () => (engineMode === 'mock' ? <ExampleTag /> : null);
 
 // --- Buttons ---------------------------------------------------------------
 

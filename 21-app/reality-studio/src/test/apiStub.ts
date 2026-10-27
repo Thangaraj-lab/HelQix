@@ -19,6 +19,14 @@ const builds = new Map<string, { pid: string; ops: any[]; events: any[] }>();
 const revisions = new Map<string, any[]>();
 export const seen = { authorization: false };
 
+// A stored drop run: a point mass falling from 20 m, y(t) = 20 - g t^2 / 2, sampled every 10 ms.
+const DROP_VARS = ['x', 'y', 'z', 'vx', 'vy', 'vz'].map(name => ({ name, unit: name.startsWith('v') ? 'm/s' : 'm' }));
+const val = (v: number, unit: string) => ({ v, unit, origin: 'simulated', status: 'unverified' });
+const DROP = Array.from({ length: 101 }, (_, i) => {
+  const t = i / 100;
+  return { runId: 'reference-drop', index: i, t: val(t, 's'), state: { x: val(3 * t, 'm'), y: val(20 - 0.5 * 9.80665 * t * t, 'm'), z: val(0, 'm'), vx: val(3, 'm/s'), vy: val(-9.80665 * t, 'm/s'), vz: val(0, 'm/s') }, determinism: 'Bitwise', stateSha256: 'c'.repeat(64) };
+});
+
 const send = (res: http.ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
   res.writeHead(status, { 'content-type': 'application/json', ...headers });
   res.end(JSON.stringify(body));
@@ -93,6 +101,19 @@ export async function startStub(port = 0): Promise<{ server: http.Server; base: 
         const ops = (revisions.get(r[1]) ?? [])[Number(r[2]) - 1];
         if (!ops) return send(res, 404, { error: 'resource not found' });
         return send(res, 200, { revision: { projectId: r[1], number: Number(r[2]), label: `r${r[2]}`, buildId: 'b', opCount: ops.length, modelSha256: 'a'.repeat(64), committedAt: 'now' }, ops });
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/runs') return send(res, 200, { runs: [{ runId: 'reference-drop', rows: DROP.length, determinism: 'Bitwise', variables: DROP_VARS, framesBlake3: 'b'.repeat(64) }] });
+      if ((r = m(/^\/v1\/runs\/([^/]+)\/frames$/)) && req.method === 'GET') {
+        if (r[1] !== 'reference-drop') return send(res, 404, { error: 'resource not found' });
+        const from = Number(url.searchParams.get('from') ?? 0), limit = Number(url.searchParams.get('limit') ?? 1000);
+        const frames = DROP.filter(f => f.index >= from).slice(0, limit);
+        const last = frames[frames.length - 1];
+        return send(res, 200, { runId: r[1], framesBlake3: 'b'.repeat(64), rows: DROP.length, determinism: 'Bitwise', frames, next: last && last.index + 1 < DROP.length ? last.index + 1 : null });
+      }
+      if ((r = m(/^\/v1\/runs\/([^/]+)\/frame$/)) && req.method === 'GET') {
+        const t = Number(url.searchParams.get('t'));
+        const f = DROP.find(x => Math.abs(x.t.v - t) < 1e-9);
+        return f ? send(res, 200, { framesBlake3: 'b'.repeat(64), frame: f }) : send(res, 422, { error: 'rejected: time outside the run' });
       }
       if (req.method === 'GET' && url.pathname === '/v1/sources') return send(res, 200, { sources: [], note: 'No sources connected. Parts will be placeholders or defined from scratch.' });
       return send(res, 404, { error: 'resource not found' });

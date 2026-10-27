@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Check, TriangleAlert } from 'lucide-react';
 import { BranchParams, scriptedBranchTemperature } from '../../mock/branches';
 import { limitLabel, violates } from '../../app/requirements';
+import { engineMode } from '../../engine';
 import { Chip, EmptyState, ExampleTag, MockTag, Reading, SectionLabel, SliderWithUnit } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { LineChart } from '../../components/charts/LineChart';
@@ -25,6 +26,13 @@ export const ImproveStage: React.FC<ImproveStageProps> = ({ branch, onBranchChan
   const original = useMemo(() => (req ? model.series[req.variable] ?? [] : []), [model.series, req]);
   const scripted = useMemo(() => scriptedBranchTemperature(original, branch), [original, branch]);
 
+  if (engineMode === 'real') {
+    return (
+      <div className="relative z-10 m-auto max-w-md">
+        <EmptyState title="Branching is not available yet" description="The real engine cannot fork a run. A branch here would be a scripted scaling of the curve, so it is only offered with the mock engine." />
+      </div>
+    );
+  }
   if (!model.run || !req || original.length === 0) {
     return (
       <div className="relative z-10 m-auto max-w-md">

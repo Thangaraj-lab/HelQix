@@ -110,6 +110,14 @@ export interface BuildEvent {
   note?: string;
 }
 
+/** A recorded run the engine can serve frames for (not tied to a model; the user binds model parts to its variables). */
+export interface StoredRunInfo {
+  id: string;
+  rows: number;
+  determinism: string;
+  variables: { name: string; unit: string }[];
+}
+
 export interface RunSummary {
   id: string;
   projectId: string;
@@ -182,6 +190,8 @@ export interface EngineClient {
   listProjects(): Promise<Project[]>;
   /** Rename a project (inline rename in the Studio header). */
   renameProject(pid: string, name: string): Promise<Project>;
+  /** Recorded runs available to simulate against. */
+  listStoredRuns(): Promise<StoredRunInfo[]>;
   /** Runs started for a project, newest first. Not in file 35 section 8; added for Home's recent runs. */
   listRuns(pid: string): Promise<RunSummary[]>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */

@@ -61,7 +61,8 @@ export interface PartVisualState {
   /** 0..1+ shake amplitude */
   shake: number | null;
   /** 0..1 along the translation axis */
-  slide: { axis: 'x' | 'y' | 'z'; amount: number } | null;
+  /** amount: 0..1 along the range. metres: the real displacement from the first sample, when the unit is m. */
+  slide: { axis: 'x' | 'y' | 'z'; amount: number; metres: number | null } | null;
   visible: boolean;
 }
 
@@ -77,7 +78,7 @@ export function stateFor(partId: string, bindings: Binding[], series: Series, t:
       case 'color': out.heat = normalised(b, v); break;
       case 'emissive': out.glow = normalised(b, v); break;
       case 'vibration': out.shake = normalised(b, v); break;
-      case 'translation': out.slide = { axis: b.axis ?? 'x', amount: normalised(b, v) }; break;
+      case 'translation': out.slide = { axis: b.axis ?? 'x', amount: normalised(b, v), metres: b.units === 'm' && pts ? v - pts[0][1] : null }; break;
       case 'visibility': out.visible = normalised(b, v) > 0.5; break;
       default: break;
     }

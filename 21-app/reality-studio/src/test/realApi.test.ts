@@ -86,6 +86,15 @@ describe.skipIf(!URL_ || !KEY)('RealEngineClient against the real API', () => {
     expect(Object.values(at.values).every(x => typeof x.v === 'number' && x.unit.length > 0)).toBe(true);
   });
 
+  it('lists the recorded run with its variables and units', async () => {
+    const runs = await client.listStoredRuns();
+    const mine = runs.find(r => r.id === RUN);
+    expect(mine).toBeTruthy();
+    expect(mine!.variables.length).toBeGreaterThan(0);
+    expect(mine!.variables.every(v => v.name.length > 0 && v.unit.length > 0)).toBe(true);
+    expect(mine!.rows).toBeGreaterThan(1);
+  });
+
   it('reports no sources honestly when none are connected', async () => {
     const s = await client.listSources();
     expect(Array.isArray(s)).toBe(true);

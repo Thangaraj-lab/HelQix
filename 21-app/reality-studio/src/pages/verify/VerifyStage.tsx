@@ -2,7 +2,7 @@ import React from 'react';
 import { CircleCheck, CircleDashed, CircleX } from 'lucide-react';
 import { limitLabel, violates } from '../../app/requirements';
 import { short } from '../../app/evidence';
-import { Button, Chip, ExampleTag, MockTag, PreviewTag, SectionLabel } from '../../components/ui/UiKit';
+import { Button, Chip, ExampleIfMock, MockTag, PreviewTag, SectionLabel } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { useEvidencePackage } from '../evidence/usePackage';
 import { useModelData } from '../studio/ModelContext';
@@ -33,7 +33,7 @@ export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet })
   const icon = (s: CheckState) => s === 'done' ? <CircleCheck size={15} className="text-ok shrink-0" /> : s === 'failed' ? <CircleX size={15} className="text-bad shrink-0" /> : <CircleDashed size={15} className="text-muted shrink-0" />;
 
   const left = (
-    <PanelCard title="Requirements" aside={<ExampleTag />}>
+    <PanelCard title="Requirements" aside={<ExampleIfMock />}>
       {requirements.length === 0 ? (
         <p className="text-xs text-muted">No requirement is defined for this model, so there is nothing to check yet.</p>
       ) : (

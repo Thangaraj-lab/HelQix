@@ -492,7 +492,7 @@ export const ModelScene: React.FC<ModelSceneProps> = props => {
             const amp = 0.012 + Math.min(1.6, s.shake) * 0.03;
             v.body.position.set(Math.sin(props.t * 61 + hash01(v.size[0]) * 6) * amp, Math.sin(props.t * 47) * amp * 0.6, Math.cos(props.t * 53) * amp);
           }
-          if (s.slide) { const ext = Math.max(...v.size) * 0.5; v.body.position[s.slide.axis] += s.slide.amount * ext; }
+          if (s.slide) { const ext = Math.max(...v.size) * 0.5; v.body.position[s.slide.axis] += s.slide.metres !== null ? s.slide.metres : s.slide.amount * ext; }
           v.group.visible = s.visible;
           // rotation marker: a bright tick on the side so spin is visible on a symmetric part
           if (s.rotation && !v.marker) {

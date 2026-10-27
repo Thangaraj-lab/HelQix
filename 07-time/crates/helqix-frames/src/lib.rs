@@ -211,6 +211,19 @@ impl FrameStore {
     }
 
     pub fn root(&self) -> &Path { &self.root }
+
+    /// Every run in the index, by run id. An unreadable index entry is an error, not skipped silently.
+    pub fn list(&self) -> Result<Vec<RunIndex>, FrameError> {
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(self.root.join("runs")).map_err(io)? {
+            let path = entry.map_err(io)?.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") { continue; }
+            let bytes = std::fs::read(&path).map_err(io)?;
+            out.push(serde_json::from_slice::<RunIndex>(&bytes).map_err(fmt_err)?);
+        }
+        out.sort_by(|a, b| a.meta.run_id.cmp(&b.meta.run_id));
+        Ok(out)
+    }
 }
 
 /// The six point-mass state variables, in helixsim order.

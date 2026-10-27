@@ -54,6 +54,8 @@ export interface SelectionState {
 export interface PlaybackState {
   t: number;
   duration: number;
+  /** The Simulate stage sets this to the length of the run being played. */
+  setDuration: (d: number) => void;
   speed: number;
   isPlaying: boolean;
   setT: (t: number) => void;
@@ -160,7 +162,7 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 3. Playback Store
   const [t, setT] = useState<number>(0);
-  const duration = 12.0;
+  const [duration, setDuration] = useState<number>(12.0);
   const [speed, setSpeed] = useState<number>(1.0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
@@ -253,6 +255,7 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
     playback: {
       t,
       duration,
+      setDuration,
       speed,
       isPlaying,
       setT,

@@ -5,7 +5,8 @@ import { engine, engineMode } from '../../engine';
 import { Checkpoint } from '../../contracts';
 import { EXAMPLE_SCENARIOS, MOCK_RUN_ID, RUNNABLE_SCENARIO } from '../../mock/scenarios';
 import { violates, limitLabel } from '../../app/requirements';
-import { Button, Chip, EmptyState, ExampleTag, IconButton, MockTag, SectionLabel, Tabs } from '../../components/ui/UiKit';
+import { setQuery } from '../../app/router';
+import { Button, Chip, EmptyState, ExampleIfMock, ExampleTag, IconButton, MockTag, SectionLabel, Tabs } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { LineChart } from '../../components/charts/LineChart';
 import { useModelData } from '../studio/ModelContext';
@@ -38,10 +39,11 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
   // Start from the top, playing. Record one run per revision and session.
   useEffect(() => {
     if (!run || !model.revision) return;
+    playback.setDuration(run.duration);
     playback.setT(0);
     playback.play();
     const key = `ran:${model.projectId}:${model.revision.id}`;
-    if (started.current !== key && !sessionStorage.getItem(key)) {
+    if (engineMode === 'mock' && started.current !== key && !sessionStorage.getItem(key)) {
       started.current = key;
       sessionStorage.setItem(key, '1');
       void engine.run(model.projectId, scenario, { revisionNum: model.revision.revisionNum }).catch(() => undefined);
@@ -73,7 +75,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
       <div className="relative z-10 m-auto max-w-md">
         <EmptyState
           title={model.revision ? 'Nothing to simulate yet' : 'No committed model'}
-          description={!model.revision ? 'Create model r1 in Define first.' : engineMode === 'real' ? 'The real engine has no solver connected to the Studio yet, so there is no run to show. Switch to the mock engine (VITE_ENGINE unset) to see a scripted demonstration.' : 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.'}
+          description={!model.revision ? 'Create model r1 in Define first.' : engineMode === 'real' && model.bindings.length > 0 ? (model.runChoice.runs?.length ? 'The selected stored run could not be read.' : 'The engine has no stored run to play. Record one with helqix-frames-record, or use the mock engine for a scripted demonstration.') : 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.'}
         />
       </div>
     );
@@ -84,6 +86,17 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
 
   const left = (
     <>
+      {engineMode === 'real' ? (
+        <PanelCard title="Stored run">
+          <label className="block space-y-1.5">
+            <span className="text-[11px] text-muted">Run to play</span>
+            <select value={model.runChoice.runId ?? ''} onChange={e => setQuery({ run: e.target.value })} aria-label="Stored run" className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60">
+              {(model.runChoice.runs ?? []).map(r => <option key={r.id} value={r.id}>{r.id} ({r.rows} frames)</option>)}
+            </select>
+          </label>
+          <p className="text-[11px] text-muted">A recorded run, not generated from this model. Its variables drive the parts you bound to them.</p>
+        </PanelCard>
+      ) : (
       <PanelCard title="Scenario" aside={<ExampleTag />}>
         <ul className="space-y-1">
           {EXAMPLE_SCENARIOS.map(s => {
@@ -107,6 +120,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
         </ul>
         <p className="text-[11px] text-muted">Only the current scenario has a scripted run.</p>
       </PanelCard>
+      )}
 
       <PanelCard title="Controls">
         <div className="flex items-center gap-1">
@@ -147,7 +161,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
         </ul>
         <p className="text-[11px] text-muted">A part moves only because a stored variable is bound to it.</p>
       </PanelCard>
-      <PanelCard title="Requirements" aside={<ExampleTag />}>
+      <PanelCard title="Requirements" aside={<ExampleIfMock />}>
         {requirements.length === 0 ? <p className="text-xs text-muted">No requirement is defined for this model.</p> : (
           <ul className="space-y-2.5">
             {requirements.map(r => {
@@ -175,7 +189,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
             </li>
           ))}
         </ol>
-        <p className="text-[11px] text-muted">Run: scripted demonstration, seed 8421. <MockTag /></p>
+        {engineMode === 'mock' ? <p className="text-[11px] text-muted">Run: scripted demonstration, seed 8421. <MockTag /></p> : <p className="text-[11px] text-muted">Run: <span className="num">{run.id}</span>, determinism {model.runChoice.runs?.find(r => r.id === run.id)?.determinism ?? 'unknown'}.</p>}
       </PanelCard>
     </>
   );
@@ -185,7 +199,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
       <TriangleAlert size={18} className="text-bad shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-medium text-strong">{failure.partName.replace(/ \(Example\)$/, '')} passed its limit at {failure.t.toFixed(2)} s</p>
-        <p className="text-xs text-muted mt-0.5">{pretty(failure.requirement.variable)} reached <span className="num text-ink">{failure.value} {failure.requirement.unit}</span> against {limitLabel(failure.requirement)} ({failure.requirement.id}). Mock result.</p>
+        <p className="text-xs text-muted mt-0.5">{pretty(failure.requirement.variable)} reached <span className="num text-ink">{failure.value} {failure.requirement.unit}</span> against {limitLabel(failure.requirement)} ({failure.requirement.id}).{engineMode === 'mock' ? ' Mock result.' : ''}</p>
       </div>
       <Button variant="danger" size="sm" onClick={onInvestigateFailure}>Investigate failure</Button>
     </div>

@@ -10,7 +10,8 @@ import {
   Intervention,
   AssetRef,
   Value,
-  RunSummary
+  RunSummary,
+  StoredRunInfo
 } from '../contracts';
 import { getMockBuildScriptEvents, MOCK_SOURCES, createMockValue } from './examplePack';
 
@@ -81,6 +82,11 @@ class MockEngineClientImpl implements EngineClient {
     p.updatedAt = new Date().toISOString();
     this.saveState();
     return p;
+  }
+
+  async listStoredRuns(): Promise<StoredRunInfo[]> {
+    const f = this.computeFrame(0);
+    return [{ id: 'mock-run-1', rows: 121, determinism: 'Bitwise', variables: Object.entries(f.values).map(([name, v]) => ({ name, unit: v.unit })) }];
   }
 
   async listRuns(pid: string): Promise<RunSummary[]> {
