@@ -176,6 +176,7 @@ class StreamServer:
 
     # --- input from the viewer (asyncio thread) ---
     def on_input(self, text: str) -> None:
+        self.inputs_received = getattr(self, "inputs_received", 0) + 1
         try:
             ev = json.loads(text)
         except ValueError:
@@ -197,6 +198,10 @@ class StreamServer:
             await page.mouse.wheel(0, max(min(float(ev.get("dy", 0)), 1000), -1000))
         elif t == "key" and ev.get("key") in ALLOWED_KEYS:
             await page.keyboard.press(" " if ev["key"] == "Space" else ev["key"])
+            if ev["key"] == "m":
+                self.m_pressed = getattr(self, "m_pressed", 0) + 1
+                if self.m_pressed <= 3 or self.m_pressed % 20 == 0:
+                    log(f"key m #{self.m_pressed}: scene marker index {await page.evaluate('window.__markerIndex()')}, inputs received {self.inputs_received}")
 
     # --- HTTP ---
     def authorised(self, request) -> bool:

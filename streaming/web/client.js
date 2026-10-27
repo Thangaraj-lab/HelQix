@@ -55,6 +55,7 @@ function markerColour() {
   let r = 0, g = 0, b = 0;
   for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
   const n = d.length / 4; r /= n; g /= n; b /= n;
+  window.__lastRgb = [Math.round(r), Math.round(g), Math.round(b)];
   if (r > 150 && g < 110 && b < 110) return "red";
   if (g > 150 && r < 110 && b < 110) return "green";
   return "none";
@@ -81,12 +82,14 @@ async function inboundStats() {
 async function measure(n) {
   status("measuring");
   const lat = [], timeouts = [];
+  let sent = 0;
   let expected = "red";
   const s0 = await inboundStats(), w0 = performance.now();
   for (let i = 0; i < n; i++) {
     await new Promise((r) => setTimeout(r, 150 + Math.random() * 100));
     const t0 = performance.now();
     send({ t: "key", key: "m" });
+    sent++;
     const t1 = await waitFor(expected, 3000);
     if (t1 === null) timeouts.push(i); else lat.push(t1 - t0);
     expected = expected === "red" ? "green" : "red";
@@ -98,6 +101,7 @@ async function measure(n) {
   const secs = (w1 - w0) / 1000;
   const result = {
     samples: n, measured: lat.length, timeouts: timeouts.length,
+    diag: { sent, channel: channel ? channel.readyState : null, last_rgb: window.__lastRgb || null, video_size: [video.videoWidth, video.videoHeight] },
     latency_ms: { min: lat.length ? +lat[0].toFixed(1) : null, p50: pct(0.5), p95: pct(0.95), max: lat.length ? +lat[lat.length - 1].toFixed(1) : null },
     video: s1 && s0 ? {
       width: s1.frameWidth, height: s1.frameHeight, fps: s1.framesPerSecond,

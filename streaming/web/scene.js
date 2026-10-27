@@ -33,6 +33,7 @@ scene.add(base, upright, new THREE.GridHelper(0.3, 30, 0x666666, 0x4a4a4a).rotat
 // Latency marker state: null (none yet), then red, green, red, ...
 const MARKER = [new THREE.Color(1, 0, 0), new THREE.Color(0, 1, 0)];
 let markerIndex = -1;
+window.__markerIndex = () => markerIndex; // read by the server, to tell input problems from drawing problems
 addEventListener("keydown", (e) => { if (e.key === "m") markerIndex = (markerIndex + 1) % 2; });
 
 // Size from the window on every frame: at start-up a kiosk window can still report 0 x 0.
