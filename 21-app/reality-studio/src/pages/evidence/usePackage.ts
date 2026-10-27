@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ModelRevision } from '../../contracts';
-import { EXAMPLE_REQUIREMENT } from '../../mock/scenarios';
+import { useModelData } from '../studio/ModelContext';
 import { hashOf, replayCheck, ReplayResult } from '../../app/evidence';
-import { useRun } from '../simulate/useRun';
 
 export interface PackageItem {
   id: string;
@@ -22,12 +20,12 @@ export interface EvidencePackage {
  * hashes computed here. It is a preview of the package: nothing is signed or written until the
  * evidence service (helqix-evidence-pack) is connected.
  */
-export function useEvidencePackage(revision: ModelRevision | null): EvidencePackage | null {
-  const run = useRun();
+export function useEvidencePackage(enabled = true): EvidencePackage | null {
+  const { revision, run, requirements, failure } = useModelData();
   const [pkg, setPkg] = useState<EvidencePackage | null>(null);
 
   useEffect(() => {
-    if (!revision) { setPkg(null); return; }
+    if (!enabled || !revision) { setPkg(null); return; }
     let live = true;
     (async () => {
       const items: PackageItem[] = [];
@@ -35,7 +33,7 @@ export function useEvidencePackage(revision: ModelRevision | null): EvidencePack
       if (revision) items.push({ id: 'revision', title: `Model revision r${revision.revisionNum}`, detail: `${Object.keys(revision.parts).length} parts, ${Object.keys(revision.connections).length} connections`, hash: await hashOf(revision) });
       if (run) {
         items.push({ id: 'frames', title: 'Run frames (mock)', detail: `${run.frames.length} frames`, hash: await hashOf(run.frames) });
-        items.push({ id: 'requirement', title: `Requirement ${EXAMPLE_REQUIREMENT.id} result`, detail: run.failureT != null ? `Violated at ${run.failureT.toFixed(2)} s` : 'Not violated', hash: await hashOf({ requirement: EXAMPLE_REQUIREMENT, failureT: run.failureT }) });
+        items.push({ id: 'requirement', title: requirements.length ? `Requirement ${requirements.map(r => r.id).join(', ')} result` : 'Requirements', detail: requirements.length ? (failure ? `Broken at ${failure.t.toFixed(2)} s` : 'Not broken in the run') : 'None defined', hash: await hashOf({ requirements, failureT: failure?.t ?? null }) });
         replay = await replayCheck(run.frames);
         items.push({ id: 'replay', title: 'Replay check', detail: replay.matches ? 'Replay matches original' : 'Replay differs', hash: replay.replayHash });
       }
@@ -43,7 +41,7 @@ export function useEvidencePackage(revision: ModelRevision | null): EvidencePack
       if (live) setPkg({ items, rootHash, replay });
     })();
     return () => { live = false; };
-  }, [revision, run]);
+  }, [enabled, revision, run, requirements, failure]);
 
   return pkg;
 }

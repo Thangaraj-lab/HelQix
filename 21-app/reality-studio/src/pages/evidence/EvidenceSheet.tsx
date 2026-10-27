@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { ModelRevision } from '../../contracts';
 import { short } from '../../app/evidence';
 import { Button, Drawer, MockTag, PreviewTag, SectionLabel } from '../../components/ui/UiKit';
 import { useEvidencePackage } from './usePackage';
@@ -8,15 +7,14 @@ import { useEvidencePackage } from './usePackage';
 export interface EvidenceSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  revision: ModelRevision | null;
 }
 
 // The command is the real offline verifier (13-verification/crates/helqix-evidence-verify). The
 // package directory and trusted key exist only after the evidence service has signed a package.
 const VERIFIER = 'helqix-evidence-verify <package-dir> --trusted-key-file <public-key>';
 
-export const EvidenceSheet: React.FC<EvidenceSheetProps> = ({ isOpen, onClose, revision }) => {
-  const pkg = useEvidencePackage(isOpen ? revision : null);
+export const EvidenceSheet: React.FC<EvidenceSheetProps> = ({ isOpen, onClose }) => {
+  const pkg = useEvidencePackage(isOpen);
   const [copied, setCopied] = useState(false);
 
   const copy = () => {

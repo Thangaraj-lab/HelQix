@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Boxes, CircleAlert, Paperclip, Sparkles } from 'lucide-react';
-import { Project, Source } from '../../contracts';
+import { Project, RunSummary, Source } from '../../contracts';
+import { EXAMPLE_SCENARIOS } from '../../mock/scenarios';
 import { engine } from '../../engine';
 import { navigate } from '../../app/router';
 import { startProject } from '../../app/start';
@@ -21,6 +22,7 @@ export const OverviewPage: React.FC = () => {
   const [text, setText] = useState('');
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
+  const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,6 +32,7 @@ export const OverviewPage: React.FC = () => {
       .listProjects()
       .then(async list => {
         setProjects(list);
+        Promise.all(list.map(p => engine.listRuns(p.id).catch(() => [] as RunSummary[]))).then(r => setRuns(r.flat().sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 6)));
         try {
           setSources(await engine.listSources(list[0]?.id ?? ''));
         } catch {
@@ -121,7 +124,26 @@ export const OverviewPage: React.FC = () => {
 
           <section aria-label="Recent runs" className="space-y-3">
             <SectionLabel>Recent runs</SectionLabel>
-            <EmptyState title="No runs yet" description="A run appears here after you commit a model and simulate it." />
+            {runs === null ? <Skeleton className="h-14" /> : runs.length === 0 ? (
+              <EmptyState title="No runs yet" description="A run appears here after you commit a model and simulate it." />
+            ) : (
+              <ul className="surface divide-y divide-line overflow-hidden">
+                {runs.map(r => {
+                  const p = projects?.find(x => x.id === r.projectId);
+                  return (
+                    <li key={r.id}>
+                      <button onClick={() => navigate(`/p/${encodeURIComponent(r.projectId)}?stage=simulate&rev=r${r.revisionNum}`)} className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.03] transition-colors">
+                        <span className="min-w-0">
+                          <span className="block text-[13px] text-strong truncate">{p?.name ?? r.projectId}</span>
+                          <span className="block text-[11px] text-muted">{EXAMPLE_SCENARIOS.find(s => s.id === r.scenarioId)?.title ?? r.scenarioId} · Model r{r.revisionNum}</span>
+                        </span>
+                        <span className="text-[11px] text-muted shrink-0">{new Date(r.startedAt).toLocaleString()}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
 
@@ -169,7 +191,7 @@ export const OverviewPage: React.FC = () => {
             <SectionLabel>Trust summary</SectionLabel>
             <dl className="space-y-2 text-[13px]">
               <div className="flex justify-between"><dt className="text-muted">Committed models</dt><dd className="num text-strong">{committed}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted">Runs</dt><dd className="num text-strong">0</dd></div>
+              <div className="flex justify-between"><dt className="text-muted">Runs</dt><dd className="num text-strong">{runs?.length ?? 0}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">Signed evidence</dt><dd className="num text-strong">0</dd></div>
             </dl>
             <p className="text-[11px] text-muted/80">Counts only. Nothing is verified until its criteria are shown.</p>

@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GitBranch, Pause, Play, Snowflake, Square, TriangleAlert } from 'lucide-react';
 import { useStudio } from '../../stores';
 import { engine } from '../../engine';
 import { Checkpoint } from '../../contracts';
-import { EXAMPLE_REQUIREMENT, EXAMPLE_SCENARIOS, MOCK_RUN_ID, RUNNABLE_SCENARIO } from '../../mock/scenarios';
-import { Button, Chip, ExampleTag, IconButton, MockTag, PreviewTag, Reading, SectionLabel, Tabs } from '../../components/ui/UiKit';
+import { EXAMPLE_SCENARIOS, MOCK_RUN_ID, RUNNABLE_SCENARIO } from '../../mock/scenarios';
+import { violates, limitLabel } from '../../app/requirements';
+import { Button, Chip, EmptyState, ExampleTag, IconButton, MockTag, SectionLabel, Tabs } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
-import { LineChart, Sparkline } from '../../components/charts/LineChart';
-import { useRun } from './useRun';
+import { LineChart } from '../../components/charts/LineChart';
+import { useModelData } from '../studio/ModelContext';
+import { valueAtTime } from '../../scene/bindings';
 
 export interface SimulateStageProps {
   onInvestigateFailure: () => void;
@@ -15,65 +17,75 @@ export interface SimulateStageProps {
 }
 
 const SPEEDS = ['0.5', '1', '2', '4'] as const;
-const LIMIT = EXAMPLE_REQUIREMENT.limit;
+const pretty = (v: string) => v.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+const VERBS: Record<string, string> = { rotation: 'spins with', color: 'heats with', emissive: 'glows with', vibration: 'shakes with', translation: 'slides with', visibility: 'shows with', scale: 'scales with', deformation: 'deforms with', flow: 'flows with' };
 
-// Simulate (file 37 section 6.10): scenarios and controls on the left, the readings over the canvas,
-// the environment and parameters on the right, telemetry, graph and events below. The run is a fixed
-// script from the mock engine, so every reading carries MOCK, Simulated and Unverified.
+// Simulate (file 37 section 6.10). The 3D canvas behind this stage is driven by the same clock as the
+// controls: every bound variable moves, heats or shakes its part at time t, and a breached
+// requirement marks the part that broke it. The run is a fixed script from the mock engine, so every
+// reading carries MOCK, Simulated and Unverified.
 export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailure, onForkBranch }) => {
-  const { session } = useStudio();
-  const run = useRun();
-  const [t, setT] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>('1');
+  const { playback } = useStudio();
+  const model = useModelData();
+  const { run, failure, bindings, series, requirements } = model;
   const [scenario, setScenario] = useState(RUNNABLE_SCENARIO);
   const [frozen, setFrozen] = useState<Checkpoint | null>(null);
+  const started = useRef<string | null>(null);
 
   const duration = run?.duration ?? 12;
+  const t = playback.t;
+
+  // Start from the top, playing. Record one run per revision and session.
   useEffect(() => {
-    if (!playing || !run) return;
-    const id = setInterval(() => {
-      setT(prev => {
-        const next = +(prev + 0.1 * Number(speed)).toFixed(2);
-        if (next >= duration) { setPlaying(false); return duration; }
-        return next;
-      });
-    }, 100);
-    return () => clearInterval(id);
-  }, [playing, speed, duration, run]);
-
-  const frame = run?.at(t) ?? null;
-  const failed = run?.failureT != null && t >= run.failureT;
-  const temp = frame?.values[EXAMPLE_REQUIREMENT.variable];
-
-  const series = useMemo(() => ({
-    temp: run?.series('stator_winding_temperature') ?? [],
-    speed: run?.series('rotor_angular_velocity') ?? [],
-    current: run?.series('phase_rms_current') ?? [],
-    torque: run?.series('shaft_torque_load') ?? []
-  }), [run]);
-
-  // Events come from the stored frames: a step in a value, and the first crossing of the limit.
-  const events = useMemo(() => {
-    if (!run) return [] as { t: number; text: string; tone: 'bad' | 'neutral' }[];
-    const out: { t: number; text: string; tone: 'bad' | 'neutral' }[] = [{ t: 0, text: 'Run started', tone: 'neutral' }];
-    const cur = series.torque;
-    for (let i = 1; i < cur.length; i++) {
-      if (Math.abs(cur[i][1] - cur[i - 1][1]) > 20) out.push({ t: cur[i][0], text: `Load changed to ${cur[i][1]} N·m`, tone: 'neutral' });
+    if (!run || !model.revision) return;
+    playback.setT(0);
+    playback.play();
+    const key = `ran:${model.projectId}:${model.revision.id}`;
+    if (started.current !== key && !sessionStorage.getItem(key)) {
+      started.current = key;
+      sessionStorage.setItem(key, '1');
+      void engine.run(model.projectId, scenario, { revisionNum: model.revision.revisionNum }).catch(() => undefined);
     }
-    if (run.failureT != null) out.push({ t: run.failureT, text: `Winding temperature reached ${LIMIT} ${EXAMPLE_REQUIREMENT.unit}, the limit of ${EXAMPLE_REQUIREMENT.id}`, tone: 'bad' });
-    return out.sort((a, b) => a.t - b.t);
-  }, [run, series.torque]);
+    return () => playback.pause();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run, model.revision?.id]);
 
-  const freeze = async () => {
-    setPlaying(false);
-    setFrozen(await engine.freeze(MOCK_RUN_ID, t));
-  };
+  const variables = useMemo(() => Array.from(new Map(bindings.map(b => [b.variable, b])).values()), [bindings]);
+  const at = (variable: string) => valueAtTime(series[variable], t);
+
+  // Events come from the stored frames: a large step in a bound value, and each requirement breach.
+  const events = useMemo(() => {
+    const out: { t: number; text: string; tone: 'bad' | 'neutral' }[] = [{ t: 0, text: 'Run started', tone: 'neutral' }];
+    for (const b of variables) {
+      const pts = series[b.variable] ?? [];
+      const [lo, hi] = b.range ?? [0, 1];
+      if (b.channel === 'rotation') continue;
+      for (let i = 1; i < pts.length; i++) {
+        if (Math.abs(pts[i][1] - pts[i - 1][1]) > (hi - lo) * 0.25) out.push({ t: pts[i][0], text: `${pretty(b.variable)} stepped to ${pts[i][1]} ${b.units}`, tone: 'neutral' });
+      }
+    }
+    if (failure) out.push({ t: failure.t, text: `${failure.requirement.id} broken: ${pretty(failure.requirement.variable)} passed ${limitLabel(failure.requirement)}`, tone: 'bad' });
+    return out.sort((a, b) => a.t - b.t);
+  }, [variables, series, failure]);
+
+  if (!run) {
+    return (
+      <div className="relative z-10 m-auto max-w-md">
+        <EmptyState
+          title={model.revision ? 'Nothing to simulate yet' : 'No committed model'}
+          description={model.revision ? 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.' : 'Create model r1 in Define first.'}
+        />
+      </div>
+    );
+  }
+
+  const failed = !!failure && t >= failure.t;
+  const freeze = async () => { playback.pause(); setFrozen(await engine.freeze(MOCK_RUN_ID, t)); };
 
   const left = (
     <>
-      <PanelCard title="Scenarios" aside={<ExampleTag />}>
-        <ul className="space-y-1.5">
+      <PanelCard title="Scenario" aside={<ExampleTag />}>
+        <ul className="space-y-1">
           {EXAMPLE_SCENARIOS.map(s => {
             const runnable = s.id === RUNNABLE_SCENARIO;
             const on = scenario === s.id;
@@ -83,33 +95,34 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
                   onClick={() => runnable && setScenario(s.id)}
                   disabled={!runnable}
                   aria-pressed={on}
-                  title={runnable ? undefined : 'No scripted run for this scenario'}
-                  className={`w-full text-left px-3 py-2 rounded-[10px] border transition-colors ${on ? 'border-accent/45 bg-accent/[0.07]' : 'border-line bg-white/[0.02]'} ${runnable ? 'hover:border-line-strong' : 'opacity-45'}`}
+                  title={runnable ? s.note : 'No scripted run for this scenario yet'}
+                  className={`w-full text-left h-9 px-3 rounded-[8px] border flex items-center justify-between gap-2 transition-colors ${on ? 'border-accent/45 bg-accent/[0.07]' : 'border-transparent'} ${runnable ? 'hover:bg-white/[0.04]' : 'opacity-40'}`}
                 >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 min-w-0"><span className="num text-[11px] text-muted">{s.num}</span><span className="text-[13px] text-strong truncate">{s.title}</span></span>
-                    {s.tag && <Chip tone={s.tag === 'Current' ? 'accent' : 'neutral'} className="!h-5">{s.tag}</Chip>}
-                  </span>
-                  <span className="block text-[11px] text-muted mt-0.5">{runnable ? `${s.duration} · ${s.note}` : 'No scripted run yet'}</span>
+                  <span className="flex items-center gap-2 min-w-0"><span className="num text-[11px] text-muted">{s.num}</span><span className="text-[13px] text-strong truncate">{s.title}</span></span>
+                  {s.tag && <Chip tone={s.tag === 'Current' ? 'accent' : 'neutral'} className="!h-5">{s.tag}</Chip>}
                 </button>
               </li>
             );
           })}
         </ul>
+        <p className="text-[11px] text-muted">Only the current scenario has a scripted run.</p>
       </PanelCard>
 
       <PanelCard title="Controls">
         <div className="flex items-center gap-1">
-          <IconButton label={playing ? 'Pause' : 'Play'} onClick={() => { if (t >= duration) setT(0); setPlaying(p => !p); }} active>
-            {playing ? <Pause size={15} /> : <Play size={15} />}
+          <IconButton label={playback.isPlaying ? 'Pause' : 'Play'} onClick={() => { if (t >= duration) playback.setT(0); playback.togglePlay(); }} active>
+            {playback.isPlaying ? <Pause size={15} /> : <Play size={15} />}
           </IconButton>
-          <IconButton label="Stop and rewind" onClick={() => { setPlaying(false); setT(0); }}><Square size={14} /></IconButton>
-          <Tabs tabs={SPEEDS.map(s => ({ id: s, label: `${s}x` }))} activeTab={speed} onChange={id => setSpeed(id as (typeof SPEEDS)[number])} className="ml-auto" />
+          <IconButton label="Stop and rewind" onClick={() => { playback.pause(); playback.setT(0); }}><Square size={14} /></IconButton>
+          <Tabs tabs={SPEEDS.map(s => ({ id: s, label: `${s}x` }))} activeTab={SPEEDS.includes(String(playback.speed) as (typeof SPEEDS)[number]) ? String(playback.speed) : '1'} onChange={id => playback.setSpeed(Number(id))} className="ml-auto" />
         </div>
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between text-xs"><span className="text-muted">Time</span><span className="num text-strong">{t.toFixed(1)} s <span className="text-muted">of {duration.toFixed(0)} s</span></span></div>
-          <input type="range" min={0} max={duration} step={0.1} value={t} onChange={e => { setPlaying(false); setT(Number(e.target.value)); }} aria-label="Scrub time" />
-          <p className="text-[11px] text-muted">Scrubbing reads stored frames. The same time always shows the same values.</p>
+          <div className="relative">
+            <input type="range" min={0} max={duration} step={0.1} value={t} onChange={e => { playback.pause(); playback.setT(Number(e.target.value)); }} aria-label="Scrub time" />
+            {events.map((e, i) => <span key={i} aria-hidden className={`absolute top-3 w-[3px] h-2 rounded-full ${e.tone === 'bad' ? 'bg-bad' : 'bg-muted/60'}`} style={{ left: `calc(${(e.t / duration) * 100}% - 1px)` }} />)}
+          </div>
+          <p className="text-[11px] text-muted pt-2">Scrubbing reads stored frames. The same time always shows the same picture, forwards or backwards.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" icon={<Snowflake size={13} />} onClick={freeze}>Freeze state</Button>
@@ -118,105 +131,98 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
         {frozen && <p className="text-[11px] text-trace">Frozen at <span className="num">{frozen.t.toFixed(1)} s</span>, hash <span className="num">{frozen.hash}</span></p>}
       </PanelCard>
 
-      <PanelCard title="Run settings" aside={<MockTag />}>
-        <dl className="space-y-1.5 text-xs">
-          {[['Solver', 'Scripted demonstration'], ['Seed', '8421'], ['Duration', `${duration.toFixed(0)} s`], ['Determinism', 'Same frames for the same time']].map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-3"><dt className="text-muted">{k}</dt><dd className="text-ink text-right">{v}</dd></div>
-          ))}
-        </dl>
-      </PanelCard>
     </>
   );
 
   const right = (
     <>
-      <PanelCard title="Environment" aside={<PreviewTag />}>
-        <dl className="space-y-1.5 text-xs">
-          <div className="flex justify-between"><dt className="text-muted">Ambient temperature</dt><dd className="num text-ink">25.0 °C</dd></div>
-        </dl>
-        <p className="text-[11px] text-muted">Only fields this scenario supports are shown. Editing them arrives with the real solver.</p>
+      <PanelCard title="What moves what">
+        <ul className="space-y-2">
+          {bindings.map(b => (
+            <li key={b.id} className="text-xs">
+              <span className="text-strong">{model.revision?.parts[b.node]?.name.replace(/ \(Example\)$/, '') ?? b.node}</span>
+              <span className="block text-muted">{VERBS[b.channel]} {pretty(b.variable).toLowerCase()}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-[11px] text-muted">A part moves only because a stored variable is bound to it.</p>
       </PanelCard>
-      <PanelCard title="Scenario parameters" aside={<PreviewTag />}>
-        <dl className="space-y-1.5 text-xs">
-          <div className="flex justify-between"><dt className="text-muted">Peak load torque</dt><dd className="num text-ink">85.4 N·m</dd></div>
-          <div className="flex justify-between"><dt className="text-muted">Load step at</dt><dd className="num text-ink">4.2 s</dd></div>
-        </dl>
-        <p className="text-[11px] text-muted">A changed parameter will show a Draft preview first, and results change only after a re-run.</p>
-      </PanelCard>
-      <PanelCard title="Requirement" aside={<ExampleTag />}>
-        <p className="text-[13px] text-strong"><span className="num text-muted mr-1.5">{EXAMPLE_REQUIREMENT.id}</span>{EXAMPLE_REQUIREMENT.text}</p>
-        {run?.failureT != null ? (
-          <p className={`text-xs ${failed ? 'text-bad' : 'text-muted'}`}>{failed ? `Violated at ${run.failureT.toFixed(2)} s in this run.` : `Not violated yet. This run crosses the limit at ${run.failureT.toFixed(2)} s.`}</p>
-        ) : (
-          <p className="text-xs text-muted">Not violated in this run. This is not verification.</p>
+      <PanelCard title="Requirements" aside={<ExampleTag />}>
+        {requirements.length === 0 ? <p className="text-xs text-muted">No requirement is defined for this model.</p> : (
+          <ul className="space-y-2.5">
+            {requirements.map(r => {
+              const pts = series[r.variable] ?? [];
+              const broken = pts.some(p => violates(r, p[1]) && p[0] <= t);
+              const everBroken = pts.some(p => violates(r, p[1]));
+              return (
+                <li key={r.id} className="space-y-1">
+                  <p className="text-[13px] text-strong"><span className="num text-muted mr-1.5">{r.id}</span>{r.text}</p>
+                  <p className={`text-xs ${broken ? 'text-bad' : 'text-muted'}`}>{broken ? 'Broken so far in this run.' : everBroken ? 'Not broken yet. This run breaks it later.' : 'Not broken in this run. That is not verification.'}</p>
+                </li>
+              );
+            })}
+          </ul>
         )}
+      </PanelCard>
+      <PanelCard title="Events">
+        <ol className="space-y-1.5 max-h-[170px] overflow-y-auto">
+          {events.map((e, i) => (
+            <li key={i}>
+              <button onClick={() => { playback.pause(); playback.setT(e.t); }} className={`w-full text-left flex items-baseline gap-3 text-xs ${e.t <= t ? 'text-ink' : 'text-muted/60'}`}>
+                <span className="num w-10 shrink-0 text-muted">{e.t.toFixed(1)} s</span>
+                <span className={e.tone === 'bad' && e.t <= t ? 'text-bad' : ''}>{e.text}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <p className="text-[11px] text-muted">Run: scripted demonstration, seed 8421. <MockTag /></p>
       </PanelCard>
     </>
   );
 
-  const top = (
-    <div className="surface-glass px-4 py-3 flex flex-wrap items-start gap-x-6 gap-y-3 max-w-full" aria-label="Live readings">
-      {([
-        ['Winding temperature', temp?.v ?? '-', '°C', series.temp, 'var(--status-critical)', failed ? 'bad' : 'default'],
-        ['Rotor speed', frame?.values.rotor_angular_velocity?.v ?? '-', 'rad/s', series.speed, 'var(--color-primary-blue)', 'default'],
-        ['Phase current', frame?.values.phase_rms_current?.v ?? '-', 'A rms', series.current, 'var(--color-trace-cyan)', 'default'],
-        ['Output torque', frame?.values.shaft_torque_load?.v ?? '-', 'N·m', series.torque, 'var(--color-assistant-violet)', 'default']
-      ] as const).map(([label, value, unit, pts, color, tone]) => (
-        <div key={label} className="w-[128px]">
-          <Reading label={label} value={value} unit={unit} tone={tone} mock />
-          <Sparkline points={pts as [number, number][]} color={color} cursor={t} className="mt-1" />
-        </div>
-      ))}
-      <div className="flex flex-col items-end gap-2 ml-auto">
-        <Tabs tabs={(['Perspective', 'Top', 'Front', 'Right'] as const).map(p => ({ id: p, label: p }))} activeTab={session.cameraPreset} onChange={id => session.setCameraPreset(id as 'Perspective')} />
-        <Chip tone="warn" className="!h-5">No visual binding: the canvas is not driven by this run</Chip>
+  const top = failed && failure ? (
+    <div role="alert" className="surface-glass !border-bad/50 px-5 py-3 flex items-center gap-4 max-w-[560px] animate-rise">
+      <TriangleAlert size={18} className="text-bad shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-strong">{failure.partName.replace(/ \(Example\)$/, '')} passed its limit at {failure.t.toFixed(2)} s</p>
+        <p className="text-xs text-muted mt-0.5">{pretty(failure.requirement.variable)} reached <span className="num text-ink">{failure.value} {failure.requirement.unit}</span> against {limitLabel(failure.requirement)} ({failure.requirement.id}). Mock result.</p>
       </div>
+      <Button variant="danger" size="sm" onClick={onInvestigateFailure}>Investigate failure</Button>
     </div>
-  );
-
-  const bottom = (
-    <div className="space-y-3">
-      {failed && run?.failureT != null && (
-        <div role="alert" className="mx-auto max-w-xl surface-glass !border-bad/50 px-5 py-3.5 flex items-center gap-4 animate-rise">
-          <TriangleAlert size={18} className="text-bad shrink-0" />
-          <div className="flex-1">
-            <p className="text-[13px] font-medium text-strong">Winding temperature above limit at {run.failureT.toFixed(2)} s</p>
-            <p className="text-xs text-muted mt-0.5">Reached <span className="num text-ink">{temp?.v} °C</span> against the {LIMIT} °C limit of {EXAMPLE_REQUIREMENT.id} (example). Mock result.</p>
+  ) : (
+    <div className="surface-glass px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-1.5 max-w-full" aria-label="Live readings">
+      {variables.slice(0, 4).map(b => {
+        const v = at(b.variable);
+        return (
+          <div key={b.variable} className="flex items-baseline gap-2 text-xs">
+            <span className="text-muted">{pretty(b.variable)}</span>
+            <span className="num text-[15px] text-strong">{v === null ? '-' : +v.toFixed(1)}</span>
+            <span className="num text-muted">{b.units}</span>
           </div>
-          <Button variant="danger" size="sm" onClick={onInvestigateFailure}>Investigate failure</Button>
-        </div>
-      )}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3">
-        <section className="surface-glass p-4 space-y-2" aria-label="Winding temperature graph">
-          <SectionLabel aside={<span className="text-[11px] text-muted">Drag to scrub</span>}>Winding temperature</SectionLabel>
-          <LineChart
-            series={[{ id: 'temp', label: 'Winding temperature', points: series.temp, color: 'var(--color-trace-cyan)' }]}
-            xDomain={[0, duration]}
-            threshold={{ value: LIMIT, label: `${EXAMPLE_REQUIREMENT.id} limit ${LIMIT} °C` }}
-            cursor={t}
-            xUnit="s"
-            yUnit="°C"
-            onScrub={x => { setPlaying(false); setT(+x.toFixed(1)); }}
-            height={128}
-          />
-        </section>
-
-        <section className="surface-glass p-4 space-y-2" aria-label="Event stream">
-          <SectionLabel>Events</SectionLabel>
-          <ol className="space-y-1.5 max-h-[150px] overflow-y-auto">
-            {events.map((e, i) => (
-              <li key={i}>
-                <button onClick={() => { setPlaying(false); setT(e.t); }} className={`w-full text-left flex items-baseline gap-3 text-xs ${e.t <= t ? 'text-ink' : 'text-muted/60'}`}>
-                  <span className="num w-12 shrink-0 text-muted">{e.t.toFixed(1)} s</span>
-                  <span className={e.tone === 'bad' && e.t <= t ? 'text-bad' : ''}>{e.text}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
-      </div>
+        );
+      })}
+      <span className="flex items-center gap-1.5 text-[11px] text-muted"><MockTag />Simulated, Unverified</span>
     </div>
   );
 
-  return <StageGrid left={left} right={right} top={top} footer={bottom} />;
+  const keyVar = failure?.requirement.variable ?? variables[0]?.variable;
+  const footer = (
+    <section className="surface-glass px-4 py-3 space-y-1" aria-label="Graph">
+      <SectionLabel aside={<span className="text-[11px] text-muted">Drag to scrub</span>}>{keyVar ? pretty(keyVar) : 'Graph'}</SectionLabel>
+      {keyVar && (
+        <LineChart
+          series={[{ id: 'k', label: pretty(keyVar), points: series[keyVar] ?? [], color: 'var(--color-trace-cyan)' }]}
+          xDomain={[0, duration]}
+          threshold={failure?.requirement.variable === keyVar ? { value: failure.requirement.limit, label: `${failure.requirement.id} limit ${limitLabel(failure.requirement)}` } : undefined}
+          cursor={t}
+          xUnit="s"
+          yUnit={variables.find(b => b.variable === keyVar)?.units ?? ''}
+          onScrub={x => { playback.pause(); playback.setT(+x.toFixed(1)); }}
+          height={92}
+        />
+      )}
+    </section>
+  );
+
+  return <StageGrid left={left} right={right} top={top} footer={footer} />;
 };

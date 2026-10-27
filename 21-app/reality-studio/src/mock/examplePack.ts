@@ -149,6 +149,16 @@ export function getMockBuildScriptEvents(buildId: string): BuildEvent[] {
     { seq: 15, buildId, ts, kind: 'step.done', step: 'place' },
 
     { seq: 16, buildId, ts, kind: 'step.start', step: 'connect' },
+    ...(([
+      ['part-power-supply', 'dc-out', 'electrical_dc', 'out', 'V'],
+      ['part-electric-motor', 'dc-in', 'electrical_dc', 'in', 'V'],
+      ['part-electric-motor', 'shaft-out', 'mechanical_torque', 'out', 'N·m'],
+      ['part-pump', 'shaft-in', 'mechanical_torque', 'in', 'N·m'],
+      ['part-temp-sensor', 'analog-out', 'telemetry_signal', 'out', 'V'],
+      ['part-power-supply', 'thermal-feedback-in', 'telemetry_signal', 'in', 'V']
+    ] as const).map(([part, id, kind, direction, unit], i): BuildEvent => ({
+      seq: 160 + i, buildId, ts, kind: 'op.applied', op: { op: 'port.add', part, id, kind, direction, unit }
+    }))),
     {
       seq: 17,
       buildId,
@@ -197,13 +207,13 @@ export function getMockBuildScriptEvents(buildId: string): BuildEvent[] {
         id: 'iss-voltage-unit-mismatch',
         partId: 'part-power-supply',
         portId: 'dc-out',
-        message: 'Port output is rated 48 V while motor specification is 48.0 V DC nominal. Verified compatible.',
+        message: 'The supply output is written as 48 V and the motor input as 48.0 V DC nominal. Normalise the unit so the two can be compared.',
         severity: 'warning',
         fixOp: {
           op: 'part.setParam',
           id: 'part-power-supply',
           key: 'rated_voltage',
-          value: createMockValue(48.0, 'V', 'derived', 'verified')
+          value: createMockValue(48.0, 'V', 'derived', 'unverified')
         }
       }
     },
@@ -219,7 +229,7 @@ export function getMockBuildScriptEvents(buildId: string): BuildEvent[] {
         op: 'requirement.add',
         id: 'req-thermal-limit',
         text: 'Stator winding temperature must remain below 120.0 °C under all dynamic operating cycles.',
-        expr: 'winding_temp < 120.0 degC',
+        expr: 'stator_winding_temperature < 120',
         prov: { kind: 'user_stated' }
       }
     },
@@ -241,7 +251,12 @@ export function getMockBuildScriptEvents(buildId: string): BuildEvent[] {
         }
       }
     },
+    ...([
+      { id: 'bind-winding-heat', variable: 'stator_winding_temperature', node: 'part-electric-motor', channel: 'color', mapping: 'cool to hot colour ramp', units: '°C', range: [25, 120] },
+      { id: 'bind-load-shake', variable: 'shaft_torque_load', node: 'part-pump', channel: 'vibration', mapping: 'shake amplitude', units: 'N·m', range: [30, 90] },
+      { id: 'bind-current-glow', variable: 'phase_rms_current', node: 'part-power-supply', channel: 'emissive', mapping: 'glow', units: 'A', range: [40, 65] }
+    ] as const).map((b, i): BuildEvent => ({ seq: 250 + i, buildId, ts, kind: 'op.applied', op: { op: 'binding.add', binding: { ...b, range: [...b.range] as [number, number] } } })),
     { seq: 25, buildId, ts, kind: 'step.done', step: 'check' },
-    { seq: 26, buildId, ts, kind: 'staged.ready', note: 'All components staged. Ready to commit Model revision r1.' }
+    { seq: 260, buildId, ts, kind: 'staged.ready', note: 'All components staged. Ready to commit Model revision r1.' }
   ];
 }

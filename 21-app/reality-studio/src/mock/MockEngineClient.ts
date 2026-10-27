@@ -9,7 +9,8 @@ import {
   Checkpoint,
   Intervention,
   AssetRef,
-  Value
+  Value,
+  RunSummary
 } from '../contracts';
 import { getMockBuildScriptEvents, MOCK_SOURCES, createMockValue } from './examplePack';
 
@@ -18,6 +19,7 @@ class MockEngineClientImpl implements EngineClient {
   private stagedBuilds: Map<string, { pid: string; events: BuildEvent[]; ops: ModelOp[]; undos: ModelOp[] }> = new Map();
   private revisions: Map<string, ModelRevision> = new Map();
   private checkpoints: Map<string, Checkpoint> = new Map();
+  private runs: RunSummary[] = [];
 
   constructor() {
     this.restoreState();
@@ -28,7 +30,8 @@ class MockEngineClientImpl implements EngineClient {
       const data = {
         projects: Array.from(this.projects.entries()),
         revisions: Array.from(this.revisions.entries()),
-        checkpoints: Array.from(this.checkpoints.entries())
+        checkpoints: Array.from(this.checkpoints.entries()),
+        runs: this.runs
       };
       localStorage.setItem('helqix_mock_engine_state', JSON.stringify(data));
     } catch {
@@ -44,6 +47,7 @@ class MockEngineClientImpl implements EngineClient {
         this.projects = new Map(data.projects);
         this.revisions = new Map(data.revisions);
         this.checkpoints = new Map(data.checkpoints);
+        this.runs = data.runs ?? [];
       }
     } catch {
       // Clean fallback
@@ -67,6 +71,21 @@ class MockEngineClientImpl implements EngineClient {
   async listProjects(): Promise<Project[]> {
     this.restoreState();
     return Array.from(this.projects.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async renameProject(pid: string, name: string): Promise<Project> {
+    this.restoreState();
+    const p = this.projects.get(pid);
+    if (!p) throw new Error(`Project ${pid} not found`);
+    p.name = name.trim() || p.name;
+    p.updatedAt = new Date().toISOString();
+    this.saveState();
+    return p;
+  }
+
+  async listRuns(pid: string): Promise<RunSummary[]> {
+    this.restoreState();
+    return this.runs.filter(r => r.projectId === pid).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }
 
   async getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null> {
@@ -236,7 +255,7 @@ class MockEngineClientImpl implements EngineClient {
           revision.parts[op.id].transform = op.transform;
         }
       } else if (op.op === 'port.add') {
-        revision.ports[op.id] = {
+        revision.ports[`${op.part}:${op.id}`] = {
           id: op.id,
           partId: op.part,
           kind: op.kind,
@@ -275,9 +294,11 @@ class MockEngineClientImpl implements EngineClient {
     return MOCK_SOURCES;
   }
 
-  async run(pid: string, scenarioId: string, opts?: { seed?: number }): Promise<{ runId: string }> {
+  async run(pid: string, scenarioId: string, opts?: { seed?: number; revisionNum?: number }): Promise<{ runId: string }> {
     const seed = opts?.seed ?? 8421;
     const runId = `run-${seed}-${Date.now().toString(36)}`;
+    this.runs.push({ id: runId, projectId: pid, scenarioId, revisionNum: opts?.revisionNum ?? 1, startedAt: new Date().toISOString() });
+    this.saveState();
     return { runId };
   }
 

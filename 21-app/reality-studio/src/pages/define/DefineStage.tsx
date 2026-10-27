@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ModelRevision } from '../../contracts';
-import type { ScenePart } from '../../scene/HeroScene';
+import type { SceneConnection, ScenePart } from '../../scene/types';
 import { DefineStep } from '../studio/Studio';
 import { BuildInput, readBuildInput, writeBuildInput } from '../../app/draft';
 import { IntentStep } from './IntentStep';
@@ -17,7 +17,7 @@ export interface DefineStageProps {
   onStepChange: (step: DefineStep) => void;
   onCommitted: (revision: ModelRevision) => void;
   onRunSimulation: () => void;
-  onPartsChange: (parts: ScenePart[]) => void;
+  onPartsChange: (scene: { parts: ScenePart[]; connections: SceneConnection[] }) => void;
 }
 
 export const DefineStage: React.FC<DefineStageProps> = ({

@@ -59,6 +59,7 @@ export interface PlaybackState {
   setT: (t: number) => void;
   setSpeed: (speed: number) => void;
   togglePlay: () => void;
+  play: () => void;
   pause: () => void;
 }
 
@@ -165,6 +166,7 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const togglePlay = () => setIsPlaying(prev => !prev);
   const pause = () => setIsPlaying(false);
+  const play = () => setIsPlaying(true);
 
   // 4. Draft Store
   const [pendingOps, setPendingOps] = useState<ModelOp[]>([]);
@@ -218,7 +220,7 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setT(prev => {
         if (prev >= duration) {
           setIsPlaying(false);
-          return 0;
+          return duration;
         }
         return parseFloat((prev + 0.05 * speed).toFixed(2));
       });
@@ -256,6 +258,7 @@ export const StudioStoreProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setT,
       setSpeed,
       togglePlay,
+      play,
       pause
     },
     draft: {

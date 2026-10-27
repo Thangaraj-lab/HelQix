@@ -1,13 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Network } from 'lucide-react';
-import { ModelRevision } from '../../contracts';
+import { useModelData } from '../studio/ModelContext';
 import { useStudio } from '../../stores';
 import { Chip, EmptyState, MockTag, PlaceholderTag, SectionLabel, StatusDot, Tabs } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 
 export interface ModelStageProps {
-  revision: ModelRevision | null;
-  loading: boolean;
   /** Shown to explain an empty stage; the header's primary button runs the simulation. */
   rev: string | null;
 }
@@ -17,9 +15,11 @@ const LAYERS = ['structure', 'physics', 'environment', 'state', 'flow', 'sensors
 // Model stage (file 37 section 6.9): the committed revision, read through the engine. Components on
 // the left, details on the right, connections as a port graph or over the canvas. Nothing here is
 // built in: every part, port and connection is in the revision.
-export const ModelStage: React.FC<ModelStageProps> = ({ revision, loading, rev }) => {
-  const { session } = useStudio();
-  const [selected, setSelected] = useState<string | null>(null);
+export const ModelStage: React.FC<ModelStageProps> = ({ rev }) => {
+  const { session, selection } = useStudio();
+  const { revision, loading } = useModelData();
+  const selected = selection.selectedIds[0] ?? null;
+  const setSelected = (id: string) => selection.select(id);
   const [view, setView] = useState<'3d' | 'graph'>('3d');
   const [detailTab, setDetailTab] = useState<'parameters' | 'behavior' | 'ports' | 'source'>('parameters');
   const [bottomTab, setBottomTab] = useState<'connections' | 'issues' | 'history'>('connections');
@@ -27,7 +27,7 @@ export const ModelStage: React.FC<ModelStageProps> = ({ revision, loading, rev }
   const parts = useMemo(() => (revision ? Object.values(revision.parts) : []), [revision]);
   const ports = useMemo(() => (revision ? Object.values(revision.ports) : []), [revision]);
   const connections = useMemo(() => (revision ? Object.values(revision.connections) : []), [revision]);
-  const sel = parts.find(p => p.id === (selected ?? parts[0]?.id));
+  const sel = parts.find(p => p.id === selected) ?? parts[0];
   const nameOf = (id: string) => revision?.parts[id]?.name ?? id;
 
   if (!rev || (!loading && !revision)) {

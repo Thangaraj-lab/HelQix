@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RunFrame } from '../../contracts';
 import { engine } from '../../engine';
-import { EXAMPLE_REQUIREMENT, MOCK_RUN_ID } from '../../mock/scenarios';
+import { MOCK_RUN_ID } from '../../mock/scenarios';
 
 // The scripted run, loaded once through the engine interface and shared by Simulate, Understand,
 // Improve and Verify. Frames are read-only; scrubbing reads the stored frame at t, so the same t
@@ -25,8 +25,6 @@ function load(): Promise<RunFrame[]> {
 
 export interface RunData {
   frames: RunFrame[];
-  /** Time of the first frame at or above the requirement limit, or null if it never crosses */
-  failureT: number | null;
   duration: number;
   at: (t: number) => RunFrame | null;
   series: (key: string) => [number, number][];
@@ -43,11 +41,9 @@ export function useRun(): RunData | null {
   // One stable object per frame set, so effects that depend on the run do not loop.
   return useMemo<RunData | null>(() => {
     if (!frames || frames.length === 0) return null;
-    const failure = frames.find(f => (f.values[EXAMPLE_REQUIREMENT.variable]?.v ?? 0) >= EXAMPLE_REQUIREMENT.limit);
     const last = frames[frames.length - 1].t;
     return {
       frames,
-      failureT: failure ? failure.t : null,
       duration: last,
       at: t => frames[Math.max(0, Math.min(frames.length - 1, Math.round((t / last) * (frames.length - 1))))] ?? null,
       series: key => frames.filter(f => f.values[key]).map(f => [f.t, f.values[key].v] as [number, number])

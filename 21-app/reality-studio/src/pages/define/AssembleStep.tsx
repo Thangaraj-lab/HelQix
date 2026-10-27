@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FastForward, Pause, Play, Plus, Redo2, SkipForward, Undo2 } from 'lucide-react';
-import { BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
+import { Binding, BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
 import { engine } from '../../engine';
-import type { ScenePart } from '../../scene/HeroScene';
+import type { SceneConnection, ScenePart } from '../../scene/types';
+import { useStudio } from '../../stores';
 import { createMockValue } from '../../mock/examplePack';
+import { useRun } from '../simulate/useRun';
+import { SUPPORTED_CHANNELS } from '../../scene/bindings';
 import { Button, Chip, Drawer, IconButton, MockTag, PlaceholderTag, SectionLabel, StatusDot, Tabs, ValueView } from '../../components/ui/UiKit';
 
 export interface AssembleStepProps {
@@ -15,7 +18,7 @@ export interface AssembleStepProps {
   onCommitSuccess: (revision: ModelRevision) => void;
   onRunSimulation?: () => void;
   /** Placed parts, for the Studio canvas. */
-  onPartsChange?: (parts: ScenePart[]) => void;
+  onPartsChange?: (scene: { parts: ScenePart[]; connections: SceneConnection[] }) => void;
 }
 
 // --- State derived from the op log: the log is the truth, the tree and canvas are views of it ---
@@ -32,15 +35,19 @@ interface StagedPart {
 }
 interface StagedConnection { id: string; from: string; to: string; kind: string }
 
-function reduceOps(ops: ModelOp[]): { parts: Map<string, StagedPart>; connections: StagedConnection[] } {
+function reduceOps(ops: ModelOp[]): { parts: Map<string, StagedPart>; connections: StagedConnection[]; bindings: Binding[]; requirements: { id: string; text: string; expr?: string }[] } {
   const parts = new Map<string, StagedPart>();
   let connections: StagedConnection[] = [];
+  const bindings: Binding[] = [];
+  const requirements: { id: string; text: string; expr?: string }[] = [];
   for (const op of ops) {
     if (op.op === 'part.add') parts.set(op.id, { id: op.id, name: op.name, geometry: op.geometry, maturity: op.maturity, ports: [], params: {}, connected: false });
     else if (op.op === 'part.place') { const p = parts.get(op.id); if (p) p.transform = op.transform; }
     else if (op.op === 'port.add') parts.get(op.part)?.ports.push({ id: op.id, kind: op.kind, direction: op.direction, unit: op.unit });
     else if (op.op === 'part.setParam') { const p = parts.get(op.id); if (p) p.params[op.key] = op.value; }
     else if (op.op === 'part.remove') parts.delete(op.id);
+    else if (op.op === 'binding.add') bindings.push(op.binding);
+    else if (op.op === 'requirement.add') requirements.push({ id: op.id, text: op.text, expr: op.expr });
     else if (op.op === 'connection.add') {
       connections.push({ id: op.id, from: `${op.from.partId}:${op.from.portId}`, to: `${op.to.partId}:${op.to.portId}`, kind: op.kind });
       const a = parts.get(op.from.partId); const b = parts.get(op.to.partId);
@@ -48,7 +55,7 @@ function reduceOps(ops: ModelOp[]): { parts: Map<string, StagedPart>; connection
       if (b) b.connected = true;
     } else if (op.op === 'connection.remove') connections = connections.filter(c => c.id !== op.id);
   }
-  return { parts, connections };
+  return { parts, connections, bindings, requirements };
 }
 
 const STEPS: { id: NonNullable<BuildEvent['step']>; label: string }[] = [
@@ -77,14 +84,18 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
   const [cursor, setCursor] = useState(0);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const { selection } = useStudio();
+  const selected = selection.selectedIds[0] ?? null;
+  const setSelected = (id: string) => selection.select(id);
   const [tab, setTab] = useState<'issues' | 'connections' | 'sources' | 'history'>('issues');
   const [sources, setSources] = useState<Source[] | null>(null);
   const [showDefine, setShowDefine] = useState(false);
   const stream = useRef<BuildEvent[]>([]);
 
   const isCommitted = committed !== null || committedRev !== null;
-  const { parts, connections } = useMemo(() => reduceOps(ops), [ops]);
+  const { parts, connections, bindings, requirements } = useMemo(() => reduceOps(ops), [ops]);
+  const run = useRun();
+  const variables = useMemo(() => (run ? Object.entries(run.frames[0]?.values ?? {}).map(([k, v]) => ({ key: k, unit: v.unit, pts: run.series(k) })) : []), [run]);
 
   const applyEvent = useCallback((evt: BuildEvent) => {
     setEvents(prev => [...prev, evt]);
@@ -93,7 +104,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
     else if (evt.kind === 'op.applied' && evt.op) {
       const op = evt.op;
       setOps(prev => [...prev, op]);
-      if (op.op === 'part.add') setSelected(op.id);
+      if (op.op === 'part.add') selection.select(op.id);
     } else if (evt.kind === 'issue.raised' && evt.issue) setIssues(prev => [...prev, evt.issue!]);
     else if (evt.kind === 'issue.cleared' && evt.issue) setIssues(prev => prev.filter(i => i.id !== evt.issue!.id));
     else if (evt.kind === 'staged.ready') setReady(true);
@@ -163,18 +174,23 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
 
   // The canvas draws placed parts only.
   useEffect(() => {
-    onPartsChange?.(
-      Array.from(parts.values())
+    onPartsChange?.({
+      parts: Array.from(parts.values())
         .filter(p => p.transform)
         .map(p => ({
           id: p.id,
           name: p.name,
           geometry: p.geometry,
           pos: [p.transform!.pos[0].v, p.transform!.pos[1].v, p.transform!.pos[2].v] as [number, number, number],
-          placeholder: p.maturity === 'placeholder'
-        }))
-    );
-  }, [parts, onPartsChange]);
+          placeholder: p.maturity === 'placeholder',
+          ports: p.ports
+        })),
+      connections: connections.map(c => {
+        const [fp, fq] = c.from.split(':'); const [tp, tq] = c.to.split(':');
+        return { id: c.id, from: { partId: fp, portId: fq }, to: { partId: tp, portId: tq }, kind: c.kind };
+      })
+    });
+  }, [parts, connections, onPartsChange]);
 
   const blocking = issues.filter(i => i.severity === 'blocking');
   const canCommit = !!buildId && ready && !isCommitted && blocking.length === 0;
@@ -430,13 +446,30 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
               {Object.keys(sel.params).length > 0 && (
                 <div className="space-y-2">{Object.entries(sel.params).map(([k, v]) => <ValueView key={k} label={k} value={v} />)}</div>
               )}
+              <div>
+                <p className="text-[11px] text-muted mb-1.5">Bindings</p>
+                {bindings.filter(b => b.node === sel.id).length === 0 ? (
+                  <p className="text-xs text-muted">None. Without one, this part never moves in a simulation.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {bindings.filter(b => b.node === sel.id).map(b => <li key={b.id} className="text-xs text-ink flex justify-between gap-2"><span className="capitalize">{b.channel}</span><span className="num text-muted truncate">{b.variable}</span></li>)}
+                  </ul>
+                )}
+                {!isCommitted && variables.length > 0 && <BindingForm partId={sel.id} variables={variables} onAdd={b => apply([{ op: 'binding.add', binding: b }])} />}
+              </div>
             </div>
           )}
         </section>
 
-        <section className="surface p-4 space-y-2" aria-label="Proposals">
-          <SectionLabel>Proposals</SectionLabel>
-          <p className="text-xs text-muted">None yet. Rule-based proposals appear after the checks run, and state their effect only once a simulation has measured it.</p>
+        <section className="surface p-4 space-y-3" aria-label="Requirements">
+          <SectionLabel>Requirements</SectionLabel>
+          {requirements.length === 0 ? (
+            <p className="text-xs text-muted">None. A requirement is what a run is checked against, for example a limit on a bound variable.</p>
+          ) : (
+            <ul className="space-y-1.5">{requirements.map(r => <li key={r.id} className="text-xs text-ink"><span className="num text-muted mr-1.5">{r.id}</span>{r.text}</li>)}</ul>
+          )}
+          {!isCommitted && variables.length > 0 && <RequirementForm variables={variables} count={requirements.length} onAdd={(id, text, expr) => apply([{ op: 'requirement.add', id, text, expr, prov: { kind: 'user_stated' } }])} />}
+          <p className="text-[11px] text-muted">Rule-based proposals appear after the checks run. None yet.</p>
         </section>
       </div>
 
@@ -507,5 +540,71 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
         <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={add}>Add part</Button></div>
       </div>
     </Drawer>
+  );
+};
+
+
+// --- Add a binding: tie a stored variable to a part so it moves, heats, glows or shakes ---
+
+type Variable = { key: string; unit: string; pts: [number, number][] };
+const CHANNEL_LABEL: Record<string, string> = { rotation: 'Spin', color: 'Heat colour', emissive: 'Glow', vibration: 'Shake', translation: 'Slide', visibility: 'Show or hide' };
+
+const BindingForm: React.FC<{ partId: string; variables: Variable[]; onAdd: (b: Binding) => void }> = ({ partId, variables, onAdd }) => {
+  const [open, setOpen] = useState(false);
+  const [variable, setVariable] = useState(variables[0]?.key ?? '');
+  const [channel, setChannel] = useState<Binding['channel']>('rotation');
+  const [axis, setAxis] = useState<'x' | 'y' | 'z'>('y');
+  const field = 'h-8 rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60 w-full';
+  if (!open) return <button onClick={() => setOpen(true)} className="mt-2 text-xs text-accent hover:underline">Add binding</button>;
+  const v = variables.find(x => x.key === variable);
+  const add = () => {
+    if (!v) return;
+    const ys = v.pts.map(p => p[1]);
+    onAdd({ id: `bind-${Date.now().toString(36)}`, variable: v.key, node: partId, channel, axis: channel === 'rotation' || channel === 'translation' ? axis : undefined, units: v.unit, range: [Math.min(...ys), Math.max(...ys)] });
+    setOpen(false);
+  };
+  return (
+    <div className="mt-2 space-y-2 rounded-[10px] border border-line p-3">
+      <label className="block space-y-1"><span className="text-[11px] text-muted">Variable</span>
+        <select className={field} value={variable} onChange={e => setVariable(e.target.value)}>{variables.map(x => <option key={x.key} value={x.key}>{x.key.replace(/_/g, ' ')} ({x.unit})</option>)}</select>
+      </label>
+      <label className="block space-y-1"><span className="text-[11px] text-muted">What it does to the part</span>
+        <select className={field} value={channel} onChange={e => setChannel(e.target.value as Binding['channel'])}>{SUPPORTED_CHANNELS.map(c => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}</select>
+      </label>
+      {(channel === 'rotation' || channel === 'translation') && (
+        <label className="block space-y-1"><span className="text-[11px] text-muted">Axis</span>
+          <select className={field} value={axis} onChange={e => setAxis(e.target.value as 'x' | 'y' | 'z')}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select>
+        </label>
+      )}
+      <div className="flex gap-1.5"><Button size="sm" variant="primary" onClick={add}>Add</Button><Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
+    </div>
+  );
+};
+
+const RequirementForm: React.FC<{ variables: Variable[]; count: number; onAdd: (id: string, text: string, expr: string) => void }> = ({ variables, count, onAdd }) => {
+  const [open, setOpen] = useState(false);
+  const [variable, setVariable] = useState(variables[0]?.key ?? '');
+  const [op, setOp] = useState<'<' | '>'>('<');
+  const [limit, setLimit] = useState('');
+  const field = 'h-8 rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60 w-full';
+  if (!open) return <button onClick={() => setOpen(true)} className="text-xs text-accent hover:underline">Add requirement</button>;
+  const v = variables.find(x => x.key === variable);
+  const ok = limit.trim() !== '' && !Number.isNaN(Number(limit));
+  const add = () => {
+    if (!v || !ok) return;
+    onAdd(`R${count + 1}`, `${v.key.replace(/_/g, ' ')} ${op === '<' ? 'below' : 'above'} ${Number(limit)} ${v.unit}`, `${v.key} ${op} ${Number(limit)}`);
+    setOpen(false); setLimit('');
+  };
+  return (
+    <div className="space-y-2 rounded-[10px] border border-line p-3">
+      <label className="block space-y-1"><span className="text-[11px] text-muted">Variable</span>
+        <select className={field} value={variable} onChange={e => setVariable(e.target.value)}>{variables.map(x => <option key={x.key} value={x.key}>{x.key.replace(/_/g, ' ')} ({x.unit})</option>)}</select>
+      </label>
+      <div className="grid grid-cols-[88px_1fr] gap-2">
+        <select className={field} value={op} onChange={e => setOp(e.target.value as '<' | '>')} aria-label="Must stay"><option value="<">Below</option><option value=">">Above</option></select>
+        <input className={`${field} num`} inputMode="decimal" placeholder={`Limit (${v?.unit ?? ''})`} value={limit} onChange={e => setLimit(e.target.value)} aria-label="Limit" />
+      </div>
+      <div className="flex gap-1.5"><Button size="sm" variant="primary" disabled={!ok} onClick={add}>Add</Button><Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
+    </div>
   );
 };

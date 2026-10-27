@@ -1,15 +1,13 @@
 import React from 'react';
 import { CircleCheck, CircleDashed, CircleX } from 'lucide-react';
-import { ModelRevision } from '../../contracts';
-import { EXAMPLE_REQUIREMENT } from '../../mock/scenarios';
+import { limitLabel, violates } from '../../app/requirements';
 import { short } from '../../app/evidence';
 import { Button, Chip, ExampleTag, MockTag, PreviewTag, SectionLabel } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { useEvidencePackage } from '../evidence/usePackage';
-import { useRun } from '../simulate/useRun';
+import { useModelData } from '../studio/ModelContext';
 
 export interface VerifyStageProps {
-  revision: ModelRevision | null;
   onOpenEvidenceSheet: () => void;
 }
 
@@ -18,11 +16,10 @@ type CheckState = 'done' | 'missing' | 'failed';
 // Verify (file 37 section 6.13): requirements, a credibility checklist that lists what is missing,
 // and the evidence package as it would be assembled. There is no blanket verified state: the page
 // says "Not yet verified for this use" until every checklist item has evidence behind it.
-export const VerifyStage: React.FC<VerifyStageProps> = ({ revision, onOpenEvidenceSheet }) => {
-  const run = useRun();
-  const pkg = useEvidencePackage(revision);
+export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet }) => {
+  const { run, requirements, series } = useModelData();
+  const pkg = useEvidencePackage();
 
-  const violated = run?.failureT != null;
   const checklist: { title: string; state: CheckState; note: string }[] = [
     { title: 'Validation error against reference data', state: 'missing', note: 'No reference data is connected.' },
     { title: 'Uncertainty bounds', state: 'missing', note: 'No uncertainty study has been run.' },
@@ -37,16 +34,23 @@ export const VerifyStage: React.FC<VerifyStageProps> = ({ revision, onOpenEviden
 
   const left = (
     <PanelCard title="Requirements" aside={<ExampleTag />}>
-      <ul className="space-y-2">
-        <li className="rounded-[10px] border border-line bg-white/[0.02] p-3.5 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[13px] text-strong"><span className="num text-muted mr-1.5">{EXAMPLE_REQUIREMENT.id}</span>{EXAMPLE_REQUIREMENT.text}</span>
-          </div>
-          <Chip tone={!run ? 'neutral' : violated ? 'bad' : 'ok'}>{!run ? 'Not run' : violated ? `Fails at ${run.failureT!.toFixed(2)} s in the run` : 'Passes in the run'}</Chip>
-          <p className="text-[11px] text-muted">A pass in a model is not verification.</p>
-        </li>
-      </ul>
-      <p className="text-[11px] text-muted">No other requirements have been added.</p>
+      {requirements.length === 0 ? (
+        <p className="text-xs text-muted">No requirement is defined for this model, so there is nothing to check yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {requirements.map(r => {
+            const brokenAt = (series[r.variable] ?? []).find(p => violates(r, p[1]))?.[0] ?? null;
+            return (
+              <li key={r.id} className="rounded-[10px] border border-line bg-white/[0.02] p-3.5 space-y-1.5">
+                <span className="block text-[13px] text-strong"><span className="num text-muted mr-1.5">{r.id}</span>{r.text}</span>
+                <span className="block text-[11px] text-muted">Limit {limitLabel(r)}</span>
+                <Chip tone={!run ? 'neutral' : brokenAt !== null ? 'bad' : 'ok'}>{!run ? 'Not run' : brokenAt !== null ? `Fails at ${brokenAt.toFixed(2)} s in the run` : 'Passes in the run'}</Chip>
+                <p className="text-[11px] text-muted">A pass in a model is not verification.</p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </PanelCard>
   );
 

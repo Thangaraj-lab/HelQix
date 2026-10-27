@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ModelRevision } from '../../contracts';
 import { engine } from '../../engine';
-import type { ScenePart } from '../../scene/HeroScene';
+import type { ScenePart } from '../../scene/types';
 
 /** The committed revision named by the URL's rev (for example "r1"), read through the engine. */
 export function useRevision(projectId: string, rev: string | null): { revision: ModelRevision | null; loading: boolean } {
@@ -27,6 +27,7 @@ export function revisionToScene(r: ModelRevision | null): ScenePart[] | null {
     name: p.name,
     geometry: p.geometry,
     pos: [p.transform.pos[0].v, p.transform.pos[1].v, p.transform.pos[2].v] as [number, number, number],
-    placeholder: p.maturity === 'placeholder'
+    placeholder: p.maturity === 'placeholder',
+    ports: Object.values(r.ports).filter(x => x.partId === p.id).map(x => ({ id: x.id, kind: x.kind, direction: x.direction }))
   }));
 }

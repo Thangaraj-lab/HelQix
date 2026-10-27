@@ -108,6 +108,14 @@ export interface BuildEvent {
   note?: string;
 }
 
+export interface RunSummary {
+  id: string;
+  projectId: string;
+  scenarioId: string;
+  revisionNum: number;
+  startedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -170,6 +178,10 @@ export interface EngineClient {
   createProject(): Promise<Project>;
   /** Home's project list (GET /v1/projects). Not in file 35 section 8; added for the Home screen. */
   listProjects(): Promise<Project[]>;
+  /** Rename a project (inline rename in the Studio header). */
+  renameProject(pid: string, name: string): Promise<Project>;
+  /** Runs started for a project, newest first. Not in file 35 section 8; added for Home's recent runs. */
+  listRuns(pid: string): Promise<RunSummary[]>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
   getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(
@@ -183,7 +195,7 @@ export interface EngineClient {
   redo(buildId: string): Promise<void>;
   commit(buildId: string): Promise<ModelRevision>;
   listSources(pid: string): Promise<Source[]>;
-  run(pid: string, scenarioId: string, opts?: { seed?: number }): Promise<{ runId: string }>;
+  run(pid: string, scenarioId: string, opts?: { seed?: number; revisionNum?: number }): Promise<{ runId: string }>;
   runFrames(runId: string): AsyncIterable<RunFrame>;
   getFrame(runId: string, t: number): Promise<RunFrame>;
   freeze(runId: string, t: number): Promise<Checkpoint>;

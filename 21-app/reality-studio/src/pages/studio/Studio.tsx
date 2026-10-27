@@ -1,15 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Bell, Box, Check, Command, FileCheck2, Hammer, Moon, Play, Radio, ScanSearch, Settings, ShieldCheck, Sparkles, Sun, TrendingUp
+  Bell, Box, Check, Command, FileCheck2, HelpCircle, Hammer, Moon, Play, Radio, ScanSearch, Settings, ShieldCheck, Sparkles, Sun, TrendingUp
 } from 'lucide-react';
 import { useStudio } from '../../stores';
 import { navigate, setQuery, useLocation } from '../../app/router';
 import { engineMode } from '../../engine';
-import { HeroScene, ScenePart } from '../../scene/HeroScene';
+import { ModelScene } from '../../scene/ModelScene';
+import { VISUAL_SPEED_SCALE } from '../../scene/bindings';
+import type { SceneConnection, ScenePart } from '../../scene/types';
+import { scriptedBranchTemperature, BranchParams } from '../../mock/branches';
+import { ModelProvider, useModelData } from './ModelContext';
+import { ShortcutsSheet } from '../../components/overlays/ShortcutsSheet';
+import { engine } from '../../engine';
 import { Button, Chip, IconButton, Logo, MockTag, PreviewTag, StatusDot, Tabs } from '../../components/ui/UiKit';
 import { DefineStage } from '../define/DefineStage';
 import { ModelStage } from '../model/ModelStage';
-import { revisionToScene, useRevision } from '../model/useRevision';
+import { useRevision } from '../model/useRevision';
 import { SimulateStage } from '../simulate/SimulateStage';
 import { UnderstandStage } from '../understand/UnderstandStage';
 import { ImproveStage } from '../improve/ImproveStage';
@@ -46,17 +52,31 @@ const DEFINE_STEPS: { id: DefineStep; label: string }[] = [
 ];
 
 export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
-  const { session } = useStudio();
+  const { query } = useLocation();
+  const { revision, loading } = useRevision(projectId, query.get('rev'));
+  return (
+    <ModelProvider projectId={projectId} revision={revision} loading={loading}>
+      <StudioInner projectId={projectId} />
+    </ModelProvider>
+  );
+};
+
+const StudioInner: React.FC<{ projectId: string }> = ({ projectId }) => {
+  const { session, selection, playback } = useStudio();
+  const model = useModelData();
+  const { revision } = model;
+  const [branch, setBranch] = useState<BranchParams>({ coolingPct: 20, loadPct: -10 });
   // Stage, step and committed revision live in the URL (file 37 section 4), so back and forward work.
   const { query: urlQuery } = useLocation();
   const stage = (urlQuery.get('stage') as StudioStage) || 'define';
   const step = (urlQuery.get('step') as DefineStep) || 'intent';
   const rev = urlQuery.get('rev');
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
 
   // Parts the Assemble step has placed; the canvas shows these instead of the Example scene.
-  const [stagedParts, setStagedParts] = useState<ScenePart[] | null>(null);
-  const { revision, loading: revisionLoading } = useRevision(projectId, rev);
-  const committedParts = useMemo(() => revisionToScene(revision), [revision]);
+  const [staged, setStaged] = useState<{ parts: ScenePart[]; connections: SceneConnection[] }>({ parts: [], connections: [] });
+  const stagedParts = staged.parts;
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showAssistant, setShowAssistant] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
@@ -64,6 +84,20 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [fitSignal, setFitSignal] = useState(0);
+  const [name, setName] = useState('Untitled project');
+  const [renaming, setRenaming] = useState(false);
+  useEffect(() => {
+    let live = true;
+    engine.listProjects().then(l => { const p = l.find(x => x.id === projectId); if (live && p) setName(p.name); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [projectId]);
+  const commitName = (v: string) => {
+    setRenaming(false);
+    const next = v.trim();
+    if (next && next !== name) { setName(next); void engine.renameProject(projectId, next).catch(() => undefined); }
+  };
 
   const setStage = (s: StudioStage) => setQuery({ stage: s });
   const setStep = (st: DefineStep) => setQuery({ stage: 'define', step: st });
@@ -84,19 +118,18 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
       }
       if (e.key === 'Escape') {
         setShowCommands(false); setShowEvidence(false); setShowSettings(false);
-        setShowActivity(false); setShowSources(false); setShowAssistant(false);
+        setShowActivity(false); setShowSources(false); setShowAssistant(false); setShowShortcuts(false);
         return;
       }
       const t = e.target as HTMLElement;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || t.isContentEditable) return;
-      if (e.code === 'KeyG') session.setActiveTool('move');
-      else if (e.code === 'KeyR') session.setActiveTool('rotate');
-      else if (e.code === 'KeyS') session.setActiveTool('scale');
-      else if (e.code === 'KeyF') session.setCameraPreset('Perspective');
+      if (e.code === 'KeyF') setFitSignal(n => n + 1);
+      else if (e.key === '?') setShowShortcuts(v => !v);
+      else if (e.code === 'Space' && stageRef.current === 'simulate') { e.preventDefault(); playback.togglePlay(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [session]);
+  }, [session, playback]);
 
   // The one next step for where the user is (file 37 section 5). Intent has its own "Describe it";
   // preview stages have none, rather than a button that goes nowhere useful.
@@ -199,6 +232,19 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
 
   const stepIndex = DEFINE_STEPS.findIndex(s => s.id === step);
 
+  // What the canvas shows. While building it is the staged draft; once a revision is committed it is
+  // the revision, driven by the stored run at the time the current stage needs.
+  const isAssembling = stage === 'define' && step === 'assemble' && !rev;
+  const committedView = !!rev && !isAssembling;
+  const scene = isAssembling ? staged : committedView ? { parts: model.parts, connections: model.connections } : { parts: [], connections: [] };
+  const duration = model.run?.duration ?? 12;
+  const sceneT = stage === 'simulate' ? playback.t : stage === 'understand' ? model.failure?.t ?? duration : stage === 'improve' ? duration : 0;
+  const failure = model.failure && model.failure.partId ? { partId: model.failure.partId, t: model.failure.t, text: `Over limit: ${model.failure.value} ${model.failure.requirement.unit}` } : null;
+  const branchSeries = useMemo(() => {
+    const v = model.requirements[0]?.variable;
+    return v && model.series[v] ? { ...model.series, [v]: scriptedBranchTemperature(model.series[v], branch) } : model.series;
+  }, [model.requirements, model.series, branch]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-void text-ink">
       {/* Left navigation: 176 px, icons only when narrow (file 33 section 4) */}
@@ -249,7 +295,11 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
             <div className="w-8 h-8 rounded-[9px] bg-white/[0.05] border border-line flex items-center justify-center text-muted shrink-0"><Box size={15} /></div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-[14px] font-medium text-strong truncate">Untitled project</h1>
+                {renaming ? (
+                  <input autoFocus defaultValue={name} aria-label="Project name" onBlur={e => commitName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') commitName(e.currentTarget.value); if (e.key === 'Escape') setRenaming(false); }} className="h-7 w-[220px] rounded-[7px] bg-void/70 border border-accent/60 px-2 text-[14px] text-strong focus:outline-none" />
+                ) : (
+                  <h1 className="text-[14px] font-medium text-strong truncate"><button onClick={() => setRenaming(true)} title="Rename project" className="hover:text-accent transition-colors text-left">{name}</button></h1>
+                )}
                 {engineMode === 'mock' && <MockTag />}
               </div>
               <div className="flex items-center gap-2 text-[11px] text-muted" data-testid="revision-state">
@@ -304,6 +354,7 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
             <IconButton label="Evidence" onClick={() => setShowEvidence(true)}><FileCheck2 size={16} /></IconButton>
             <IconButton label="Activity" onClick={() => setShowActivity(true)}><Bell size={16} /></IconButton>
             <IconButton label={theme === 'dark' ? 'Light theme' : 'Dark theme'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</IconButton>
+            <IconButton label="Keyboard and mouse (?)" onClick={() => setShowShortcuts(true)}><HelpCircle size={16} /></IconButton>
             <IconButton label="Settings" onClick={() => setShowSettings(true)}><Settings size={16} /></IconButton>
           </div>
         </header>
@@ -311,17 +362,39 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
         {/* Center: the Reality Canvas never unmounts; stages arrange panels around it. */}
         <div className="flex-1 relative overflow-hidden flex flex-col justify-between">
           <div className={`absolute inset-0 z-0 transition-[filter,opacity] duration-300 ${stage === 'define' && step !== 'assemble' ? 'blur-[7px] opacity-60' : ''}`}>
-            <HeroScene
-              variant={stage === 'understand' ? 'failure' : stage === 'improve' ? 'compare' : stage === 'model' ? 'model_editor' : 'workspace'}
-              interactive={stage !== 'define'}
-              qualityTier={session.qualityTier}
+            <ModelScene
+              parts={scene.parts}
+              connections={scene.connections}
+              bindings={committedView ? model.bindings : []}
+              series={model.series}
+              t={sceneT}
+              compare={stage === 'improve' && model.run ? { series: branchSeries, label: 'Branch B1' } : null}
+              primaryLabel="Original"
+              failure={stage === 'simulate' || stage === 'understand' || stage === 'improve' ? failure : null}
+              selectedId={selection.selectedIds[0] ?? null}
+              focusId={stage === 'understand' ? selection.selectedIds[0] ?? model.failure?.partId ?? null : null}
+              onSelect={id => (id ? selection.select(id) : selection.deselectAll())}
               look={session.look}
               cameraPreset={session.cameraPreset}
-              thermalHotspot={stage === 'understand'}
-              isGhostMode={stage === 'define' && step === 'assemble' && !rev}
-              repairState={stage === 'understand' ? 'fault' : stage === 'improve' ? 'repaired' : 'none'}
-              parts={stage === 'define' && step === 'assemble' ? stagedParts : stage === 'model' ? committedParts : null}
+              qualityTier={session.qualityTier}
+              draft={isAssembling}
+              fitSignal={fitSignal}
+              insets={stage === 'define' && step !== 'assemble' ? { left: 0, right: 0 } : { left: window.innerWidth < 1100 ? 240 : 288, right: window.innerWidth < 1100 ? 240 : 300 }}
             />
+            {scene.parts.length > 0 && stage !== 'define' && (
+              <div className="absolute bottom-3 right-1/2 translate-x-1/2 z-10">
+                <Tabs tabs={(['Perspective', 'Top', 'Front', 'Right'] as const).map(p => ({ id: p, label: p }))} activeTab={session.cameraPreset} onChange={id => session.setCameraPreset(id as 'Perspective')} className="!bg-black/40 backdrop-blur" />
+              </div>
+            )}
+            <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-2 pointer-events-none">
+              <Chip className="!bg-black/40 backdrop-blur">{scene.parts.length} {scene.parts.length === 1 ? 'part' : 'parts'}</Chip>
+              {scene.parts.length > 0 && <span title="Dimensions are drawn at 1 unit per 100 mm and positions at 1 unit per metre, so parts read clearly. It is a schematic, not a true-scale view."><Chip className="!bg-black/40 backdrop-blur">Schematic scale</Chip></span>}
+              {committedView && ['simulate', 'understand', 'improve'].includes(stage) && (
+                model.bindings.length === 0
+                  ? <Chip tone="warn" className="!bg-black/40 backdrop-blur">No visual binding</Chip>
+                  : model.bindings.some(b => b.channel === 'rotation') && <Chip className="!bg-black/40 backdrop-blur">Visual speed scaled 1:{VISUAL_SPEED_SCALE}</Chip>
+              )}
+            </div>
           </div>
 
           {stage === 'define' ? (
@@ -332,22 +405,22 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
               onStepChange={setStep}
               onCommitted={r => setQuery({ rev: `r${r.revisionNum}` }, { replace: true })}
               onRunSimulation={() => setStage('simulate')}
-              onPartsChange={setStagedParts}
+              onPartsChange={setStaged}
             />
           ) : stage === 'model' ? (
-            <ModelStage revision={revision} loading={revisionLoading} rev={rev} />
+            <ModelStage rev={rev} />
           ) : stage === 'simulate' ? (
             <SimulateStage onInvestigateFailure={() => setStage('understand')} onForkBranch={() => setStage('improve')} />
           ) : stage === 'understand' ? (
             <UnderstandStage onTestThisCause={() => setStage('improve')} onBackToSimulate={() => setStage('simulate')} />
           ) : stage === 'improve' ? (
-            <ImproveStage onAdoptBranch={() => setStage('verify')} onBackToUnderstand={() => setStage('understand')} />
+            <ImproveStage branch={branch} onBranchChange={setBranch} />
           ) : stage === 'verify' ? (
-            <VerifyStage revision={revision} onOpenEvidenceSheet={() => setShowEvidence(true)} />
+            <VerifyStage onOpenEvidenceSheet={() => setShowEvidence(true)} />
           ) : stage === 'observe' ? (
             <ObserveStage onProposeUpdate={() => setStage('improve')} />
           ) : stage === 'build' ? (
-            <BuildStage revision={revision} />
+            <BuildStage />
           ) : (
             <div className="flex-1 p-6 text-center text-muted">Unknown stage</div>
           )}
@@ -357,9 +430,10 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
       </div>
 
       <CommandPalette isOpen={showCommands} onClose={() => setShowCommands(false)} commands={commands} onSelect={onCommand} />
-      <EvidenceSheet isOpen={showEvidence} onClose={() => setShowEvidence(false)} revision={revision} />
+      <EvidenceSheet isOpen={showEvidence} onClose={() => setShowEvidence(false)} />
       <SettingsSheet isOpen={showSettings} onClose={() => setShowSettings(false)} onToggleTheme={toggleTheme} currentTheme={theme} />
       <ActivityDrawer isOpen={showActivity} onClose={() => setShowActivity(false)} projectId={projectId} />
+      <ShortcutsSheet isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
       <SourcesManagerSheet isOpen={showSources} onClose={() => setShowSources(false)} projectId={projectId} />
     </div>
   );

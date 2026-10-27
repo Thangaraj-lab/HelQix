@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CircleCheck, CircleX, TriangleAlert } from 'lucide-react';
-import { EXAMPLE_REQUIREMENT } from '../../mock/scenarios';
+import { limitLabel } from '../../app/requirements';
 import { replayCheck, ReplayResult, short } from '../../app/evidence';
+import { useStudio } from '../../stores';
 import { Button, Chip, ExampleTag, MockTag, Reading } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
-import { valueAt } from '../../components/charts/LineChart';
-import { useRun } from '../simulate/useRun';
+import { valueAtTime } from '../../scene/bindings';
+import { useModelData } from '../studio/ModelContext';
 
 export interface UnderstandStageProps {
   onTestThisCause: () => void;
@@ -15,20 +16,28 @@ export interface UnderstandStageProps {
 interface ChainNode {
   id: string;
   title: string;
+  partId: string | null;
+  partName: string;
   variable: string;
   unit: string;
   before: number;
   atFailure: number;
   at: number;
   candidate?: boolean;
+  isBreach?: boolean;
 }
 
-// Understand (file 37 section 6.11). The candidate chain is built from the stored frames: which
-// values changed, in what order, before the requirement was violated. It states order in time and
-// nothing about cause: a cause is a hypothesis until a branch tests it.
+const pretty = (v: string) => v.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+const clean = (n: string) => n.replace(/ \(Example\)$/, '');
+
+// Understand (file 37 section 6.11). The candidate chain is built from the stored run: which bound
+// variables changed before the requirement broke, and in what order. Selecting a step flies the 3D
+// camera to the part it is bound to. The chain states order in time and nothing about cause: a cause
+// is a hypothesis until a branch tests it.
 export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCause, onBackToSimulate }) => {
-  const run = useRun();
-  const [selected, setSelected] = useState('load');
+  const model = useModelData();
+  const { run, failure, bindings, series } = model;
+  const { selection } = useStudio();
   const [replay, setReplay] = useState<ReplayResult | null>(null);
 
   useEffect(() => {
@@ -39,26 +48,68 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
   }, [run]);
 
   const chain = useMemo<ChainNode[]>(() => {
-    if (!run || run.failureT == null) return [];
-    const torque = run.series('shaft_torque_load');
-    const current = run.series('phase_rms_current');
-    const temp = run.series('stator_winding_temperature');
-    const step = torque.find((p, i) => i > 0 && Math.abs(p[1] - torque[i - 1][1]) > 20)?.[0] ?? 0;
-    const f = run.failureT;
-    return [
-      { id: 'load', title: 'Load rises', variable: 'Output torque', unit: 'N·m', before: valueAt(torque, step - 0.1) ?? 0, atFailure: valueAt(torque, f) ?? 0, at: step, candidate: true },
-      { id: 'current', title: 'Phase current rises', variable: 'Phase current', unit: 'A rms', before: valueAt(current, step - 0.1) ?? 0, atFailure: valueAt(current, f) ?? 0, at: step },
-      { id: 'temp', title: 'Winding temperature climbs', variable: 'Winding temperature', unit: '°C', before: valueAt(temp, step) ?? 0, atFailure: valueAt(temp, f) ?? 0, at: f },
-      { id: 'limit', title: `${EXAMPLE_REQUIREMENT.id} is violated`, variable: 'Winding temperature', unit: '°C', before: EXAMPLE_REQUIREMENT.limit, atFailure: valueAt(temp, f) ?? 0, at: f }
-    ];
-  }, [run]);
+    if (!run || !failure) return [];
+    const nodes: ChainNode[] = [];
+    for (const b of bindings) {
+      if (b.channel === 'rotation' || nodes.some(n => n.variable === b.variable)) continue;
+      const pts = series[b.variable] ?? [];
+      if (pts.length < 2) continue;
+      const [lo, hi] = b.range ?? [pts[0][1], pts[pts.length - 1][1]];
+      const span = hi - lo || 1;
+      // An abrupt step (one sample jumping by a quarter of the range) marks when something was imposed;
+      // a smooth variable is dated by when it first drifted 15% of the range.
+      let jumpAt: number | null = null;
+      for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i][1] - pts[i - 1][1]) > span * 0.25) { jumpAt = pts[i][0]; break; }
+      const drift = pts.find(p => Math.abs(p[1] - pts[0][1]) > span * 0.15);
+      const onset = jumpAt ?? drift?.[0] ?? null;
+      if (onset === null) continue;
+      nodes.push({
+        id: b.variable,
+        title: jumpAt !== null ? `${pretty(b.variable)} steps` : `${pretty(b.variable)} drifts`,
+        partId: b.node,
+        partName: clean(model.revision?.parts[b.node]?.name ?? b.node),
+        variable: pretty(b.variable),
+        unit: b.units,
+        before: valueAtTime(pts, Math.max(0, onset - 0.1)) ?? pts[0][1],
+        atFailure: valueAtTime(pts, failure.t) ?? 0,
+        at: onset,
+        candidate: jumpAt !== null
+      });
+    }
+    // Imposed changes (steps) come first, then what drifted as a consequence, each in time order.
+    nodes.sort((a, b) => Number(b.title.endsWith('steps')) - Number(a.title.endsWith('steps')) || a.at - b.at);
+    const firstStep = nodes.findIndex(n => n.candidate);
+    nodes.forEach((n, i) => { n.candidate = i === (firstStep >= 0 ? firstStep : 0); });
+    nodes.push({
+      id: 'breach',
+      title: `${failure.requirement.id} is broken`,
+      partId: failure.partId,
+      partName: clean(failure.partName),
+      variable: pretty(failure.requirement.variable),
+      unit: failure.requirement.unit,
+      before: failure.requirement.limit,
+      atFailure: failure.value,
+      at: failure.t,
+      isBreach: true
+    });
+    return nodes;
+  }, [run, failure, bindings, series, model.revision]);
 
-  const node = chain.find(n => n.id === selected) ?? chain[0];
+  // Selecting a step selects its part in the 3D view (the camera follows).
+  const selectedPart = selection.selectedIds[0] ?? null;
+  const node = chain.find(n => n.partId && n.partId === selectedPart) ?? chain[0];
+  const choose = (n: ChainNode) => (n.partId ? selection.select(n.partId) : selection.deselectAll());
+  useEffect(() => { if (chain[0]?.partId && !selection.selectedIds[0]) selection.select(chain[0].partId); }, [chain.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!run || run.failureT == null) {
+  if (!run || !failure) {
     return (
       <StageGrid
-        top={<div className="surface-glass px-5 py-3 text-[13px] text-ink">Nothing to investigate: this run did not violate {EXAMPLE_REQUIREMENT.id}.{onBackToSimulate && <Button size="sm" variant="ghost" className="ml-2" onClick={onBackToSimulate}>Back to Simulate</Button>}</div>}
+        top={
+          <div className="surface-glass px-5 py-3 text-[13px] text-ink flex items-center gap-3">
+            {run ? 'Nothing to investigate: this run did not break a requirement.' : 'Nothing to investigate: there is no run yet.'}
+            {onBackToSimulate && <Button size="sm" variant="ghost" onClick={onBackToSimulate}>Back to Simulate</Button>}
+          </div>
+        }
       />
     );
   }
@@ -67,13 +118,13 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
     <>
       <PanelCard title="Failures" aside={<MockTag />}>
         <div className="rounded-[10px] border border-bad/40 bg-bad/[0.07] p-3.5 space-y-1.5">
-          <div className="flex items-center justify-between gap-2"><span className="text-[13px] font-medium text-strong">{EXAMPLE_REQUIREMENT.id} violated</span><span className="num text-xs text-bad">{run.failureT.toFixed(2)} s</span></div>
-          <p className="text-xs text-ink">{EXAMPLE_REQUIREMENT.text}. Reached <span className="num">{chain[2]?.atFailure} °C</span>.</p>
+          <div className="flex items-center justify-between gap-2"><span className="text-[13px] font-medium text-strong">{failure.requirement.id} broken</span><span className="num text-xs text-bad">{failure.t.toFixed(2)} s</span></div>
+          <p className="text-xs text-ink">{failure.requirement.text}. {clean(failure.partName)} reached <span className="num">{failure.value} {failure.requirement.unit}</span> against {limitLabel(failure.requirement)}.</p>
         </div>
       </PanelCard>
       <PanelCard title="Observations">
         <ul className="space-y-2 text-xs">
-          {chain.slice(0, 3).map(n => (
+          {chain.filter(n => !n.isBreach).map(n => (
             <li key={n.id} className="flex items-baseline gap-3"><span className="num w-10 shrink-0 text-muted">{n.at.toFixed(1)} s</span><span className="text-ink">{n.title}</span></li>
           ))}
         </ul>
@@ -96,35 +147,34 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
 
   const right = (
     <>
-      <PanelCard title="Candidate chain" aside={<Chip tone="neutral">Structural and temporal</Chip>}>
-        <ol className="relative space-y-1.5">
+      <PanelCard title="Candidate chain" aside={<Chip>Structural and temporal</Chip>}>
+        <ol className="space-y-1.5">
           {chain.map((n, i) => {
-            const on = selected === n.id;
+            const on = node?.id === n.id;
             return (
-              <li key={n.id} className="relative">
-                {i < chain.length - 1 && <span aria-hidden className="absolute left-[19px] top-[40px] h-[10px] w-px bg-line-strong" />}
-                <button onClick={() => setSelected(n.id)} aria-pressed={on} className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-[10px] border transition-colors ${on ? 'border-accent/45 bg-accent/[0.07]' : 'border-line bg-white/[0.02] hover:border-line-strong'}`}>
-                  <span className={`num w-5 h-5 rounded-full inline-flex items-center justify-center text-[10px] shrink-0 ${i === chain.length - 1 ? 'bg-bad/20 text-bad' : 'border border-line-strong text-muted'}`}>{i + 1}</span>
+              <li key={n.id}>
+                <button onClick={() => choose(n)} aria-pressed={on} className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-[10px] border transition-colors ${on ? 'border-accent/45 bg-accent/[0.07]' : 'border-line bg-white/[0.02] hover:border-line-strong'}`}>
+                  <span className={`num w-5 h-5 rounded-full inline-flex items-center justify-center text-[10px] shrink-0 ${n.isBreach ? 'bg-bad/20 text-bad' : 'border border-line-strong text-muted'}`}>{i + 1}</span>
                   <span className="min-w-0">
                     <span className="block text-[13px] text-strong truncate">{n.title}</span>
-                    {n.candidate && <span className="block text-[11px] text-warn">Candidate cause</span>}
+                    <span className="block text-[11px] text-muted truncate">{n.partName}{n.candidate ? ' · candidate cause' : ''}</span>
                   </span>
                 </button>
               </li>
             );
           })}
         </ol>
-        <p className="text-[11px] text-muted">The order is what the run shows. Whether one step causes the next is not tested.</p>
+        <p className="text-[11px] text-muted">The order is what the run shows. Whether one step causes the next is not tested. Pick a step to see its part in 3D.</p>
       </PanelCard>
 
       {node && (
         <PanelCard title="Node detail" aside={<ExampleTag />}>
           <p className="text-[13px] font-medium text-strong">{node.title}</p>
           <div className="grid grid-cols-2 gap-4">
-            <Reading label="Before" value={+node.before.toFixed(1)} unit={node.unit} mock />
-            <Reading label="At failure" value={+node.atFailure.toFixed(1)} unit={node.unit} tone="warn" mock />
+            <Reading label={node.isBreach ? 'Limit' : 'Before'} value={+node.before.toFixed(1)} unit={node.unit} mock />
+            <Reading label={node.isBreach ? 'Reached' : 'At failure'} value={+node.atFailure.toFixed(1)} unit={node.unit} tone="warn" mock />
           </div>
-          <p className="text-xs text-muted">{node.variable}. Follows the previous step in time within this run. Origin Simulated, status Unverified.</p>
+          <p className="text-xs text-muted">{node.variable}, on {node.partName}. Follows the earlier steps in time within this run. Origin Simulated, status Unverified.</p>
           {node.candidate && <Button variant="secondary" className="w-full" onClick={onTestThisCause}>Test this cause</Button>}
         </PanelCard>
       )}
@@ -134,7 +184,7 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
   const top = (
     <div role="alert" className="surface-glass !border-bad/45 px-5 py-3 flex items-center gap-3 max-w-full animate-rise">
       <TriangleAlert size={17} className="text-bad shrink-0" />
-      <p className="text-[13px] text-strong">Winding temperature above limit at <span className="num">{run.failureT.toFixed(2)} s</span></p>
+      <p className="text-[13px] text-strong">{clean(failure.partName)} passed its limit at <span className="num">{failure.t.toFixed(2)} s</span></p>
       {onBackToSimulate && <Button size="sm" variant="ghost" onClick={onBackToSimulate}>Back to Simulate</Button>}
     </div>
   );
