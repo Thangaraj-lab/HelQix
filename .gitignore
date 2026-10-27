@@ -43,3 +43,6 @@ dist/
 /.keys/
 *.key
 /.cache/
+
+# The Studio's Build stage is source, not build output.
+!21-app/reality-studio/src/pages/build/

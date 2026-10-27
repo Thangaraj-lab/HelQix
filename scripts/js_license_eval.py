@@ -17,6 +17,11 @@ LGPL = {"LGPL-2.1", "LGPL-2.1-only", "LGPL-2.1-or-later", "LGPL-3.0", "LGPL-3.0-
 LGPL_DYNAMIC = {
     "@img/sharp-": "prebuilt libvips loaded at run time by sharp (glTF-Transform texture tools); build-time only, not shipped",
 }
+# SIL Open Font License 1.1: allowed only for font packages. It governs the font files and does not
+# reach the application that uses them. Any other package under OFL is refused.
+OFL_FONTS = {
+    "@fontsource/": "self-hosted IBM Plex and Sora fonts for the Studio UI (file 37 section 3)",
+}
 
 
 def tokens(expr: str) -> list[str]:
@@ -44,6 +49,8 @@ def allowed(expr: str, package: str) -> bool:
             return True
         if lic in LGPL:
             return any(package.startswith(p) for p in LGPL_DYNAMIC)
+        if lic == "OFL-1.1":
+            return any(package.startswith(p) for p in OFL_FONTS)
         return False
 
     def conj() -> bool:

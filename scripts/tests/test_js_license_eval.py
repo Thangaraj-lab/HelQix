@@ -23,3 +23,9 @@ def test_evaluate_reports_every_failure():
     failures = evaluate(pkgs)
     assert len(failures) == 3, failures
     assert any(f.startswith("bad@1") for f in failures) and any(f.startswith("none@1") for f in failures) and any(f.startswith("list@1") for f in failures)
+
+
+def test_ofl_is_allowed_only_for_font_packages():
+    assert allowed("OFL-1.1", "@fontsource/sora")
+    assert not allowed("OFL-1.1", "some-library")
+    assert not allowed("MIT AND OFL-1.1", "some-library")
