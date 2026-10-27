@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GitBranch, Pause, Play, Snowflake, Square, TriangleAlert } from 'lucide-react';
 import { useStudio } from '../../stores';
-import { engine } from '../../engine';
+import { engine, engineMode } from '../../engine';
 import { Checkpoint } from '../../contracts';
 import { EXAMPLE_SCENARIOS, MOCK_RUN_ID, RUNNABLE_SCENARIO } from '../../mock/scenarios';
 import { violates, limitLabel } from '../../app/requirements';
@@ -73,7 +73,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
       <div className="relative z-10 m-auto max-w-md">
         <EmptyState
           title={model.revision ? 'Nothing to simulate yet' : 'No committed model'}
-          description={model.revision ? 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.' : 'Create model r1 in Define first.'}
+          description={!model.revision ? 'Create model r1 in Define first.' : engineMode === 'real' ? 'The real engine has no solver connected to the Studio yet, so there is no run to show. Switch to the mock engine (VITE_ENGINE unset) to see a scripted demonstration.' : 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.'}
         />
       </div>
     );

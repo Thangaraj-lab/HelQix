@@ -1,7 +1,7 @@
 // HELQIX Engineering Protocol Contracts (Section 9)
 // Shared interface contract between Engine and Frontend Studio
 
-export type Origin = 'observed' | 'simulated' | 'derived' | 'ai_hypothesis';
+export type Origin = 'observed' | 'simulated' | 'derived' | 'ai_hypothesis' | 'user_stated';
 export type Status = 'verified' | 'unverified';
 
 export interface Value {
@@ -92,6 +92,8 @@ export interface BuildEvent {
   buildId: string;
   ts: string;
   kind:
+    | 'op.undone'
+    | 'op.redone'
     | 'step.start'
     | 'step.done'
     | 'op.applied'
@@ -191,8 +193,9 @@ export interface EngineClient {
   buildEvents(buildId: string): AsyncIterable<BuildEvent>;
   answerQuestion(buildId: string, qid: string, answer: string | 'default' | 'skip'): Promise<void>;
   applyOps(buildId: string, ops: ModelOp[]): Promise<BuildEvent[]>;
-  undo(buildId: string): Promise<void>;
-  redo(buildId: string): Promise<void>;
+  /** The real engine returns the events the undo produced; the mock returns nothing and the UI pops locally. */
+  undo(buildId: string): Promise<BuildEvent[] | void>;
+  redo(buildId: string): Promise<BuildEvent[] | void>;
   commit(buildId: string): Promise<ModelRevision>;
   listSources(pid: string): Promise<Source[]>;
   run(pid: string, scenarioId: string, opts?: { seed?: number; revisionNum?: number }): Promise<{ runId: string }>;

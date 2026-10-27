@@ -104,10 +104,40 @@ jobs:
           bash scripts/k4_frames_demo.sh http://127.0.0.1:8080 > frames-demo.log 2>&1 || { bash scripts/ci_annotate.sh "K4 frames demo failed" frames-demo.log 30; bash scripts/ci_annotate.sh "API log" api.log 25; exit 1; }
           cat frames-demo.log
           grep -E "^(frames file|t=)" frames-demo.log | sed 's/^/::notice title=K4 frames demo::/'
+      - name: UI engine client against the real API (K8)
+        env:
+          HELQIX_API_URL: http://127.0.0.1:8080
+          HELQIX_API_KEY: ci-only-api-key-0123456789abcdef0123456789
+        run: |
+          cd 21-app/reality-studio
+          npm ci --no-audit --no-fund
+          npx vitest run src/test/realApi.test.ts --reporter=verbose 2>&1 | tee ../../ui-real-api.log
+          ! grep -q "skipped" ../../ui-real-api.log || { echo "::error title=K8::the real-API UI tests were skipped"; exit 1; }
       - name: Frame benchmark (release, Linux runner)
         run: |
           cargo run -q --release --locked -p helqix-frames --bin helqix-frames-bench | tee bench.log
           grep -E "^ +[0-9]" bench.log | sed 's/^/::notice title=K4 frame benchmark (frames bytes B\/frame encode_ms load_ms getFrame_us runFrames_us)::/'
+
+  ui:
+    name: Studio UI (K8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install
+        working-directory: 21-app/reality-studio
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        working-directory: 21-app/reality-studio
+        run: npx tsc --noEmit
+      - name: Tests (plan rules, bindings, import checks, engine client wire format)
+        working-directory: 21-app/reality-studio
+        run: npx vitest run
+      - name: Build
+        working-directory: 21-app/reality-studio
+        run: npx vite build
 
   fmi-adapter:
     name: FMI adapter benchmark (K3)

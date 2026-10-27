@@ -75,6 +75,7 @@ export const DefineStage: React.FC<DefineStageProps> = ({
           prompt={input.kind === 'prompt' ? input.text : null}
           committedRev={committedRev}
           onCommitSuccess={onCommitted}
+          onUseScratch={() => choose({ kind: 'scratch' }, 'assemble')}
           onRunSimulation={onRunSimulation}
           onPartsChange={onPartsChange}
         />

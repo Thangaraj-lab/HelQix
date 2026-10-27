@@ -21,6 +21,8 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
 
     let protected_api = Router::<AppState>::new()
         .route("/v1/projects/{project_id}/builds", axum::routing::post(builds::start))
+        .route("/v1/projects/{project_id}/revisions", get(builds::revisions))
+        .route("/v1/projects/{project_id}/revisions/{number}", get(builds::revision))
         .route("/v1/builds/{id}", get(builds::get))
         .route("/v1/builds/{id}/events", get(builds::events))
         .route("/v1/builds/{id}/ops", axum::routing::post(builds::apply_ops))

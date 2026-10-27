@@ -34,7 +34,7 @@ export function useRun(): RunData | null {
   const [frames, setFrames] = useState<RunFrame[] | null>(cache);
   useEffect(() => {
     let live = true;
-    load().then(f => live && setFrames(f));
+    load().then(f => live && setFrames(f)).catch(() => { pending = null; if (live) setFrames([]); });
     return () => { live = false; };
   }, []);
 

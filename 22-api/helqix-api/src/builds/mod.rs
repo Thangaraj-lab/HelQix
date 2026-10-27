@@ -189,3 +189,36 @@ fn event_stream(pool: PgPool, id: Uuid, after: i64) -> impl Stream<Item = Result
         }
     })
 }
+
+/// `GET /v1/projects/{project_id}/revisions`: committed revisions, oldest first (`r1`, `r2`, ...).
+pub async fn revisions(State(state): State<AppState>, Path(project_id): Path<String>) -> Result<Json<Value>, ApiError> {
+    let project_id = parse_id(&project_id)?;
+    store::get(&state.database, ResourceKind::Project, project_id).await?;
+    let rows: Vec<(i32, Uuid, i64, String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+        "SELECT number, build_id, op_count, model_sha256, committed_at FROM helqix_model_revisions WHERE project_id = $1 ORDER BY number")
+        .bind(project_id).fetch_all(&state.database).await?;
+    let revisions: Vec<ModelRevision> = rows.into_iter().map(|(number, build_id, op_count, model_sha256, committed_at)| ModelRevision {
+        project_id: project_id.to_string(), number: number as u32, label: format!("r{number}"), build_id: build_id.to_string(),
+        op_count: op_count as u64, model_sha256, committed_at: committed_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    }).collect();
+    Ok(Json(json!({"revisions": revisions})))
+}
+
+/// `GET /v1/projects/{project_id}/revisions/{number}`: one committed revision with the op list that
+/// defines it. The client folds the ops into parts, ports and connections.
+pub async fn revision(State(state): State<AppState>, Path((project_id, number)): Path<(String, i32)>) -> Result<Json<Value>, ApiError> {
+    let project_id = parse_id(&project_id)?;
+    let row: Option<(Uuid, i64, String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+        "SELECT build_id, op_count, model_sha256, committed_at FROM helqix_model_revisions WHERE project_id = $1 AND number = $2")
+        .bind(project_id).bind(number).fetch_optional(&state.database).await?;
+    let (build_id, op_count, model_sha256, committed_at) = row.ok_or(ApiError::NotFound)?;
+    let mut tx = state.database.begin().await?;
+    let (_, build) = load(&mut tx, build_id).await?;
+    tx.commit().await?;
+    let revision = ModelRevision {
+        project_id: project_id.to_string(), number: number as u32, label: format!("r{number}"), build_id: build_id.to_string(),
+        op_count: op_count as u64, model_sha256, committed_at: committed_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    };
+    // Active ops only: undone ops past the cursor were never part of the committed model.
+    Ok(Json(json!({"revision": revision, "ops": build.active_ops()})))
+}

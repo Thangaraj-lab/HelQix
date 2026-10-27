@@ -112,3 +112,60 @@ async fn staged_build_round_trip_through_the_api() {
     let res = app.clone().oneshot(Request::builder().uri("/v1/sources").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn committed_revisions_are_readable_with_their_ops() {
+    let Some(app) = app().await else { eprintln!("SKIPPED: HELQIX_TEST_DATABASE_URL not set"); return };
+    let (_, project) = call(&app, "POST", "/v1/projects", Some(json!({"payload": {"name": "Untitled project"}}))).await;
+    let pid = project["data"]["id"].as_str().unwrap().to_owned();
+
+    // Nothing committed yet, and an unknown revision is a 404.
+    let (s, r) = call(&app, "GET", &format!("/v1/projects/{pid}/revisions"), None).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["revisions"].as_array().unwrap().len(), 0);
+    let (s, _) = call(&app, "GET", &format!("/v1/projects/{pid}/revisions/1"), None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    let (_, build) = call(&app, "POST", &format!("/v1/projects/{pid}/builds"), None).await;
+    let bid = build["buildId"].as_str().unwrap().to_owned();
+    let ops = vec![part("base"), part("body")];
+    let (s, r) = call(&app, "POST", &format!("/v1/builds/{bid}/ops"), Some(json!({"ops": ops}))).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let (s, committed) = call(&app, "POST", &format!("/v1/builds/{bid}/commit"), None).await;
+    assert_eq!(s, StatusCode::CREATED, "{committed}");
+
+    let (s, list) = call(&app, "GET", &format!("/v1/projects/{pid}/revisions"), None).await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    assert_eq!(list["revisions"][0]["label"], "r1");
+    assert_eq!(list["revisions"][0]["modelSha256"], committed["modelSha256"]);
+
+    let (s, one) = call(&app, "GET", &format!("/v1/projects/{pid}/revisions/1"), None).await;
+    assert_eq!(s, StatusCode::OK, "{one}");
+    assert_eq!(one["ops"], json!(ops), "the revision's ops are exactly what was committed");
+    assert_eq!(one["revision"]["number"], 1);
+
+    // Another project's revisions are not visible through this project's id.
+    let (_, other) = call(&app, "POST", "/v1/projects", Some(json!({"payload": {"name": "Other"}}))).await;
+    let oid = other["data"]["id"].as_str().unwrap();
+    let (s, _) = call(&app, "GET", &format!("/v1/projects/{oid}/revisions/1"), None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_committed_revision_excludes_undone_ops() {
+    let Some(app) = app().await else { eprintln!("SKIPPED: HELQIX_TEST_DATABASE_URL not set"); return };
+    let (_, project) = call(&app, "POST", "/v1/projects", Some(json!({"payload": {"name": "Untitled project"}}))).await;
+    let pid = project["data"]["id"].as_str().unwrap().to_owned();
+    let (_, build) = call(&app, "POST", &format!("/v1/projects/{pid}/builds"), None).await;
+    let bid = build["buildId"].as_str().unwrap().to_owned();
+    let (s, _) = call(&app, "POST", &format!("/v1/builds/{bid}/ops"), Some(json!({"ops": [part("base"), part("body")]}))).await;
+    assert_eq!(s, StatusCode::OK);
+    // Undo the last part: it stays in the stored log past the cursor but is not part of the model.
+    let (s, _) = call(&app, "POST", &format!("/v1/builds/{bid}/undo"), None).await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, committed) = call(&app, "POST", &format!("/v1/builds/{bid}/commit"), None).await;
+    assert_eq!(s, StatusCode::CREATED, "{committed}");
+    let (_, one) = call(&app, "GET", &format!("/v1/projects/{pid}/revisions/1"), None).await;
+    assert_eq!(one["ops"], json!([part("base")]), "the undone part must not appear in the revision");
+    assert_eq!(one["revision"]["opCount"], 1);
+}

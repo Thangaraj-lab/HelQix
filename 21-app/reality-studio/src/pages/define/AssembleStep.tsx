@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FastForward, Pause, Play, Plus, Redo2, SkipForward, Undo2 } from 'lucide-react';
 import { Binding, BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
-import { engine } from '../../engine';
+import { engine, engineMode } from '../../engine';
 import type { SceneConnection, ScenePart } from '../../scene/types';
 import { useStudio } from '../../stores';
 import { createMockValue } from '../../mock/examplePack';
@@ -17,6 +17,8 @@ export interface AssembleStepProps {
   /** Revision label from the URL (rev), when this project already has a committed model. */
   committedRev: string | null;
   onCommitSuccess: (revision: ModelRevision) => void;
+  /** Switch this project to the scratch path (used when the engine cannot interpret a description) */
+  onUseScratch?: () => void;
   onRunSimulation?: () => void;
   /** Placed parts, for the Studio canvas. */
   onPartsChange?: (scene: { parts: ScenePart[]; connections: SceneConnection[] }) => void;
@@ -67,10 +69,13 @@ const STEPS: { id: NonNullable<BuildEvent['step']>; label: string }[] = [
   { id: 'check', label: 'Checking units' }
 ];
 
+/** A number the user typed. The mock engine tags everything Mock; the real engine records it as user-stated. */
+const entered = (v: number, unit: string): Value => (engineMode === 'real' ? { v, unit, origin: 'user_stated', status: 'unverified' } : createMockValue(v, unit));
+
 const SPEEDS = [1, 2, 4] as const;
 const BASE_DELAY_MS = 450;
 
-export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, committedRev, onCommitSuccess, onPartsChange }) => {
+export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, committedRev, onCommitSuccess, onUseScratch, onPartsChange }) => {
   const [buildId, setBuildId] = useState('');
   const [events, setEvents] = useState<BuildEvent[]>([]);
   const [ops, setOps] = useState<ModelOp[]>([]);
@@ -85,6 +90,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
   const [cursor, setCursor] = useState(0);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
   const { selection } = useStudio();
   const selected = selection.selectedIds[0] ?? null;
   const setSelected = (id: string) => selection.select(id);
@@ -106,7 +112,15 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
       const op = evt.op;
       setOps(prev => [...prev, op]);
       if (op.op === 'part.add') selection.select(op.id);
-    } else if (evt.kind === 'issue.raised' && evt.issue) setIssues(prev => [...prev, evt.issue!]);
+    } else if (evt.kind === 'op.undone' && evt.op) {
+      const op = evt.op;
+      setOps(prev => prev.slice(0, -1));
+      setRedo(prev => [...prev, op]);
+    } else if (evt.kind === 'op.redone' && evt.op) {
+      const op = evt.op;
+      setRedo(prev => prev.slice(0, -1));
+      setOps(prev => [...prev, op]);
+    } else if (evt.kind === 'issue.raised' && evt.issue) setIssues(prev => (prev.some(i => i.id === evt.issue!.id) ? prev : [...prev, evt.issue!]));
     else if (evt.kind === 'issue.cleared' && evt.issue) setIssues(prev => prev.filter(i => i.id !== evt.issue!.id));
     else if (evt.kind === 'staged.ready') setReady(true);
   }, []);
@@ -119,11 +133,13 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
         const { buildId: id } = await engine.startBuild(projectId, prompt === null ? { scratch: true as const } : { prompt });
         if (dead) return;
         setBuildId(id);
-        const collected: BuildEvent[] = [];
-        for await (const e of engine.buildEvents(id)) collected.push(e);
-        if (dead) return;
-        stream.current = collected;
-        setTotal(collected.length);
+        // Events are taken as they arrive, so a build with nothing stored yet does not block the screen.
+        stream.current = [];
+        for await (const e of engine.buildEvents(id)) {
+          if (dead) return;
+          stream.current.push(e);
+          setTotal(stream.current.length);
+        }
       } catch (e) {
         if (!dead) setError(e instanceof Error ? e.message : String(e));
       }
@@ -154,14 +170,16 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
 
   const undo = async () => {
     if (!buildId || ops.length === 0) return;
-    await engine.undo(buildId);
+    const evts = await engine.undo(buildId);
+    if (evts && evts.length) { evts.forEach(applyEvent); return; }
     const last = ops[ops.length - 1];
     setOps(prev => prev.slice(0, -1));
     setRedo(prev => [...prev, last]);
   };
   const redoOp = async () => {
     if (!buildId || redo.length === 0) return;
-    await engine.redo(buildId);
+    const evts = await engine.redo(buildId);
+    if (evts && evts.length) { evts.forEach(applyEvent); return; }
     const next = redo[redo.length - 1];
     setRedo(prev => prev.slice(0, -1));
     setOps(prev => [...prev, next]);
@@ -197,9 +215,14 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
   const canCommit = !!buildId && ready && !isCommitted && blocking.length === 0;
   const commit = async () => {
     if (!canCommit) return;
-    const rev = await engine.commit(buildId);
-    setCommitted(rev);
-    onCommitSuccess(rev);
+    try {
+      setCommitError(null);
+      const rev = await engine.commit(buildId);
+      setCommitted(rev);
+      onCommitSuccess(rev);
+    } catch (e) {
+      setCommitError(e instanceof Error ? e.message : String(e));
+    }
   };
   // The Studio header's primary button asks for a commit while this step is open.
   const commitRef = useRef(commit);
@@ -225,7 +248,9 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
     check: `${issues.length} open ${issues.length === 1 ? 'issue' : 'issues'}`
   };
 
-  const status = isCommitted
+  const status = commitError
+    ? { tone: 'warn' as const, text: `Not committed. ${commitError}` }
+    : isCommitted
     ? { tone: 'ok' as const, text: `Model ${revLabel} is committed and will not change.` }
     : !ready
     ? { tone: 'muted' as const, text: playing ? 'The build is running.' : 'Waiting for the build.' }
@@ -236,7 +261,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
   const setPosition = (axis: 0 | 1 | 2, value: number) => {
     if (!sel || !sel.transform || Number.isNaN(value)) return;
     const pos = [...sel.transform.pos] as Transform['pos'];
-    pos[axis] = createMockValue(value, 'm');
+    pos[axis] = entered(value, 'm');
     void apply([{ op: 'part.place', id: sel.id, transform: { ...sel.transform, pos } }]);
   };
 
@@ -245,7 +270,10 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
       <div className="relative z-10 m-auto surface p-6 max-w-md space-y-3" role="alert">
         <p className="text-sm font-medium text-bad">The build could not start.</p>
         <p className="text-xs text-muted">{error}</p>
-        <Button onClick={() => window.location.reload()}>Try again</Button>
+        <div className="flex gap-2">
+          {prompt !== null && onUseScratch && <Button variant="primary" onClick={onUseScratch}>Start from scratch</Button>}
+          <Button onClick={() => window.location.reload()}>Try again</Button>
+        </div>
       </div>
     );
   }
@@ -513,7 +541,7 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
 
   const add = async () => {
     const id = `part-${Date.now().toString(36)}`;
-    let geometry: GeometryKind = { kind: 'primitive', shape, dims: dims.map(d => createMockValue(d, 'mm')) };
+    let geometry: GeometryKind = { kind: 'primitive', shape, dims: dims.map(d => entered(d, 'mm')) };
     let note = 'Defined from scratch';
     if (source === 'gltf') {
       if (!file || !licence) return;
@@ -531,7 +559,7 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
     }
     void onAdd([
       { op: 'part.add', id, name: name.trim() || 'Part', geometry, maturity: 'user_defined', prov: { kind: 'user_stated', note } },
-      { op: 'part.place', id, transform: { pos: [createMockValue(0, 'm'), createMockValue(0.5, 'm'), createMockValue(0, 'm')], rot: [createMockValue(0, 'deg'), createMockValue(0, 'deg'), createMockValue(0, 'deg')], scale: [1, 1, 1], frame: 'world' } },
+      { op: 'part.place', id, transform: { pos: [entered(0, 'm'), entered(0.5, 'm'), entered(0, 'm')], rot: [entered(0, 'deg'), entered(0, 'deg'), entered(0, 'deg')], scale: [1, 1, 1], frame: 'world' } },
       { op: 'port.add', part: id, id: portName.trim() || 'port', kind: portKind, direction: portDir, unit: portUnit }
     ]);
   };
