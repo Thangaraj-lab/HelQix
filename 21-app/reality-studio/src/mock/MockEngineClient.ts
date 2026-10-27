@@ -15,7 +15,7 @@ import { getMockBuildScriptEvents, MOCK_SOURCES, createMockValue } from './examp
 
 class MockEngineClientImpl implements EngineClient {
   private projects: Map<string, Project> = new Map();
-  private stagedBuilds: Map<string, { events: BuildEvent[]; ops: ModelOp[]; undos: ModelOp[] }> = new Map();
+  private stagedBuilds: Map<string, { pid: string; events: BuildEvent[]; ops: ModelOp[]; undos: ModelOp[] }> = new Map();
   private revisions: Map<string, ModelRevision> = new Map();
   private checkpoints: Map<string, Checkpoint> = new Map();
 
@@ -64,6 +64,11 @@ class MockEngineClientImpl implements EngineClient {
     return project;
   }
 
+  async listProjects(): Promise<Project[]> {
+    this.restoreState();
+    return Array.from(this.projects.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   async startBuild(
     pid: string,
     input: { prompt: string; attachments?: AssetRef[] } | { scratch: true } | { importAsset: AssetRef }
@@ -99,6 +104,7 @@ class MockEngineClientImpl implements EngineClient {
     });
 
     this.stagedBuilds.set(buildId, {
+      pid,
       events: initialEvents,
       ops,
       undos: []
@@ -189,11 +195,13 @@ class MockEngineClientImpl implements EngineClient {
     const staged = this.stagedBuilds.get(buildId);
     if (!staged) throw new Error(`Build ${buildId} not found`);
 
-    const revId = `r1-${Date.now().toString(36)}`;
+    const project = this.projects.get(staged.pid);
+    const revisionNum = (project?.modelRevisions.length ?? 0) + 1;
+    const revId = `r${revisionNum}-${Date.now().toString(36)}`;
     const revision: ModelRevision = {
       id: revId,
-      projectId: buildId.split('-')[1] || 'default-prj',
-      revisionNum: 1,
+      projectId: staged.pid,
+      revisionNum,
       committedAt: new Date().toISOString(),
       parts: {},
       ports: {},
@@ -248,6 +256,11 @@ class MockEngineClientImpl implements EngineClient {
     }
 
     this.revisions.set(revId, revision);
+    if (project) {
+      project.modelRevisions = [...project.modelRevisions, revId];
+      project.activeRevisionId = revId;
+      project.updatedAt = revision.committedAt;
+    }
     this.saveState();
     return revision;
   }

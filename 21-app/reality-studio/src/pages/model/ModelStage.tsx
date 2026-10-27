@@ -187,7 +187,7 @@ export const ModelStage: React.FC<ModelStageProps> = ({ onRunSimulation }) => {
                     dc-out → dc-in (Electrical DC, 48.0 V)
                   </div>
                   <div className="p-1.5 rounded bg-[#13253D] border border-[#22395A] text-[11px] text-white">
-                    shaft-out → shaft-in (Mechanical Torque)
+                    mech-out → mech-in (Mechanical Torque)
                   </div>
                   <div className="p-1.5 rounded bg-[#13253D] border border-[#22395A] text-[11px] text-white">
                     analog-out → feedback-in (Telemetry Signal)
@@ -252,7 +252,7 @@ export const ModelStage: React.FC<ModelStageProps> = ({ onRunSimulation }) => {
                   <div className="text-[10px] text-[#7F93AF]">Electrical DC · 48.0 V</div>
                 </div>
                 <div className="p-2 rounded bg-[#0E1B2E] border border-[#22395A]">
-                  <div className="text-purple-300 font-bold">shaft-out (Output)</div>
+                  <div className="text-purple-300 font-bold">mech-out (Output)</div>
                   <div className="text-[10px] text-[#7F93AF]">Mechanical Torque · N·m</div>
                 </div>
               </div>

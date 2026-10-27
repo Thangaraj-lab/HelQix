@@ -32,7 +32,7 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({
       id: 'node-1',
       step: '01',
       name: 'Dynamic Step-Load Torque Injection',
-      component: 'Shaft Output Node',
+      component: 'Mechanical Output Node',
       relation: 'Torque demanded by external hydraulic backpressure',
       prevVal: '32.0 N·m',
       failureVal: '85.4 N·m',

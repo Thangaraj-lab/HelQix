@@ -168,6 +168,8 @@ export interface Intervention {
 
 export interface EngineClient {
   createProject(): Promise<Project>;
+  /** Home's project list (GET /v1/projects). Not in file 35 section 8; added for the Home screen. */
+  listProjects(): Promise<Project[]>;
   startBuild(
     pid: string,
     input: { prompt: string; attachments?: AssetRef[] } | { scratch: true } | { importAsset: AssetRef }

@@ -15,7 +15,7 @@ export const ObserveStage: React.FC<ObserveStageProps> = ({ onProposeUpdate }) =
 
   const residuals = [
     { label: 'Temperature Residual (ΔT)', val: '+2.4 °C', note: 'Higher convective cooling in chamber than model' },
-    { label: 'Shaft Vibration RMS', val: '0.12 g', note: 'Within nominal vibration ISO envelope' },
+    { label: 'Vibration RMS', val: '0.12 g', note: 'Within nominal vibration ISO envelope' },
     { label: 'Phase Inrush Difference', val: '-1.8 A', note: 'Supply cable impedance slightly higher' }
   ];
 

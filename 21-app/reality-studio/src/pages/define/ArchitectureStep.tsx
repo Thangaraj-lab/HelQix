@@ -1,34 +1,12 @@
 import React from 'react';
+import { EXAMPLE_SUBSYSTEMS as subsystems } from '../../mock/defineExamples';
+import { ExampleNotice } from './ExampleNotice';
 
 export interface ArchitectureStepProps {
   onContinue: () => void;
 }
 
 export const ArchitectureStep: React.FC<ArchitectureStepProps> = ({ onContinue }) => {
-  const subsystems = [
-    {
-      id: 'sub-elec',
-      name: 'Electrical Subsystem',
-      blocks: [
-        { id: 'blk-ps', name: 'Power Supply Unit', ports: ['DC Out (48 V)'] }
-      ]
-    },
-    {
-      id: 'sub-drive',
-      name: 'Drive Subsystem',
-      blocks: [
-        { id: 'blk-mot', name: 'Actuator Unit', ports: ['DC In', 'Shaft Coupling'] },
-        { id: 'blk-sens', name: 'Thermal Sensor Probe', ports: ['Analog Out'] }
-      ]
-    },
-    {
-      id: 'sub-fluid',
-      name: 'Fluid Subsystem',
-      blocks: [
-        { id: 'blk-pump', name: 'Fluid Displacement Assembly', ports: ['Shaft Input', 'Inlet', 'Outlet'] }
-      ]
-    }
-  ];
 
   const linkTypes = [
     { name: 'Electrical DC', color: '#2F7BFF', dash: '' },
@@ -39,6 +17,7 @@ export const ArchitectureStep: React.FC<ArchitectureStepProps> = ({ onContinue }
 
   return (
     <div className="w-full max-w-5xl mx-auto p-6 space-y-4 my-auto z-10">
+      <ExampleNotice />
       {/* Top Action Header */}
       <div className="p-3.5 rounded-[12px] bg-[#0E1B2E] border border-[#22395A] flex items-center justify-between">
         <div>

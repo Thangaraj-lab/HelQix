@@ -39,7 +39,9 @@ describe('plan rule 2: no domain parts in product code (only src/mock, labelled 
 
 describe('plan rule 4: never fake', () => {
   it('makes no claims about engines HELQIX does not use (UE5, Lumen, Omniverse)', () => {
-    expect(hits(/Unreal|Lumen|\bUE5\b|Omniverse|Nanite|Datasmith/, files(SRC))).toEqual([]);
+    // Product and mock files; this test file itself names the words it forbids.
+    const scanned = files(SRC).filter((f) => !relative(SRC, f).replace(/\\/g, '/').startsWith('test/'));
+    expect(hits(/Unreal|Lumen|\bUE5\b|Omniverse|Nanite|Datasmith/, scanned)).toEqual([]);
   });
 
   it('never hard-codes a Verified status in a screen (status must come from data with criteria)', () => {

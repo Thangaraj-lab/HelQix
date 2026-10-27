@@ -22,6 +22,10 @@ export class RealEngineClient implements EngineClient {
     throw new Error(`RealEngineClient: Connection to Rust backend (${this.endpoint}) not yet implemented. Crate 22-api is in development.`);
   }
 
+  async listProjects(): Promise<Project[]> {
+    throw new Error('RealEngineClient: listProjects not yet connected to live engine crate.');
+  }
+
   async startBuild(pid: string, input: any): Promise<{ buildId: string }> {
     throw new Error('RealEngineClient: startBuild not yet connected to live engine crate.');
   }

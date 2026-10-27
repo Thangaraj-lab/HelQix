@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { PreviewTag, ExampleTag } from '../../components/ui/UiKit';
+import { EXAMPLE_BRIEFS, EXAMPLE_QUESTIONS } from '../../mock/defineExamples';
+import { ExampleNotice } from './ExampleNotice';
 
 export interface RequirementsStepProps {
   promptText: string;
@@ -7,31 +9,9 @@ export interface RequirementsStepProps {
 }
 
 export const RequirementsStep: React.FC<RequirementsStepProps> = ({ promptText, onContinue }) => {
-  const [briefs, setBriefs] = useState([
-    { id: 'b-sys', title: 'System', status: 'Ready', desc: 'Closed fluid loop actuator driven by DC electrical supply.' },
-    { id: 'b-cmp', title: 'Components', status: '4 proposed', desc: 'Power source, electric drive assembly, sensor unit, fluid displacement unit.' },
-    { id: 'b-con', title: 'Connections', status: 'Ready', desc: '48 V DC link, mechanical shaft coupling, sensor feedback wire.' },
-    { id: 'b-env', title: 'Environment', status: 'Draft', desc: 'Ambient 25.0 °C, atmospheric pressure 101.3 kPa, convection cooling.' },
-    { id: 'b-scn', title: 'Scenario', status: '1 proposed', desc: 'High load dynamic ramp step at t=4.20s to evaluate thermal margin.' },
-    { id: 'b-req', title: 'Requirements', status: 'Ready', desc: 'Stator winding temperature limit < 120.0 °C; deterministic bitwise replay.' }
-  ]);
+  const [briefs, setBriefs] = useState(EXAMPLE_BRIEFS);
 
-  const [questions, setQuestions] = useState([
-    {
-      id: 'q1',
-      text: 'Specify continuous hydraulic flow rate requirement:',
-      defaultVal: '4.5 L/min at 3.5 bar',
-      answered: false,
-      value: ''
-    },
-    {
-      id: 'q2',
-      text: 'Acceptable rotor angular speed tolerance:',
-      defaultVal: '±50 RPM (Tolerance tier)',
-      answered: false,
-      value: ''
-    }
-  ]);
+  const [questions, setQuestions] = useState(EXAMPLE_QUESTIONS);
 
   const extractedRequirements = [
     { text: 'Electrical Supply Voltage', value: '48.0', unit: 'V', source: 'User-stated' },
@@ -41,6 +21,7 @@ export const RequirementsStep: React.FC<RequirementsStepProps> = ({ promptText, 
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-4 my-auto z-10 overflow-y-auto max-h-[85vh]">
+      <ExampleNotice />
       {/* Top Banner: Interpreting status */}
       <div className="p-3 rounded-[12px] bg-[#0E1B2E] border border-[#22395A] flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -64,7 +45,7 @@ export const RequirementsStep: React.FC<RequirementsStepProps> = ({ promptText, 
           <div className="space-y-2">
             <span className="text-xs font-bold text-[#F2F6FB]">Your Input Brief</span>
             <div className="p-3 rounded-[8px] bg-[#0E1B2E] border border-[#22395A] text-xs text-[#D6E2F3] font-mono leading-relaxed">
-              "{promptText || 'A pump driven by an electric motor from a 48 V supply...'}"
+              {promptText ? `"${promptText}"` : '(no description)'}
             </div>
           </div>
           <div className="text-[10px] text-[#7F93AF] mt-3">

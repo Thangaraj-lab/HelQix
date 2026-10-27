@@ -73,7 +73,7 @@ export function createBrushedMetalTextures(): {
   return { colorMap, normalMap, roughnessMap };
 }
 
-// 2. Concentric Lathe-Turned Machined Steel (for rotor shafts and end-plates)
+// 2. Concentric Lathe-Turned Machined Steel (for turned parts and end-plates)
 export function createMachinedRadialTexture(size = 512): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = size;

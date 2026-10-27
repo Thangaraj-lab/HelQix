@@ -30,7 +30,7 @@ export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet })
   // Six Included Items in Evidence Package (Section 6.13)
   const evidenceItems = [
     'Model Revision r1 AST Snapshot',
-    'Bitwise Solver Execution Log (Run 19)',
+    'Solver Execution Log (mock run)',
     'Intervention Branch R1 Diff Ops',
     'Deterministic State Replay Hashes',
     'Unit Verification Audit Report',

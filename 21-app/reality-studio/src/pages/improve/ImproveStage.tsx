@@ -45,7 +45,7 @@ export const ImproveStage: React.FC<ImproveStageProps> = ({
       unit: 'A'
     },
     {
-      label: 'Shaft Power Delivered',
+      label: 'Mechanical Power Delivered',
       original: '3.12 kW',
       branch: '2.98 kW',
       delta: '-0.14 kW',

@@ -1,84 +1,42 @@
 import React from 'react';
-import { useAppState, AppStateProvider } from './engineering/stateStore';
+import { AppStateProvider } from './engineering/stateStore';
 import { StudioStoreProvider } from './stores';
 import { AppShell } from './app/AppShell';
-
-// All Screens and Core Studio
+import { navigate, useLocation } from './app/router';
 import { Studio } from './pages/studio/Studio';
 import { LandingPage } from './pages/LandingPage';
 import { OverviewPage } from './pages/home/OverviewPage';
-import { WorkspacePage } from './pages/reality/WorkspacePage';
-import { ModelEditorPage } from './pages/model/ModelEditorPage';
-import { SetupPage } from './pages/simulate/SetupPage';
-import { RunPage } from './pages/simulate/RunPage';
-import { ResultsPage } from './pages/simulate/ResultsPage';
-import { FailureCausalityPage } from './pages/failure/FailureCausalityPage';
-import { ComparePage } from './pages/compare/ComparePage';
-import { ScenarioBuilderPage } from './pages/simulate/ScenarioBuilderPage';
-import { TimelineReplayPage } from './pages/execution/TimelineReplayPage';
-import { BuildOptimizationPage } from './pages/search/BuildOptimizationPage';
-import { ComputeResourcesPage } from './pages/compute/ComputeResourcesPage';
-import { VerifyValidationPage } from './pages/verify/VerifyValidationPage';
-import { DeployExportPage } from './pages/evidence/DeployExportPage';
-import { EdgeMonitoringPage } from './pages/edge/EdgeMonitoringPage';
+import { NewProjectPage } from './pages/NewProjectPage';
 
-const ScreenRouter: React.FC = () => {
-  const { currentScreen } = useAppState();
-
-  // Route: if URL query contains stage=..., prioritize Studio
-  const params = new URLSearchParams(window.location.search);
-  const stage = params.get('stage');
-
-  if (stage) {
-    return <Studio />;
-  }
-
-  switch (currentScreen) {
-    case 'landing':
+// One product, three places (file 35 section 12; file 36 non-goals): Hero, Home and the Studio.
+// Everything else is a stage inside the Studio, addressed by the URL query.
+const Routes: React.FC = () => {
+  const { route } = useLocation();
+  switch (route.name) {
+    case 'hero':
       return <LandingPage />;
     case 'home':
       return <AppShell><OverviewPage /></AppShell>;
-    case 'workspace':
-      return <Studio />;
-    case 'model_editor':
-      return <AppShell><ModelEditorPage /></AppShell>;
-    case 'simulation_setup':
-      return <AppShell><SetupPage /></AppShell>;
-    case 'simulation_run':
-      return <AppShell><RunPage /></AppShell>;
-    case 'simulation_results':
-      return <AppShell><ResultsPage /></AppShell>;
-    case 'failure_causality':
-      return <AppShell><FailureCausalityPage /></AppShell>;
-    case 'compare':
-      return <AppShell><ComparePage /></AppShell>;
-    case 'scenario_builder':
-      return <AppShell><ScenarioBuilderPage /></AppShell>;
-    case 'timeline_replay':
-      return <AppShell><TimelineReplayPage /></AppShell>;
-    case 'build_optimization':
-      return <AppShell><BuildOptimizationPage /></AppShell>;
-    case 'compute_resources':
-      return <AppShell><ComputeResourcesPage /></AppShell>;
-    case 'verify_validation':
-      return <AppShell><VerifyValidationPage /></AppShell>;
-    case 'deploy_export':
-      return <AppShell><DeployExportPage /></AppShell>;
-    case 'edge_monitoring':
-      return <AppShell><EdgeMonitoringPage /></AppShell>;
+    case 'new':
+      return <NewProjectPage />;
+    case 'studio':
+      return <Studio key={route.projectId} projectId={route.projectId} />;
     default:
-      return <Studio />;
+      return (
+        <div className="h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg-void)] text-[var(--text-ink)]">
+          <p className="text-sm">Nothing at {route.path}.</p>
+          <button className="px-3 py-1.5 rounded-md bg-[#2F7BFF] text-white text-xs" onClick={() => navigate('/home')}>Go to Home</button>
+        </div>
+      );
   }
 };
 
-export const App: React.FC = () => {
-  return (
-    <StudioStoreProvider>
-      <AppStateProvider>
-        <ScreenRouter />
-      </AppStateProvider>
-    </StudioStoreProvider>
-  );
-};
+export const App: React.FC = () => (
+  <StudioStoreProvider>
+    <AppStateProvider>
+      <Routes />
+    </AppStateProvider>
+  </StudioStoreProvider>
+);
 
 export default App;

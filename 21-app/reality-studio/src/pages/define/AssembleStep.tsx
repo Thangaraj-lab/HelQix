@@ -7,22 +7,31 @@ import {
   Value,
   Source
 } from '../../contracts';
-import { MockEngineClient } from '../../mock/MockEngineClient';
+import { engine } from '../../engine';
+import type { ScenePart } from '../../scene/HeroScene';
 import { createMockValue, MOCK_SOURCES } from '../../mock/examplePack';
 import { MockTag, PlaceholderTag, ExampleTag, Panel, ValueView } from '../../components/ui/UiKit';
 
 export interface AssembleStepProps {
+  projectId: string;
+  /** The user's prompt, or null for the scratch path. */
+  prompt: string | null;
+  /** Revision label from the URL (rev), when this project already has a committed model. */
+  committedRev: string | null;
   onCommitSuccess: (revision: ModelRevision) => void;
   onRunSimulation?: () => void;
-  onStartScratch?: boolean;
+  /** Placed parts, for the Studio canvas. */
+  onPartsChange?: (parts: ScenePart[]) => void;
 }
 
 export const AssembleStep: React.FC<AssembleStepProps> = ({
+  projectId,
+  prompt,
+  committedRev,
   onCommitSuccess,
   onRunSimulation,
-  onStartScratch = false
+  onPartsChange
 }) => {
-  const [engine] = useState(() => MockEngineClient);
   const [buildId, setBuildId] = useState<string>('');
   const [events, setEvents] = useState<BuildEvent[]>([]);
   const [appliedOps, setAppliedOps] = useState<ModelOp[]>([]);
@@ -30,7 +39,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isStagedReady, setIsStagedReady] = useState<boolean>(false);
-  const [isCommitted, setIsCommitted] = useState<boolean>(false);
+  const [isCommitted, setIsCommitted] = useState<boolean>(committedRev !== null);
   const [committedRevision, setCommittedRevision] = useState<ModelRevision | null>(null);
 
   // Model Tree state
@@ -76,12 +85,8 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
     let unmounted = false;
 
     async function initBuild() {
-      const prj = await engine.createProject();
-      const storedPrompt = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('helqix_initial_prompt') : null;
-      const input = onStartScratch
-        ? { scratch: true as const }
-        : { prompt: storedPrompt || 'Assemble staged system architecture' };
-      const { buildId: newBuildId } = await engine.startBuild(prj.id, input);
+      const input = prompt === null ? { scratch: true as const } : { prompt };
+      const { buildId: newBuildId } = await engine.startBuild(projectId, input);
       if (unmounted) return;
       setBuildId(newBuildId);
 
@@ -101,7 +106,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
     return () => {
       unmounted = true;
     };
-  }, [engine, onStartScratch]);
+  }, [projectId, prompt]);
 
   // Live Event Playback Engine
   const playEvents = async (allEvents: BuildEvent[], bId: string) => {
@@ -231,14 +236,41 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
     setIssues(prev => prev.filter(iss => iss.id !== issue.id));
   };
 
-  // Handle Commit Model Revision r1 (Section 6.7)
+  // The canvas draws placed parts only; a part without a position has nowhere honest to go yet.
+  useEffect(() => {
+    if (!onPartsChange) return;
+    onPartsChange(
+      Array.from(parts.values())
+        .filter(p => p.transform)
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          geometry: p.geometry as ScenePart['geometry'],
+          pos: [p.transform!.pos[0].v, p.transform!.pos[1].v, p.transform!.pos[2].v] as [number, number, number],
+          placeholder: p.maturity === 'placeholder'
+        }))
+    );
+  }, [parts, onPartsChange]);
+
+  // Commit the staged build as the next model revision (Section 6.7)
+  const canCommit = !!buildId && isStagedReady && !isCommitted && !issues.some(i => i.severity === 'blocking');
   const handleCommitRevision = async () => {
-    if (!buildId) return;
+    if (!canCommit) return;
     const rev = await engine.commit(buildId);
     setIsCommitted(true);
     setCommittedRevision(rev);
     onCommitSuccess(rev);
   };
+
+  // The Studio header's primary button asks for a commit while this step is open.
+  const commitRef = useRef(handleCommitRevision);
+  commitRef.current = handleCommitRevision;
+  useEffect(() => {
+    const onRequest = () => void commitRef.current();
+    window.addEventListener('helqix:commit-request', onRequest);
+    return () => window.removeEventListener('helqix:commit-request', onRequest);
+  }, []);
+  const nextRevLabel = committedRevision ? `r${committedRevision.revisionNum}` : committedRev ?? 'r1';
 
   // Scratch Add Part handler (Section 6.8)
   const handleAddScratchPart = async () => {
@@ -312,7 +344,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
                   : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
               }`}
             >
-              {isCommitted ? 'Model r1 · Committed' : 'Draft - not committed'}
+              {isCommitted ? `Model ${nextRevLabel} · Committed` : 'Draft - not committed'}
             </span>
           </div>
           <span className="text-[#22395A]">|</span>
@@ -357,11 +389,11 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
                   ? 'Waiting for assembly steps to complete...'
                   : hasBlockingIssues
                   ? 'Resolve blocking issues before committing'
-                  : 'Commit staged assembly into Model r1'
+                  : `Commit staged assembly into Model ${nextRevLabel}`
               }
             >
               <span>✓</span>
-              <span>Create model r1</span>
+              <span>Create model {nextRevLabel}</span>
             </button>
           )}
         </div>
@@ -576,7 +608,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
                 <span>Assembly Staged & Ready</span>
               </div>
               <div className="text-[11px] text-[#D6E2F3]">
-                Camera framed on full model. Review parameters and click <strong>Create model r1</strong> to commit.
+                Camera framed on full model. Review parameters and click <strong>Create model {nextRevLabel}</strong> to commit.
               </div>
             </div>
           )}
@@ -586,10 +618,10 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
             <div className="p-3 rounded-[12px] bg-[#22C55E]/20 border border-[#22C55E] backdrop-blur-md max-w-md mx-auto pointer-events-auto text-center space-y-1 animate-fade-in shadow-[0_0_30px_rgba(34,197,94,0.3)]">
               <div className="text-xs font-bold text-[#4ADE80] flex items-center justify-center gap-1.5">
                 <span>✓</span>
-                <span>Model Revision r1 Committed</span>
+                <span>Model Revision {nextRevLabel} Committed</span>
               </div>
               <div className="text-[11px] text-[#D6E2F3]">
-                Solid geometry locked. Ready to run baseline physics simulation.
+                This revision is saved and will not change. Next: run a simulation.
               </div>
             </div>
           )}
@@ -792,21 +824,10 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({
               </span>
             </div>
 
-            <div className="p-3 rounded-[10px] bg-[#13253D]/80 border border-[#8B5CF6]/40 space-y-2">
-              <div className="text-xs font-semibold text-white">
-                Add Liquid Cooling Loop
-              </div>
-              <p className="text-[11px] text-[#D6E2F3]">
-                Proposal based on thermal density check. Lowers peak temperature by ~14.2 °C.
-              </p>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button className="px-2.5 py-1 rounded text-[11px] font-medium text-[#7F93AF] hover:text-white">
-                  Reject
-                </button>
-                <button className="px-2.5 py-1 rounded text-[11px] font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED]">
-                  Apply
-                </button>
-              </div>
+            {/* A proposal states its effect only after a run measures it, so none is shown without one. */}
+            <div className="p-3 rounded-[10px] bg-[#13253D]/60 border border-[#22395A] text-[11px] text-[#7F93AF]">
+              No proposals yet. Rule-based proposals appear here after the checks run, with their effect
+              shown only once a simulation has measured it.
             </div>
           </div>
         </div>

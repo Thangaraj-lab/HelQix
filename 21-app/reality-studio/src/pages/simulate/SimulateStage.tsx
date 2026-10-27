@@ -112,7 +112,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#F2F6FB]">Simulate Stage</span>
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider bg-blue-500/15 border border-blue-500/40 text-[#22D3EE]">
-              Run 19 · Active
+              Mock run · Active
             </span>
             <MockTag />
           </div>
@@ -293,7 +293,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({
               {/* Torque Load */}
               <div className="p-2.5 rounded-[10px] bg-[#0A1422]/85 border border-[#22395A] backdrop-blur-md">
                 <div className="flex items-center justify-between text-[10px] text-[#7F93AF] font-mono">
-                  <span>Shaft Torque</span>
+                  <span>Output Torque</span>
                   <MockTag />
                 </div>
                 <div className="flex items-baseline gap-1 mt-0.5 font-mono">
@@ -561,7 +561,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({
                   disabled={isRerunning}
                   className="w-full py-1.5 rounded-[6px] text-xs font-semibold text-white bg-[#2F7BFF] hover:bg-[#3B82F6] transition-colors"
                 >
-                  {isRerunning ? 'Run 20 Computing...' : 'Apply & Re-run (MOCK)'}
+                  {isRerunning ? 'Re-running (MOCK)...' : 'Apply & Re-run (MOCK)'}
                 </button>
               )}
             </div>

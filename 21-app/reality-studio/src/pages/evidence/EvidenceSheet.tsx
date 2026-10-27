@@ -21,7 +21,7 @@ export const EvidenceSheet: React.FC<EvidenceSheetProps> = ({ isOpen, onClose })
 
   const packageTree = [
     { title: 'Model Revision AST (r1)', size: '42.1 kB', hash: '0x12a9...c4f1' },
-    { title: 'Bitwise Simulation Frames (Run 19)', size: '1.24 MB', hash: '0x33b8...92a1' },
+    { title: 'Simulation Frames (mock run)', size: '1.24 MB', hash: '0x33b8...92a1' },
     { title: 'Dynamic Boundary Conditions', size: '12.8 kB', hash: '0x99e4...b8f0' },
     { title: 'Solver Convergence Log (RK4)', size: '85.2 kB', hash: '0x77c2...51e8' },
     { title: 'ASME V&V 40 Checklist Audit', size: '18.4 kB', hash: '0x44d1...88b2' },

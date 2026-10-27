@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStudio } from '../../stores';
-import { useAppState } from '../../engineering/stateStore';
-import { HeroScene } from '../../scene/HeroScene';
+import { navigate, setQuery, useLocation } from '../../app/router';
+import { engineMode } from '../../engine';
+import { HeroScene, ScenePart } from '../../scene/HeroScene';
 import { TimelineBar } from '../../components/timeline/TimelineBar';
 import { MockTag, PreviewTag, Panel } from '../../components/ui/UiKit';
 import { DefineStage } from '../define/DefineStage';
@@ -31,23 +32,16 @@ export type StudioStage =
 
 export type DefineStep = 'intent' | 'requirements' | 'architecture' | 'components' | 'assemble';
 
-export const Studio: React.FC = () => {
+export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { session, selection, playback, query, assistant } = useStudio();
-  const { setCurrentScreen } = useAppState();
+  // Stage, step and committed revision live in the URL (file 35 section 12), so back/forward work.
+  const { query: urlQuery } = useLocation();
 
-  // Read URL query params to drive Studio state (Section 4)
-  const getQueryParam = (k: string) => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get(k);
-  };
-
-  const [stage, setStageInternal] = useState<StudioStage>(
-    (getQueryParam('stage') as StudioStage) || 'simulate'
-  );
-  const [step, setStepInternal] = useState<DefineStep>(
-    (getQueryParam('step') as DefineStep) || 'intent'
-  );
-  const isGhostModeRequested = getQueryParam('ghost') === 'true';
+  const stage = (urlQuery.get('stage') as StudioStage) || 'define';
+  const step = (urlQuery.get('step') as DefineStep) || 'intent';
+  const rev = urlQuery.get('rev');
+  // Parts the Assemble step has placed; the canvas shows these instead of the Example scene.
+  const [stagedParts, setStagedParts] = useState<ScenePart[] | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showAssistantModal, setShowAssistantModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -104,19 +98,8 @@ export const Studio: React.FC = () => {
   }, [stage, session]);
 
   // Sync state to URL without full page reload
-  const setStage = (s: StudioStage) => {
-    setStageInternal(s);
-    const url = new URL(window.location.href);
-    url.searchParams.set('stage', s);
-    window.history.pushState({}, '', url.toString());
-  };
-
-  const setStep = (st: DefineStep) => {
-    setStepInternal(st);
-    const url = new URL(window.location.href);
-    url.searchParams.set('step', st);
-    window.history.pushState({}, '', url.toString());
-  };
+  const setStage = (s: StudioStage) => setQuery({ stage: s });
+  const setStep = (st: DefineStep) => setQuery({ stage: 'define', step: st });
 
   // Toggle Theme
   const toggleTheme = () => {
@@ -131,12 +114,13 @@ export const Studio: React.FC = () => {
   };
 
   const stages: { id: StudioStage; label: string; preview?: boolean; badge?: string }[] = [
-    { id: 'define', label: 'Define Model', badge: 'Draft' },
-    { id: 'model', label: 'Model', badge: 'r1' },
-    { id: 'simulate', label: 'Simulate', badge: 'Run 19' },
-    { id: 'understand', label: 'Understand', badge: '1 failure' },
-    { id: 'improve', label: 'Improve', badge: '2 branches' },
-    { id: 'verify', label: 'Verify', preview: true, badge: '2 gaps' },
+    // Badges show only what this project actually has; no invented runs, failures or branches.
+    { id: 'define', label: 'Define Model', badge: rev ? undefined : 'Draft' },
+    { id: 'model', label: 'Model', badge: rev ?? undefined },
+    { id: 'simulate', label: 'Simulate' },
+    { id: 'understand', label: 'Understand' },
+    { id: 'improve', label: 'Improve' },
+    { id: 'verify', label: 'Verify', preview: true },
     { id: 'observe', label: 'Observe', preview: true },
     { id: 'build', label: 'Build', preview: true }
   ];
@@ -150,24 +134,36 @@ export const Studio: React.FC = () => {
   ];
 
   // Dynamic Primary Split Button based on project state (Section 5)
-  const getPrimaryAction = () => {
+  // The one next step for where the user is (file 36 section 5). Intent has its own "Describe it";
+  // the PREVIEW stages have no next step yet, so no button rather than one that goes nowhere useful.
+  const primaryAction = ((): { label: string; run: () => void } | null => {
     switch (stage) {
       case 'define':
-        return step === 'assemble' ? 'Create model r1' : 'Continue';
+        if (step === 'intent') return null;
+        if (step === 'assemble') {
+          return rev
+            ? { label: 'Run simulation', run: () => setStage('simulate') }
+            : { label: 'Create model', run: () => window.dispatchEvent(new Event('helqix:commit-request')) };
+        }
+        return {
+          label: 'Continue',
+          run: () => {
+            const nextIdx = defineSteps.findIndex(x => x.id === step) + 1;
+            if (nextIdx < defineSteps.length) setStep(defineSteps[nextIdx].id);
+          }
+        };
       case 'model':
-        return 'Run simulation';
+        return { label: 'Run simulation', run: () => setStage('simulate') };
       case 'simulate':
-        return 'Investigate failure';
+        return { label: 'Understand results', run: () => setStage('understand') };
       case 'understand':
-        return 'Test this cause';
+        return { label: 'Try a change', run: () => setStage('improve') };
       case 'improve':
-        return 'Compare branches';
-      case 'verify':
-        return 'Run validation';
+        return { label: 'Verify', run: () => setStage('verify') };
       default:
-        return 'Create model r1';
+        return null;
     }
-  };
+  })();
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-void)] text-[var(--text-ink)] select-none">
@@ -176,14 +172,9 @@ export const Studio: React.FC = () => {
         <div>
           {/* Logo & Brand (Clickable: returns to Landing Page) */}
           <div
-            onClick={() => {
-              const url = new URL(window.location.href);
-              url.search = '';
-              window.history.pushState({}, '', url.toString());
-              setCurrentScreen('landing');
-            }}
+            onClick={() => navigate('/home')}
             className="h-14 px-4 flex items-center gap-2.5 border-b border-[var(--border-line)] cursor-pointer hover:bg-white/5 transition-colors"
-            title="Return to HELQIX Portal"
+            title="Back to Home"
           >
             <div className="w-6 h-6 rounded-md bg-[#2F7BFF] flex items-center justify-center text-white font-mono text-xs font-bold shadow-[0_0_12px_rgba(47,123,255,0.6)]">
               ⬡
@@ -237,8 +228,8 @@ export const Studio: React.FC = () => {
           </button>
 
           <div className="text-[10px] text-[#7F93AF] font-mono flex items-center justify-between px-1">
-            <span>Bitwise Engine</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]"></span>
+            <span>{engineMode === 'mock' ? 'Engine: MOCK' : 'Engine: HELQIX API'}</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${engineMode === 'mock' ? 'bg-amber-400' : 'bg-[#22C55E]'}`}></span>
           </div>
         </div>
       </aside>
@@ -254,19 +245,12 @@ export const Studio: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-xs text-[#F2F6FB]">Untitled project</span>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#22C55E]/15 border border-[#22395A] text-[#22C55E]">
-                Active
-              </span>
+              {engineMode === 'mock' && <MockTag />}
             </div>
             <span className="text-slate-600">|</span>
-            <span className="text-[11px] text-[#7F93AF] font-mono">Model r1 · Saved 2 min ago</span>
-            
-            {/* Count & State Chips */}
-            <div className="hidden lg:flex items-center gap-1.5 ml-2 text-[10px] font-mono text-[#7F93AF]">
-              <span className="px-1.5 py-0.5 rounded bg-[var(--bg-panel)] border border-[var(--border-line)]">4 parts</span>
-              <span className="px-1.5 py-0.5 rounded bg-[var(--bg-panel)] border border-[var(--border-line)]">2 runs</span>
-              <span className="px-1.5 py-0.5 rounded bg-[var(--bg-panel)] border border-[#22D3EE]/30 text-[#22D3EE]">Bitwise</span>
-            </div>
+            <span className="text-[11px] text-[#7F93AF] font-mono" data-testid="revision-state">
+              {rev ? `Model ${rev} (committed)` : 'Draft - not committed'}
+            </span>
           </div>
 
           {/* Stepper (Only visible while defining - Section 5) */}
@@ -310,29 +294,16 @@ export const Studio: React.FC = () => {
               ))}
             </div>
 
-            {/* PRIMARY SPLIT BUTTON (Always the next best step - Section 5) */}
-            <div className="flex items-center rounded-[8px] bg-[#2F7BFF] text-white shadow-[0_0_20px_rgba(47,123,255,0.45)] hover:bg-[#3B82F6] transition-colors">
+            {/* PRIMARY BUTTON: always the next step (Section 5) */}
+            {primaryAction && (
               <button
-                onClick={() => {
-                  if (stage === 'define') {
-                    if (step === 'assemble') setStage('simulate');
-                    else {
-                      const nextIdx = defineSteps.findIndex(x => x.id === step) + 1;
-                      if (nextIdx < defineSteps.length) setStep(defineSteps[nextIdx].id);
-                    }
-                  } else if (stage === 'simulate') {
-                    setStage('understand');
-                  } else {
-                    setStage('simulate');
-                  }
-                }}
-                className="px-3.5 py-1.5 text-xs font-semibold"
+                onClick={primaryAction.run}
+                data-testid="primary-action"
+                className="px-3.5 py-1.5 rounded-[8px] bg-[#2F7BFF] text-white text-xs font-semibold shadow-[0_0_20px_rgba(47,123,255,0.45)] hover:bg-[#3B82F6] transition-colors"
               >
-                {getPrimaryAction()}
+                {primaryAction.label}
               </button>
-              <div className="w-[1px] h-4 bg-blue-300/40"></div>
-              <button className="px-2 py-1.5 text-xs hover:bg-black/10">▾</button>
-            </div>
+            )}
 
             {/* Command Palette Button (Section 6.17) */}
             <button
@@ -391,20 +362,22 @@ export const Studio: React.FC = () => {
               interactive={stage !== 'define'}
               qualityTier={session.qualityTier}
               thermalHotspot={stage === 'understand'}
-              isGhostMode={isGhostModeRequested || (stage === 'define' && step === 'assemble')}
+              isGhostMode={stage === 'define' && step === 'assemble' && !rev}
               repairState={stage === 'understand' ? 'fault' : stage === 'improve' ? 'repaired' : 'none'}
-              onExecuteRepair={() => setStage('improve')}
+              parts={stage === 'define' && step === 'assemble' ? stagedParts : null}
             />
           </div>
 
           {/* If stage === 'define', render the Define Stage wizard steps (Intent, Requirements, Architecture, Components, Assemble) */}
           {stage === 'define' ? (
             <DefineStage
+              projectId={projectId}
               currentStep={step}
+              committedRev={rev}
               onStepChange={setStep}
-              onCommitToAssemble={() => {
-                setStage('simulate');
-              }}
+              onCommitted={r => setQuery({ rev: `r${r.revisionNum}` }, { replace: true })}
+              onRunSimulation={() => setStage('simulate')}
+              onPartsChange={setStagedParts}
             />
           ) : stage === 'model' ? (
             <ModelStage onRunSimulation={() => setStage('simulate')} />

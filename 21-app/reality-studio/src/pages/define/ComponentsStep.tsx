@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { ExampleTag, PlaceholderTag } from '../../components/ui/UiKit';
+import { EXAMPLE_COMPONENT_CATEGORIES as componentCategories } from '../../mock/defineExamples';
+import { ExampleNotice } from './ExampleNotice';
 
 export interface ComponentsStepProps {
   onContinue: () => void;
@@ -13,75 +15,10 @@ export const ComponentsStep: React.FC<ComponentsStepProps> = ({ onContinue }) =>
     'block-disp': 'c-disp-placeholder'
   });
 
-  const componentCategories = [
-    {
-      id: 'block-ps',
-      subsystem: 'Power Supply Unit',
-      candidates: [
-        {
-          id: 'c-ps-1',
-          name: 'Power supply (Example)',
-          specs: '48.0 V DC, 3.2 kW rating',
-          source: 'Internal Component CAD Vault',
-          asOf: '2026-10-25',
-          maturity: 'Validated model',
-          reason: 'Matches voltage (48 V) and continuous power demand',
-          selected: true
-        }
-      ]
-    },
-    {
-      id: 'block-act',
-      subsystem: 'Drive Assembly',
-      candidates: [
-        {
-          id: 'c-act-1',
-          name: 'Electric motor (Example)',
-          specs: '48 V DC nominal, 3000 RPM, 3.0 kW',
-          source: 'Internal Component CAD Vault',
-          asOf: '2026-10-25',
-          maturity: 'Validated model',
-          reason: 'Matches 48 V electrical port and rotational drive requirement',
-          selected: true
-        }
-      ]
-    },
-    {
-      id: 'block-sens',
-      subsystem: 'Thermal Sensor Probe',
-      candidates: [
-        {
-          id: 'c-sens-1',
-          name: 'Temperature sensor (Example)',
-          specs: '-40 to 150 °C range, RTD Pt100',
-          source: 'Power Lab Telemetry Ingest',
-          asOf: '2026-10-25',
-          maturity: 'Validated model',
-          reason: 'Operational limit covers 120.0 °C threshold requirement',
-          selected: true
-        }
-      ]
-    },
-    {
-      id: 'block-disp',
-      subsystem: 'Fluid Displacement Assembly',
-      candidates: [
-        {
-          id: 'c-disp-placeholder',
-          name: 'Pump (no model) (Example)',
-          specs: 'Displacement placeholder, 3.5 bar fluid head',
-          source: 'Inferred Specification',
-          asOf: '2026-10-25',
-          maturity: 'Placeholder',
-          reason: 'No geometric CAD source found in connected vaults; using generic placeholder geometry',
-          selected: true
-        }
-      ]
-    }
-  ];
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-4 my-auto z-10 overflow-y-auto max-h-[85vh]">
+      <ExampleNotice />
       {/* Top Header */}
       <div className="p-3.5 rounded-[12px] bg-[#0E1B2E] border border-[#22395A] flex items-center justify-between">
         <div>

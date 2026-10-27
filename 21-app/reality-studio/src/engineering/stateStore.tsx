@@ -1,23 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type ScreenId = 
-  | 'landing'
-  | 'home'
-  | 'workspace'
-  | 'model_editor'
-  | 'simulation_setup'
-  | 'simulation_run'
-  | 'simulation_results'
-  | 'failure_causality'
-  | 'compare'
-  | 'scenario_builder'
-  | 'timeline_replay'
-  | 'build_optimization'
-  | 'compute_resources'
-  | 'verify_validation'
-  | 'deploy_export'
-  | 'edge_monitoring';
-
 export type WorkspaceMode = 'Reality' | 'Time' | 'Causality' | 'Branch' | 'Verification';
 export type QualityTier = 'Auto' | 'High' | 'Low';
 export type DeterminismLevel = 'Bitwise' | 'Tolerance' | 'Statistical';
@@ -25,8 +7,6 @@ export type OriginBadge = 'Observed' | 'Simulated' | 'Derived' | 'AI-hypothesis'
 export type StatusBadge = 'Verified' | 'Unverified';
 
 export interface AppState {
-  currentScreen: ScreenId;
-  setCurrentScreen: (screen: ScreenId) => void;
   workspaceMode: WorkspaceMode;
   setWorkspaceMode: (mode: WorkspaceMode) => void;
   qualityTier: QualityTier;
@@ -50,8 +30,6 @@ export interface AppState {
   setSelectedComponentId: (id: string) => void;
 
   // Run Information
-  runId: string;
-  revisionHash: string;
   isRunActive: boolean;
   setIsRunActive: (active: boolean) => void;
 
@@ -73,7 +51,6 @@ export interface AppState {
 const AppStateContext = createContext<AppState | null>(null);
 
 export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>('landing');
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('Reality');
   const [qualityTier, setQualityTier] = useState<QualityTier>('High');
   const [determinism, setDeterminism] = useState<DeterminismLevel>('Bitwise');
@@ -86,8 +63,6 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [replayHashMatch, setReplayHashMatch] = useState<boolean>(true);
 
   const [selectedComponentId, setSelectedComponentId] = useState<string>('CMP-A-001');
-  const [runId] = useState<string>('RUN-8421-B7');
-  const [revisionHash] = useState<string>('bf318f4');
   const [isRunActive, setIsRunActive] = useState<boolean>(true);
 
   const [layers, setLayers] = useState({
@@ -141,8 +116,6 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [isPlaying, playbackSpeed, totalDuration]);
 
   const value: AppState = {
-    currentScreen,
-    setCurrentScreen,
     workspaceMode,
     setWorkspaceMode,
     qualityTier,
@@ -160,8 +133,6 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     replayHashMatch,
     selectedComponentId,
     setSelectedComponentId,
-    runId,
-    revisionHash,
     isRunActive,
     setIsRunActive,
     layers,
