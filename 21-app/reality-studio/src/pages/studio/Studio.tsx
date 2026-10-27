@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Bell, Box, Check, Command, FileCheck2, Hammer, Moon, Play, Radio, ScanSearch, Settings, ShieldCheck, Sparkles, Sun, TrendingUp
+} from 'lucide-react';
 import { useStudio } from '../../stores';
 import { navigate, setQuery, useLocation } from '../../app/router';
 import { engineMode } from '../../engine';
 import { HeroScene, ScenePart } from '../../scene/HeroScene';
-import { TimelineBar } from '../../components/timeline/TimelineBar';
-import { MockTag, PreviewTag, Panel } from '../../components/ui/UiKit';
+import { Button, Chip, IconButton, Logo, MockTag, PreviewTag, StatusDot, Tabs } from '../../components/ui/UiKit';
 import { DefineStage } from '../define/DefineStage';
 import { ModelStage } from '../model/ModelStage';
 import { SimulateStage } from '../simulate/SimulateStage';
@@ -13,354 +15,305 @@ import { ImproveStage } from '../improve/ImproveStage';
 import { VerifyStage } from '../verify/VerifyStage';
 import { ObserveStage } from '../edge/ObserveStage';
 import { BuildStage } from '../build/BuildStage';
-import { CommandPalette } from '../../components/overlays/CommandPalette';
+import { CommandPalette, PaletteCommand } from '../../components/overlays/CommandPalette';
 import { SettingsSheet } from '../../components/overlays/SettingsSheet';
 import { ActivityDrawer } from '../../components/overlays/ActivityDrawer';
 import { SourcesManagerSheet } from '../../components/overlays/SourcesManagerSheet';
 import { EvidenceSheet } from '../evidence/EvidenceSheet';
-import { AssistantBar } from '../../components/overlays/AssistantBar';
+import { AssistantBar, AssistantProposal } from '../../components/overlays/AssistantBar';
 
-export type StudioStage =
-  | 'define'
-  | 'model'
-  | 'simulate'
-  | 'understand'
-  | 'improve'
-  | 'verify'
-  | 'observe'
-  | 'build';
-
+export type StudioStage = 'define' | 'model' | 'simulate' | 'understand' | 'improve' | 'verify' | 'observe' | 'build';
 export type DefineStep = 'intent' | 'requirements' | 'architecture' | 'components' | 'assemble';
 
-export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
-  const { session, selection, playback, query, assistant } = useStudio();
-  // Stage, step and committed revision live in the URL (file 35 section 12), so back/forward work.
-  const { query: urlQuery } = useLocation();
+const STAGES: { id: StudioStage; label: string; icon: React.ReactNode; preview?: boolean }[] = [
+  { id: 'define', label: 'Define', icon: <Sparkles size={16} /> },
+  { id: 'model', label: 'Model', icon: <Box size={16} /> },
+  { id: 'simulate', label: 'Simulate', icon: <Play size={16} /> },
+  { id: 'understand', label: 'Understand', icon: <ScanSearch size={16} /> },
+  { id: 'improve', label: 'Improve', icon: <TrendingUp size={16} /> },
+  { id: 'verify', label: 'Verify', icon: <ShieldCheck size={16} />, preview: true },
+  { id: 'observe', label: 'Observe', icon: <Radio size={16} />, preview: true },
+  { id: 'build', label: 'Build', icon: <Hammer size={16} />, preview: true }
+];
 
+const DEFINE_STEPS: { id: DefineStep; label: string }[] = [
+  { id: 'intent', label: 'Intent' },
+  { id: 'requirements', label: 'Requirements' },
+  { id: 'architecture', label: 'Architecture' },
+  { id: 'components', label: 'Components' },
+  { id: 'assemble', label: 'Assemble' }
+];
+
+export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
+  const { session } = useStudio();
+  // Stage, step and committed revision live in the URL (file 37 section 4), so back and forward work.
+  const { query: urlQuery } = useLocation();
   const stage = (urlQuery.get('stage') as StudioStage) || 'define';
   const step = (urlQuery.get('step') as DefineStep) || 'intent';
   const rev = urlQuery.get('rev');
+
   // Parts the Assemble step has placed; the canvas shows these instead of the Example scene.
   const [stagedParts, setStagedParts] = useState<ScenePart[] | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [showAssistantModal, setShowAssistantModal] = useState(false);
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showEvidenceSheet, setShowEvidenceSheet] = useState(false);
-  const [showSettingsSheet, setShowSettingsSheet] = useState(false);
-  const [showActivityDrawer, setShowActivityDrawer] = useState(false);
-  const [showSourcesManager, setShowSourcesManager] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
+  const [showCommands, setShowCommands] = useState(false);
+  const [showEvidence, setShowEvidence] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
-  // Engineering Keyboard Hotkeys Suite (Section 8 & Section 11: G, R, S, F, Esc, Ctrl+K, Space)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Command palette trigger works everywhere
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setShowCommandPalette(prev => !prev);
-        return;
-      }
-
-      // Escape closes open overlays
-      if (e.key === 'Escape') {
-        setShowCommandPalette(false);
-        setShowEvidenceSheet(false);
-        setShowSettingsSheet(false);
-        setShowActivityDrawer(false);
-        setShowSourcesManager(false);
-        setShowAssistantModal(false);
-        return;
-      }
-
-      // Ignore single-key shortcuts while typing in inputs
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target as HTMLElement).isContentEditable
-      ) {
-        return;
-      }
-
-      if (e.code === 'KeyG') {
-        session.setActiveTool('move');
-      } else if (e.code === 'KeyR') {
-        session.setActiveTool('rotate');
-      } else if (e.code === 'KeyS') {
-        session.setActiveTool('scale');
-      } else if (e.code === 'KeyF') {
-        session.setCameraPreset('Perspective');
-      } else if (e.code === 'Space' && stage === 'simulate') {
-        e.preventDefault();
-        // Spacebar handled in simulation
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [stage, session]);
-
-  // Sync state to URL without full page reload
   const setStage = (s: StudioStage) => setQuery({ stage: s });
   const setStep = (st: DefineStep) => setQuery({ stage: 'define', step: st });
 
-  // Toggle Theme
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     document.documentElement.setAttribute('data-theme', next);
-    if (next === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
-    }
   };
+  useEffect(() => () => document.documentElement.removeAttribute('data-theme'), []);
 
-  const stages: { id: StudioStage; label: string; preview?: boolean; badge?: string }[] = [
-    // Badges show only what this project actually has; no invented runs, failures or branches.
-    { id: 'define', label: 'Define Model', badge: rev ? undefined : 'Draft' },
-    { id: 'model', label: 'Model', badge: rev ?? undefined },
-    { id: 'simulate', label: 'Simulate' },
-    { id: 'understand', label: 'Understand' },
-    { id: 'improve', label: 'Improve' },
-    { id: 'verify', label: 'Verify', preview: true },
-    { id: 'observe', label: 'Observe', preview: true },
-    { id: 'build', label: 'Build', preview: true }
-  ];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommands(p => !p);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowCommands(false); setShowEvidence(false); setShowSettings(false);
+        setShowActivity(false); setShowSources(false); setShowAssistant(false);
+        return;
+      }
+      const t = e.target as HTMLElement;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || t.isContentEditable) return;
+      if (e.code === 'KeyG') session.setActiveTool('move');
+      else if (e.code === 'KeyR') session.setActiveTool('rotate');
+      else if (e.code === 'KeyS') session.setActiveTool('scale');
+      else if (e.code === 'KeyF') session.setCameraPreset('Perspective');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [session]);
 
-  const defineSteps: { id: DefineStep; label: string; num: number }[] = [
-    { id: 'intent', label: 'Intent', num: 1 },
-    { id: 'requirements', label: 'Requirements', num: 2 },
-    { id: 'architecture', label: 'Architecture', num: 3 },
-    { id: 'components', label: 'Components', num: 4 },
-    { id: 'assemble', label: 'Assemble', num: 5 }
-  ];
-
-  // Dynamic Primary Split Button based on project state (Section 5)
-  // The one next step for where the user is (file 36 section 5). Intent has its own "Describe it";
-  // the PREVIEW stages have no next step yet, so no button rather than one that goes nowhere useful.
+  // The one next step for where the user is (file 37 section 5). Intent has its own "Describe it";
+  // preview stages have none, rather than a button that goes nowhere useful.
   const primaryAction = ((): { label: string; run: () => void } | null => {
     switch (stage) {
-      case 'define':
+      case 'define': {
         if (step === 'intent') return null;
         if (step === 'assemble') {
           return rev
             ? { label: 'Run simulation', run: () => setStage('simulate') }
             : { label: 'Create model', run: () => window.dispatchEvent(new Event('helqix:commit-request')) };
         }
-        return {
-          label: 'Continue',
-          run: () => {
-            const nextIdx = defineSteps.findIndex(x => x.id === step) + 1;
-            if (nextIdx < defineSteps.length) setStep(defineSteps[nextIdx].id);
-          }
-        };
-      case 'model':
-        return { label: 'Run simulation', run: () => setStage('simulate') };
-      case 'simulate':
-        return { label: 'Understand results', run: () => setStage('understand') };
-      case 'understand':
-        return { label: 'Try a change', run: () => setStage('improve') };
-      case 'improve':
-        return { label: 'Verify', run: () => setStage('verify') };
-      default:
-        return null;
+        return { label: 'Continue', run: () => setStep(DEFINE_STEPS[DEFINE_STEPS.findIndex(x => x.id === step) + 1].id) };
+      }
+      case 'model': return { label: 'Run simulation', run: () => setStage('simulate') };
+      case 'simulate': return { label: 'Understand results', run: () => setStage('understand') };
+      case 'understand': return { label: 'Try a change', run: () => setStage('improve') };
+      case 'improve': return { label: 'Verify', run: () => setStage('verify') };
+      default: return null;
     }
   })();
 
-  return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-void)] text-[var(--text-ink)] select-none">
-      {/* 1. LEFT NAVIGATION (176px, icons-only when narrow - Section 5) */}
-      <aside className="w-44 h-full flex flex-col justify-between border-r border-[var(--border-line)] bg-[var(--bg-deck)] shrink-0 z-30">
-        <div>
-          {/* Logo & Brand (Clickable: returns to Landing Page) */}
-          <div
-            onClick={() => navigate('/home')}
-            className="h-14 px-4 flex items-center gap-2.5 border-b border-[var(--border-line)] cursor-pointer hover:bg-white/5 transition-colors"
-            title="Back to Home"
-          >
-            <div className="w-6 h-6 rounded-md bg-[#2F7BFF] flex items-center justify-center text-white font-mono text-xs font-bold shadow-[0_0_12px_rgba(47,123,255,0.6)]">
-              ⬡
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold tracking-widest text-[#F2F6FB] text-xs font-mono">HELQIX</span>
-              <span className="text-[9px] text-[#7F93AF] font-sans -mt-0.5">Engineering studio</span>
-            </div>
-          </div>
+  // Rule-based suggestion for the current state. Every sentence describes what will happen; none
+  // states a number the engine has not computed.
+  const proposal = useMemo<AssistantProposal | null>(() => {
+    const placeholders = (stagedParts ?? []).filter(p => p.placeholder);
+    if (stage === 'define' && step === 'assemble' && !rev && placeholders.length > 0) {
+      return {
+        id: 'placeholders',
+        intent: 'Replace placeholder models',
+        proposal: `${placeholders.map(p => p.name).join(', ')} ${placeholders.length === 1 ? 'has' : 'have'} no model.`,
+        why: 'Results that depend on a placeholder part are placeholders too.',
+        effect: 'Clears the Placeholder tag once a source or import supplies a model. No result changes until you run again.',
+        action: { label: 'Open sources', run: () => setShowSources(true) }
+      };
+    }
+    if (!rev && stage === 'define' && step !== 'assemble' && step !== 'intent') {
+      return {
+        id: 'to-assemble',
+        intent: 'Get to a first model',
+        proposal: 'Continue to Assemble to see the model built from your description.',
+        why: 'Simulation needs a committed model revision.',
+        effect: 'Shows the live build. Nothing is committed until you choose Create model.',
+        action: { label: 'Go to Assemble', run: () => setStep('assemble') }
+      };
+    }
+    if (rev && (stage === 'define' || stage === 'model')) {
+      return {
+        id: 'baseline',
+        intent: 'Run a baseline simulation',
+        proposal: `Model ${rev} exists and has no run yet.`,
+        why: 'A baseline is what later changes are compared against.',
+        effect: 'Produces the first result, labelled Simulated and Unverified.' + (engineMode === 'mock' ? ' In this build it is also tagged Mock.' : ''),
+        action: { label: 'Run simulation', run: () => setStage('simulate') }
+      };
+    }
+    if (rev && stage === 'simulate') {
+      return {
+        id: 'understand',
+        intent: 'Understand the result',
+        proposal: 'Open the candidate chain for what the run showed.',
+        why: 'Candidates are hypotheses until tested.',
+        effect: 'Lists possible causes with their origin and status. Changes nothing in the model.',
+        action: { label: 'Understand results', run: () => setStage('understand') }
+      };
+    }
+    if (rev && stage === 'understand') {
+      return {
+        id: 'test-cause',
+        intent: 'Test a candidate cause',
+        proposal: 'Create an intervention branch from the frozen state.',
+        why: 'A branch shows whether the change matters, without touching the original.',
+        effect: 'Opens Improve with the original and the branch side by side.',
+        action: { label: 'Try a change', run: () => setStage('improve') }
+      };
+    }
+    return null;
+  }, [stage, step, rev, stagedParts]);
 
-          {/* Stages Navigation List */}
-          <nav className="p-2 space-y-1">
-            {stages.map(st => {
-              const isActive = stage === st.id;
+  const commands: PaletteCommand[] = [
+    ...STAGES.map(s => ({ id: `stage:${s.id}`, label: `Go to ${s.label}`, group: 'Navigate' })),
+    { id: 'run', label: 'Run simulation', group: 'Execution', disabledReason: rev ? undefined : 'Commit a model first' },
+    { id: 'evidence', label: 'Open evidence sheet', group: 'Export' },
+    { id: 'sources', label: 'Open sources', group: 'Data' },
+    { id: 'assistant', label: 'Show assistant suggestion', group: 'Assist' },
+    { id: 'theme', label: 'Toggle theme', group: 'View' },
+    { id: 'new', label: 'New project', group: 'Project' },
+    { id: 'home', label: 'Back to Home', group: 'Project' }
+  ];
+  const onCommand = (id: string) => {
+    if (id.startsWith('stage:')) setStage(id.slice(6) as StudioStage);
+    else if (id === 'run') setStage('simulate');
+    else if (id === 'evidence') setShowEvidence(true);
+    else if (id === 'sources') setShowSources(true);
+    else if (id === 'assistant') setShowAssistant(true);
+    else if (id === 'theme') toggleTheme();
+    else if (id === 'new') navigate('/new');
+    else if (id === 'home') navigate('/home');
+  };
+
+  const stepIndex = DEFINE_STEPS.findIndex(s => s.id === step);
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-void text-ink">
+      {/* Left navigation: 176 px, icons only when narrow (file 33 section 4) */}
+      <aside className="w-[176px] max-[1100px]:w-[60px] h-full flex flex-col justify-between border-r border-line bg-deck shrink-0 z-30">
+        <div>
+          <button onClick={() => navigate('/home')} className="h-16 w-full px-4 flex items-center border-b border-line text-left" title="Back to Home" aria-label="Back to Home">
+            <span className="max-[1100px]:hidden"><Logo size="sm" /></span>
+            <span className="hidden max-[1100px]:block"><Logo size="sm" markOnly /></span>
+          </button>
+          <nav className="p-2.5 space-y-0.5" aria-label="Stages">
+            {STAGES.map(s => {
+              const on = stage === s.id;
               return (
                 <button
-                  key={st.id}
-                  onClick={() => setStage(st.id)}
-                  className={`w-full relative flex items-center justify-between px-3 py-2 rounded-[8px] text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-[#2F7BFF]/20 text-[#F2F6FB] font-semibold border border-[#2F7BFF]/50 shadow-[0_0_12px_rgba(47,123,255,0.3)]'
-                      : 'text-[#7F93AF] hover:text-[#D6E2F3] hover:bg-white/5 border border-transparent'
-                  }`}
+                  key={s.id}
+                  onClick={() => setStage(s.id)}
+                  aria-current={on ? 'page' : undefined}
+                  title={s.label}
+                  className={`relative w-full h-9 flex items-center gap-3 px-3 rounded-[8px] text-[13px] transition-colors ${on ? 'bg-white/[0.07] text-strong font-medium' : 'text-muted hover:text-ink hover:bg-white/[0.04]'}`}
                 >
-                  <span className="truncate">{st.label}</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {st.preview && <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300">PREVIEW</span>}
-                    {st.badge && !st.preview && (
-                      <span className="text-[9px] font-mono text-[#22D3EE] bg-[#22D3EE]/10 px-1 rounded">
-                        {st.badge}
-                      </span>
-                    )}
-                  </div>
+                  {on && <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-accent" />}
+                  <span className={on ? 'text-accent' : ''}>{s.icon}</span>
+                  <span className="max-[1100px]:hidden flex-1 text-left truncate">{s.label}</span>
+                  {s.preview && <span className="max-[1100px]:hidden"><PreviewTag /></span>}
+                  {s.id === 'define' && !rev && <span className="max-[1100px]:hidden text-[10px] text-muted">Draft</span>}
+                  {s.id === 'model' && rev && <span className="max-[1100px]:hidden num text-[10px] text-muted">{rev}</span>}
                 </button>
               );
             })}
           </nav>
         </div>
 
-        {/* Bottom Left: Assistant Button (Section 5) & Engine Status */}
-        <div className="p-3 border-t border-[var(--border-line)] space-y-2">
-          <button
-            onClick={() => setShowAssistantModal(true)}
-            className="w-full py-2 px-2.5 rounded-[8px] text-xs font-medium text-white bg-gradient-to-r from-[#8B5CF6]/40 to-[#6D28D9]/40 hover:from-[#8B5CF6]/60 hover:to-[#6D28D9]/60 border border-[#8B5CF6]/50 transition-all flex items-center justify-between shadow-[0_0_15px_rgba(139,92,246,0.25)]"
-          >
-            <span className="flex items-center gap-1.5">
-              <span>✦</span>
-              <span>Assistant</span>
-            </span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-[#8B5CF6]/30 text-purple-200">PREVIEW</span>
-          </button>
-
-          <div className="text-[10px] text-[#7F93AF] font-mono flex items-center justify-between px-1">
-            <span>{engineMode === 'mock' ? 'Engine: MOCK' : 'Engine: HELQIX API'}</span>
-            <span className={`w-1.5 h-1.5 rounded-full ${engineMode === 'mock' ? 'bg-amber-400' : 'bg-[#22C55E]'}`}></span>
+        <div className="p-3 space-y-3 border-t border-line">
+          <Button variant="assistant" className="w-full max-[1100px]:px-0" onClick={() => setShowAssistant(v => !v)} icon={<Sparkles size={14} />}>
+            <span className="max-[1100px]:hidden">Assistant</span>
+          </Button>
+          <div className="px-1 flex items-center gap-2 text-[11px] text-muted max-[1100px]:justify-center">
+            <StatusDot tone={engineMode === 'mock' ? 'warn' : 'ok'} />
+            <span className="max-[1100px]:hidden">Engine: {engineMode === 'mock' ? 'Mock' : 'HELQIX API'}</span>
           </div>
         </div>
       </aside>
 
-      {/* 2. MAIN STUDIO VIEWPORT */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* TOP BAR / HEADER CARD (Section 5) */}
-        <header className="h-14 px-5 flex items-center justify-between border-b border-[var(--border-line)] bg-[var(--bg-deck)] shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            {/* Project Thumbnail & Inline Name */}
-            <div className="w-7 h-7 rounded-md bg-[#13253D] border border-[#22395A] flex items-center justify-center text-xs">
-              ⚙
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden relative">
+        {/* Header card: where am I, what state, what next */}
+        <header className="h-16 px-5 flex items-center justify-between gap-4 border-b border-line bg-deck shrink-0 z-20">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-[9px] bg-white/[0.05] border border-line flex items-center justify-center text-muted shrink-0"><Box size={15} /></div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-[14px] font-medium text-strong truncate">Untitled project</h1>
+                {engineMode === 'mock' && <MockTag />}
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-muted" data-testid="revision-state">
+                {rev ? (
+                  <><Check size={12} className="text-ok" />{`Model ${rev} (committed)`}</>
+                ) : (
+                  'Draft - not committed'
+                )}
+                {stagedParts && stagedParts.length > 0 && <Chip className="!h-5">{stagedParts.length} parts</Chip>}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-xs text-[#F2F6FB]">Untitled project</span>
-              {engineMode === 'mock' && <MockTag />}
-            </div>
-            <span className="text-slate-600">|</span>
-            <span className="text-[11px] text-[#7F93AF] font-mono" data-testid="revision-state">
-              {rev ? `Model ${rev} (committed)` : 'Draft - not committed'}
-            </span>
           </div>
 
-          {/* Stepper (Only visible while defining - Section 5) */}
           {stage === 'define' && (
-            <div className="flex items-center gap-1 p-1 rounded-[10px] bg-[var(--bg-panel)] border border-[var(--border-line)]">
-              {defineSteps.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => setStep(s.id)}
-                  className={`px-2.5 py-1 rounded-[6px] text-xs font-mono flex items-center gap-1.5 transition-all ${
-                    step === s.id
-                      ? 'bg-[#2F7BFF]/30 text-[#22D3EE] font-semibold border border-[#2F7BFF]/50'
-                      : 'text-[#7F93AF] hover:text-white'
-                  }`}
-                >
-                  <span className="w-3.5 h-3.5 rounded-full bg-[#13253D] flex items-center justify-center text-[9px]">
-                    {s.num}
-                  </span>
-                  <span>{s.label}</span>
-                </button>
-              ))}
-            </div>
+            <ol className="hidden md:flex items-center gap-1 shrink-0" aria-label="Define steps">
+              {DEFINE_STEPS.map((s, i) => {
+                const on = step === s.id;
+                const done = i < stepIndex;
+                return (
+                  <li key={s.id} className="flex items-center gap-1">
+                    <button
+                      onClick={() => setStep(s.id)}
+                      aria-current={on ? 'step' : undefined}
+                      className={`h-8 pl-1.5 pr-3 rounded-full flex items-center gap-2 text-xs transition-colors ${on ? 'bg-white/[0.07] text-strong' : 'text-muted hover:text-ink'}`}
+                    >
+                      <span className={`num w-5 h-5 rounded-full inline-flex items-center justify-center text-[10px] ${on ? 'bg-accent text-white' : done ? 'bg-ok/20 text-ok' : 'border border-line-strong'}`}>
+                        {done ? <Check size={11} /> : i + 1}
+                      </span>
+                      <span className={on ? '' : 'max-[1260px]:hidden'}>{s.label}</span>
+                    </button>
+                    {i < DEFINE_STEPS.length - 1 && <span aria-hidden className="w-4 h-px bg-line-strong" />}
+                  </li>
+                );
+              })}
+            </ol>
           )}
 
-          {/* Right Controls: Primary Split Button, Theme Toggle, Bell, Avatar */}
-          <div className="flex items-center gap-3">
-            {/* Realistic vs Engineering Look Toggle (Section 3) */}
-            <div className="flex items-center gap-1 p-0.5 rounded-[8px] bg-[var(--bg-panel)] border border-[var(--border-line)] text-xs font-mono">
-              {(['Realistic', 'Engineering'] as const).map(l => (
-                <button
-                  key={l}
-                  onClick={() => session.setLook(l)}
-                  className={`px-2.5 py-0.5 rounded-[6px] transition-colors ${
-                    session.look === l
-                      ? 'bg-[#2F7BFF]/30 text-[#22D3EE] font-semibold border border-[#2F7BFF]/40'
-                      : 'text-[#7F93AF] hover:text-white'
-                  }`}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-
-            {/* PRIMARY BUTTON: always the next step (Section 5) */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Tabs
+              tabs={[{ id: 'Realistic', label: 'Realistic' }, { id: 'Engineering', label: 'Engineering' }]}
+              activeTab={session.look}
+              onChange={id => session.setLook(id as 'Realistic' | 'Engineering')}
+              className="max-[1280px]:hidden"
+            />
             {primaryAction && (
-              <button
-                onClick={primaryAction.run}
-                data-testid="primary-action"
-                className="px-3.5 py-1.5 rounded-[8px] bg-[#2F7BFF] text-white text-xs font-semibold shadow-[0_0_20px_rgba(47,123,255,0.45)] hover:bg-[#3B82F6] transition-colors"
-              >
+              <Button variant="primary" onClick={primaryAction.run} data-testid="primary-action">
                 {primaryAction.label}
-              </button>
+              </Button>
             )}
-
-            {/* Command Palette Button (Section 6.17) */}
-            <button
-              onClick={() => setShowCommandPalette(true)}
-              className="px-2 py-1 rounded-[6px] text-xs font-mono text-[#7F93AF] hover:text-white bg-[#13253D] hover:bg-[#1E3A5F] border border-[#22395A] transition-colors"
-              title="Command Palette (Ctrl+K)"
-            >
-              ⌘K
-            </button>
-
-            {/* Activity Bell (Section 6.17) */}
-            <button
-              onClick={() => setShowActivityDrawer(true)}
-              className="p-1.5 rounded-[8px] text-[#7F93AF] hover:text-white hover:bg-white/5 border border-transparent transition-colors text-xs"
-              title="Activity Log"
-            >
-              🔔
-            </button>
-
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 rounded-[8px] text-[#7F93AF] hover:text-white hover:bg-white/5 border border-transparent"
-              title="Toggle Theme"
-            >
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
-
-            {/* Avatar / Settings Trigger (Section 6.17) */}
-            <button
-              onClick={() => setShowSettingsSheet(true)}
-              className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 p-[1px] hover:scale-105 transition-transform"
-              title="Engineer Settings"
-            >
-              <div className="w-full h-full rounded-full bg-[#050B14] flex items-center justify-center text-[10px] font-bold text-white">
-                HQ
-              </div>
-            </button>
+            <span className="w-px h-5 bg-line mx-1" aria-hidden />
+            <IconButton label="Command palette (Ctrl+K)" onClick={() => setShowCommands(true)}><Command size={16} /></IconButton>
+            <IconButton label="Evidence" onClick={() => setShowEvidence(true)}><FileCheck2 size={16} /></IconButton>
+            <IconButton label="Activity" onClick={() => setShowActivity(true)}><Bell size={16} /></IconButton>
+            <IconButton label={theme === 'dark' ? 'Light theme' : 'Dark theme'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</IconButton>
+            <IconButton label="Settings" onClick={() => setShowSettings(true)}><Settings size={16} /></IconButton>
           </div>
         </header>
 
-        {/* 3. CENTER STUDIO BODY (Reality Canvas is PERSISTENT - never unmounts - Section 2) */}
+        {/* Center: the Reality Canvas never unmounts; stages arrange panels around it. */}
         <div className="flex-1 relative overflow-hidden flex flex-col justify-between">
-          {/* Background Persistent 3D Canvas */}
-          <div className="absolute inset-0 z-0 pointer-events-auto">
+          <div className={`absolute inset-0 z-0 transition-[filter,opacity] duration-300 ${stage === 'define' && step !== 'assemble' ? 'blur-[7px] opacity-60' : ''}`}>
             <HeroScene
-              variant={
-                stage === 'understand'
-                  ? 'failure'
-                  : stage === 'improve'
-                  ? 'compare'
-                  : stage === 'model'
-                  ? 'model_editor'
-                  : 'workspace'
-              }
+              variant={stage === 'understand' ? 'failure' : stage === 'improve' ? 'compare' : stage === 'model' ? 'model_editor' : 'workspace'}
               interactive={stage !== 'define'}
               qualityTier={session.qualityTier}
+              look={session.look}
+              cameraPreset={session.cameraPreset}
               thermalHotspot={stage === 'understand'}
               isGhostMode={stage === 'define' && step === 'assemble' && !rev}
               repairState={stage === 'understand' ? 'fault' : stage === 'improve' ? 'repaired' : 'none'}
@@ -368,7 +321,6 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
             />
           </div>
 
-          {/* If stage === 'define', render the Define Stage wizard steps (Intent, Requirements, Architecture, Components, Assemble) */}
           {stage === 'define' ? (
             <DefineStage
               projectId={projectId}
@@ -382,86 +334,30 @@ export const Studio: React.FC<{ projectId: string }> = ({ projectId }) => {
           ) : stage === 'model' ? (
             <ModelStage onRunSimulation={() => setStage('simulate')} />
           ) : stage === 'simulate' ? (
-            <SimulateStage
-              onInvestigateFailure={() => setStage('understand')}
-              onForkBranch={() => setStage('improve')}
-            />
+            <SimulateStage onInvestigateFailure={() => setStage('understand')} onForkBranch={() => setStage('improve')} />
           ) : stage === 'understand' ? (
-            <UnderstandStage
-              onTestThisCause={() => setStage('improve')}
-              onBackToSimulate={() => setStage('simulate')}
-            />
+            <UnderstandStage onTestThisCause={() => setStage('improve')} onBackToSimulate={() => setStage('simulate')} />
           ) : stage === 'improve' ? (
-            <ImproveStage
-              onAdoptBranch={() => setStage('verify')}
-              onBackToUnderstand={() => setStage('understand')}
-            />
+            <ImproveStage onAdoptBranch={() => setStage('verify')} onBackToUnderstand={() => setStage('understand')} />
           ) : stage === 'verify' ? (
-            <VerifyStage onOpenEvidenceSheet={() => setShowEvidenceSheet(true)} />
+            <VerifyStage onOpenEvidenceSheet={() => setShowEvidence(true)} />
           ) : stage === 'observe' ? (
             <ObserveStage onProposeUpdate={() => setStage('improve')} />
           ) : stage === 'build' ? (
             <BuildStage />
           ) : (
-            <div className="flex-1 p-6 text-center text-slate-400">Unknown Stage</div>
+            <div className="flex-1 p-6 text-center text-muted">Unknown stage</div>
           )}
 
-          {/* Floating Rule-Based Assistant (PREVIEW) - Non-overlapping and dismissible */}
-          <AssistantBar
-            isOpen={showAssistantModal && stage !== 'define'}
-            onClose={() => setShowAssistantModal(false)}
-            onApply={() => {
-              assistant.applyProposal('prop-cooling-bypass');
-              setStage('improve');
-              setShowAssistantModal(false);
-            }}
-            onSimulate={() => {
-              setStage('simulate');
-              setShowAssistantModal(false);
-            }}
-            onBranch={() => {
-              setStage('improve');
-              setShowAssistantModal(false);
-            }}
-          />
+          <AssistantBar isOpen={showAssistant} proposal={proposal} onClose={() => setShowAssistant(false)} />
         </div>
       </div>
 
-      {/* OVERLAYS (Section 6.17) */}
-      <CommandPalette
-        isOpen={showCommandPalette}
-        onClose={() => setShowCommandPalette(false)}
-        onSelectAction={id => {
-          if (id === 'run_simulation') setStage('simulate');
-          else if (id === 'open_evidence') setShowEvidenceSheet(true);
-          else if (id === 'open_sources') setShowSourcesManager(true);
-          else if (id === 'branch_intervention') setStage('improve');
-          else if (id === 'verify_evidence') setStage('verify');
-          else if (id === 'compare_branches') setStage('improve');
-        }}
-      />
-
-      <EvidenceSheet
-        isOpen={showEvidenceSheet}
-        onClose={() => setShowEvidenceSheet(false)}
-      />
-
-      <SettingsSheet
-        isOpen={showSettingsSheet}
-        onClose={() => setShowSettingsSheet(false)}
-        onToggleTheme={toggleTheme}
-        currentTheme={theme}
-      />
-
-      <ActivityDrawer
-        isOpen={showActivityDrawer}
-        onClose={() => setShowActivityDrawer(false)}
-      />
-
-      <SourcesManagerSheet
-        isOpen={showSourcesManager}
-        onClose={() => setShowSourcesManager(false)}
-      />
+      <CommandPalette isOpen={showCommands} onClose={() => setShowCommands(false)} commands={commands} onSelect={onCommand} />
+      <EvidenceSheet isOpen={showEvidence} onClose={() => setShowEvidence(false)} />
+      <SettingsSheet isOpen={showSettings} onClose={() => setShowSettings(false)} onToggleTheme={toggleTheme} currentTheme={theme} />
+      <ActivityDrawer isOpen={showActivity} onClose={() => setShowActivity(false)} projectId={projectId} />
+      <SourcesManagerSheet isOpen={showSources} onClose={() => setShowSources(false)} projectId={projectId} />
     </div>
   );
 };

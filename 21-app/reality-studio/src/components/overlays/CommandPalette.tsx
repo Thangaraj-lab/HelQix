@@ -1,100 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CornerDownLeft, Search } from 'lucide-react';
+
+export interface PaletteCommand {
+  id: string;
+  label: string;
+  group: string;
+  hint?: string;
+  disabledReason?: string;
+}
 
 export interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectAction: (actionId: string) => void;
+  commands: PaletteCommand[];
+  onSelect: (id: string) => void;
 }
 
-export const CommandPalette: React.FC<CommandPaletteProps> = ({
-  isOpen,
-  onClose,
-  onSelectAction
-}) => {
+// Ctrl or Cmd + K (file 37 section 6.17). Lists only commands that do something; a command whose
+// prerequisite is missing is shown dimmed with the reason, never hidden and never faked.
+export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, commands, onSelect }) => {
   const [query, setQuery] = useState('');
+  const [index, setIndex] = useState(0);
 
-  // Keyboard shortcut listener for Esc
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return commands.filter(c => !q || c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q));
+  }, [commands, query]);
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    if (isOpen) {
+      setQuery('');
+      setIndex(0);
+    }
+  }, [isOpen]);
+  useEffect(() => setIndex(0), [query]);
 
   if (!isOpen) return null;
 
-  const actions = [
-    { id: 'create_project', label: 'Create new project', category: 'Project', icon: '✦', shortcut: 'Ctrl+N' },
-    { id: 'run_simulation', label: 'Run simulation', category: 'Execution', icon: '▶', shortcut: 'Space' },
-    { id: 'pause_simulation', label: 'Pause simulation', category: 'Execution', icon: '⏸', shortcut: 'Space' },
-    { id: 'freeze_state', label: 'Freeze state checkpoint', category: 'Analysis', icon: '❄', shortcut: 'Ctrl+F' },
-    { id: 'branch_intervention', label: 'Create intervention branch', category: 'Analysis', icon: '⑂', shortcut: 'Ctrl+B' },
-    { id: 'compare_branches', label: 'Compare scenario branches', category: 'Comparison', icon: '⚖', shortcut: '' },
-    { id: 'verify_evidence', label: 'Run credibility verification', category: 'Verification', icon: '✓', shortcut: '' },
-    { id: 'open_evidence', label: 'Open evidence package sheet', category: 'Export', icon: '📄', shortcut: '' },
-    { id: 'open_sources', label: 'Open connected sources manager', category: 'Data', icon: '🗄', shortcut: '' },
-    { id: 'add_part', label: 'Define a part from scratch', category: 'Model', icon: '+', shortcut: 'A' }
-  ];
-
-  const filtered = actions.filter(
-    a => a.label.toLowerCase().includes(query.toLowerCase()) || a.category.toLowerCase().includes(query.toLowerCase())
-  );
+  const run = (c: PaletteCommand | undefined) => {
+    if (!c || c.disabledReason) return;
+    onSelect(c.id);
+    onClose();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/60 backdrop-blur-sm select-none p-4 animate-fade-in">
-      <div className="w-full max-w-xl rounded-[14px] bg-[#0A1422] border border-[#2F7BFF]/50 shadow-[0_0_50px_rgba(47,123,255,0.35)] overflow-hidden flex flex-col">
-        {/* Search Input Bar */}
-        <div className="p-3.5 border-b border-[#22395A] flex items-center gap-3">
-          <span className="text-cyan-400 text-sm font-mono">⌘</span>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[14vh] bg-black/55 animate-fade-in p-4" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-label="Command palette" className="w-full max-w-[560px] surface-glass !bg-panel overflow-hidden animate-rise">
+        <div className="h-12 px-4 flex items-center gap-3 border-b border-line">
+          <Search size={15} className="text-muted" />
           <input
-            type="text"
             autoFocus
-            placeholder="Type a command or search action (e.g. Run, Branch, Evidence)..."
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-slate-500 font-mono"
+            onKeyDown={e => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setIndex(i => Math.min(i + 1, filtered.length - 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex(i => Math.max(i - 1, 0)); }
+              else if (e.key === 'Enter') run(filtered[index]);
+              else if (e.key === 'Escape') onClose();
+            }}
+            placeholder="Type a command"
+            aria-label="Command"
+            className="flex-1 bg-transparent text-sm placeholder:text-muted focus:outline-none"
           />
-          <span className="text-[10px] font-mono text-[#7F93AF] bg-[#13253D] px-1.5 py-0.5 rounded border border-[#22395A]">
-            ESC to close
-          </span>
+          <kbd className="text-[10px] text-muted border border-line rounded px-1.5 h-5 inline-flex items-center">Esc</kbd>
         </div>
-
-        {/* Action List */}
-        <div className="max-h-80 overflow-y-auto p-2 space-y-1">
-          {filtered.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-500 italic">No matching commands found.</div>
-          ) : (
-            filtered.map((action, idx) => (
-              <div
-                key={action.id}
-                onClick={() => {
-                  onSelectAction(action.id);
-                  onClose();
-                }}
-                className="p-2.5 rounded-[8px] flex items-center justify-between text-xs hover:bg-[#2F7BFF]/20 hover:border-[#2F7BFF]/40 border border-transparent cursor-pointer transition-colors"
+        <ul className="max-h-[340px] overflow-y-auto p-1.5" role="listbox">
+          {filtered.length === 0 && <li className="px-3 py-6 text-center text-xs text-muted">No matching command.</li>}
+          {filtered.map((c, i) => (
+            <li key={c.id} role="option" aria-selected={i === index} aria-disabled={!!c.disabledReason}>
+              <button
+                onClick={() => run(c)}
+                onMouseEnter={() => setIndex(i)}
+                className={`w-full text-left h-10 px-3 rounded-[8px] flex items-center justify-between gap-3 text-[13px] ${i === index ? 'bg-white/[0.06]' : ''} ${c.disabledReason ? 'opacity-50' : ''}`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="w-5 h-5 rounded bg-[#13253D] flex items-center justify-center text-cyan-300 font-mono text-xs">
-                    {action.icon}
-                  </span>
-                  <div className="space-y-0.5">
-                    <span className="text-white font-medium">{action.label}</span>
-                    <span className="text-[10px] font-mono text-[#7F93AF] block">{action.category}</span>
-                  </div>
-                </div>
-
-                {action.shortcut && (
-                  <span className="text-[10px] font-mono text-slate-400 bg-[#13253D] px-1.5 py-0.5 rounded border border-[#22395A]">
-                    {action.shortcut}
-                  </span>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+                <span className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-strong truncate">{c.label}</span>
+                  <span className="text-[11px] text-muted">{c.disabledReason ?? c.group}</span>
+                </span>
+                {i === index && !c.disabledReason ? <CornerDownLeft size={13} className="text-muted shrink-0" /> : c.hint && <kbd className="text-[10px] text-muted border border-line rounded px-1.5 h-5 inline-flex items-center">{c.hint}</kbd>}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

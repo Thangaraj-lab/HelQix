@@ -1,139 +1,118 @@
 import React, { useState } from 'react';
-import { PreviewTag, ExampleTag } from '../../components/ui/UiKit';
+import { Check, Pencil } from 'lucide-react';
+import { Button, Chip, SectionLabel } from '../../components/ui/UiKit';
 import { EXAMPLE_BRIEFS, EXAMPLE_QUESTIONS } from '../../mock/defineExamples';
-import { ExampleNotice } from './ExampleNotice';
+import { StepFrame } from './StepFrame';
 
 export interface RequirementsStepProps {
   promptText: string;
   onContinue: () => void;
 }
 
-export const RequirementsStep: React.FC<RequirementsStepProps> = ({ promptText, onContinue }) => {
-  const [briefs, setBriefs] = useState(EXAMPLE_BRIEFS);
+// Requirements (file 37 section 6.4): your brief, six brief cards, the requirements extracted from it,
+// and at most three questions. The content is the canned example until the engine interprets the prompt.
+const EXAMPLE_REQUIREMENTS = [
+  { label: 'Supply voltage', value: '48.0', unit: 'V', source: 'User-stated' },
+  { label: 'Winding temperature limit', value: '120.0', unit: '°C', source: 'User-stated' },
+  { label: 'Nominal current', value: '62.5', unit: 'A', source: 'Calculated', calc: '3 kW at 48 V is about 62.5 A' }
+];
 
-  const [questions, setQuestions] = useState(EXAMPLE_QUESTIONS);
+type Answer = { kind: 'default'; text: string } | { kind: 'unknown' };
 
-  const extractedRequirements = [
-    { text: 'Electrical Supply Voltage', value: '48.0', unit: 'V', source: 'User-stated' },
-    { text: 'Thermal Safety Threshold', value: '120.0', unit: '°C', source: 'User-stated' },
-    { text: 'Calculated Nominal Current', value: '62.5', unit: 'A', source: 'Inferred', calc: '3.0 kW at 48 V is about 62.5 A' }
-  ];
+export const RequirementsStep: React.FC<RequirementsStepProps> = ({ promptText }) => {
+  const [briefs, setBriefs] = useState(EXAMPLE_BRIEFS.map(b => ({ ...b, edited: false })));
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [answers, setAnswers] = useState<Record<string, Answer>>({});
+
+  const saveEdit = (id: string) => {
+    setBriefs(prev => prev.map(b => (b.id === id ? { ...b, desc: draft.trim() || b.desc, status: 'Edited', edited: true } : b)));
+    setEditing(null);
+  };
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 space-y-4 my-auto z-10 overflow-y-auto max-h-[85vh]">
-      <ExampleNotice />
-      {/* Top Banner: Interpreting status */}
-      <div className="p-3 rounded-[12px] bg-[#0E1B2E] border border-[#22395A] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#22C55E]" />
-          <span className="text-xs font-semibold text-[#F2F6FB]">Formal Interpretation Complete</span>
-          <span className="text-[11px] text-[#7F93AF] font-mono">• 6 briefs synthesized from input brief</span>
-        </div>
-        <button
-          onClick={onContinue}
-          className="px-4 py-1.5 rounded-[8px] text-xs font-semibold text-white bg-[#2F7BFF] hover:bg-[#3B82F6] transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(47,123,255,0.4)]"
-        >
-          <span>Continue to Architecture</span>
-          <span>→</span>
-        </button>
+    <StepFrame title="Requirements" subtitle="What was understood from your description. Edit a brief to change only that brief." example>
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_280px] gap-4 items-start">
+        <section className="surface p-4 space-y-3" aria-label="Your brief">
+          <SectionLabel>Your brief</SectionLabel>
+          <p className="text-[13px] text-ink leading-relaxed">{promptText ? promptText : 'No description was given.'}</p>
+          <p className="text-[11px] text-muted">Source: your description</p>
+        </section>
+
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Briefs">
+          {briefs.map(b => (
+            <article key={b.id} className="surface p-4 flex flex-col gap-2.5 min-h-[128px]">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[13px] font-medium text-strong">{b.title}</h3>
+                <Chip tone={b.status === 'Ready' ? 'ok' : b.edited ? 'accent' : 'neutral'}>{b.status}</Chip>
+              </div>
+              {editing === b.id ? (
+                <>
+                  <textarea
+                    autoFocus
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    rows={3}
+                    aria-label={`Edit ${b.title} brief`}
+                    className="w-full resize-none rounded-[8px] bg-void/70 border border-line focus:border-accent/60 px-2.5 py-2 text-xs leading-relaxed focus:outline-none"
+                  />
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="primary" onClick={() => saveEdit(b.id)}>Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted leading-relaxed flex-1">{b.desc}</p>
+                  <button onClick={() => { setEditing(b.id); setDraft(b.desc); }} className="self-start inline-flex items-center gap-1.5 text-xs text-muted hover:text-strong transition-colors">
+                    <Pencil size={12} /> Edit
+                  </button>
+                </>
+              )}
+            </article>
+          ))}
+        </section>
+
+        <section className="surface p-4 space-y-3" aria-label="Extracted requirements">
+          <SectionLabel>Extracted requirements</SectionLabel>
+          <ul className="space-y-3">
+            {EXAMPLE_REQUIREMENTS.map(r => (
+              <li key={r.label} className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-muted">
+                  <span>{r.label}</span><span>{r.source}</span>
+                </div>
+                <div className="num text-[18px] text-strong">{r.value} <span className="text-xs text-muted">{r.unit}</span></div>
+                {r.calc && <div className="text-[11px] text-trace">Calculated: {r.calc}</div>}
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
 
-      {/* Main 3-Column Layout: Left Prompt Brief, Center 6 Cards, Right Extracted Reqs */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left: Your Brief Text (3 Cols) */}
-        <div className="lg:col-span-3 rounded-[14px] bg-[#0A1422] border border-[#22395A] p-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-[#F2F6FB]">Your Input Brief</span>
-            <div className="p-3 rounded-[8px] bg-[#0E1B2E] border border-[#22395A] text-xs text-[#D6E2F3] font-mono leading-relaxed">
-              {promptText ? `"${promptText}"` : '(no description)'}
-            </div>
-          </div>
-          <div className="text-[10px] text-[#7F93AF] mt-3">
-            Source: User specification prompt
-          </div>
-        </div>
-
-        {/* Center: Six Brief Cards (6 Cols) */}
-        <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {briefs.map(b => (
-            <div key={b.id} className="p-3 rounded-[12px] bg-[#0A1422] border border-[#22395A] space-y-1.5 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#F2F6FB]">{b.title}</span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono text-[#22D3EE] bg-[#22D3EE]/10 border border-[#22D3EE]/30">
-                  {b.status}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#7F93AF] leading-relaxed">{b.desc}</p>
-              <button
-                onClick={() => alert(`Re-running brief for ${b.title}...`)}
-                className="text-[10px] text-[#2F7BFF] hover:underline text-left font-mono pt-1"
-              >
-                Edit brief →
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Right: Extracted Requirements & CALCULATED checks (3 Cols) */}
-        <div className="lg:col-span-3 rounded-[14px] bg-[#0A1422] border border-[#22395A] p-4 space-y-3">
-          <span className="text-xs font-bold text-[#F2F6FB] border-b border-[#22395A] pb-2 block">
-            Extracted Requirements
-          </span>
-          <div className="space-y-2.5">
-            {extractedRequirements.map(req => (
-              <div key={req.text} className="p-2.5 rounded-[8px] bg-[#0E1B2E] border border-[#22395A] space-y-1">
-                <div className="flex justify-between text-[11px] text-[#7F93AF]">
-                  <span>{req.text}</span>
-                  <span className="font-mono text-[9px] text-[#22D3EE] uppercase">{req.source}</span>
-                </div>
-                <div className="text-sm font-bold text-[#F2F6FB] font-mono">
-                  {req.value} <span className="text-xs font-normal text-[#22D3EE]">{req.unit}</span>
-                </div>
-                {req.calc && (
-                  <div className="text-[10px] text-emerald-400 font-mono bg-emerald-950/30 p-1 rounded border border-emerald-500/20">
-                    CALCULATED: {req.calc}
+      <section className="surface p-4 space-y-3" aria-label="Questions">
+        <SectionLabel aside={<span className="text-[11px] text-muted">Rule-based suggestions. Skip leaves the value Unknown.</span>}>Questions</SectionLabel>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {EXAMPLE_QUESTIONS.map(q => {
+            const a = answers[q.id];
+            return (
+              <div key={q.id} className="rounded-[10px] border border-line bg-white/[0.02] p-3.5 space-y-2.5">
+                <p className="text-[13px] text-ink">{q.text}</p>
+                {a ? (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="inline-flex items-center gap-1.5 text-ok"><Check size={13} />{a.kind === 'default' ? `Using ${a.text}` : 'Unknown'}</span>
+                    <button className="text-muted hover:text-strong" onClick={() => setAnswers(p => { const n = { ...p }; delete n[q.id]; return n; })}>Change</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="secondary" onClick={() => setAnswers(p => ({ ...p, [q.id]: { kind: 'default', text: q.defaultVal } }))}>Use default: {q.defaultVal}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setAnswers(p => ({ ...p, [q.id]: { kind: 'unknown' } }))}>Skip</Button>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </div>
-
-      {/* Bottom: Clarifying Question Cards (Up to 3 cards - Section 6.4) */}
-      <div className="rounded-[14px] bg-[#0E1B2E] border border-[#22395A] p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#F2F6FB]">Clarifying Questions</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono">
-              Rule-based suggestions
-            </span>
-          </div>
-          <span className="text-[10px] text-[#7F93AF]">Skip sets parameter to UNKNOWN</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {questions.map((q, idx) => (
-            <div key={q.id} className="p-3 rounded-[10px] bg-[#0A1422] border border-[#22395A] space-y-2">
-              <div className="text-xs text-[#D6E2F3] font-medium">{q.text}</div>
-              <div className="flex items-center gap-2 text-xs">
-                <button
-                  onClick={() => alert(`Applied default: ${q.defaultVal}`)}
-                  className="px-2.5 py-1 rounded-[6px] bg-[#13253D] hover:bg-[#1E3A5F] border border-[#22395A] text-[11px] text-[#22D3EE] font-mono"
-                >
-                  Use default: {q.defaultVal}
-                </button>
-                <button
-                  onClick={() => alert(`Parameter marked UNKNOWN`)}
-                  className="px-2.5 py-1 rounded-[6px] text-[11px] text-[#7F93AF] hover:text-white"
-                >
-                  Skip (UNKNOWN)
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+      </section>
+    </StepFrame>
   );
 };

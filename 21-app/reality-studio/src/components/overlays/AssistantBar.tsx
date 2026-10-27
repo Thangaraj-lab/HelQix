@@ -1,107 +1,74 @@
-import React, { useState } from 'react';
-import { PreviewTag } from '../ui/UiKit';
+import React from 'react';
+import { Sparkles, X } from 'lucide-react';
+import { Button, IconButton, PreviewTag } from '../ui/UiKit';
 
-export interface AssistantBarProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-  onApply: () => void;
-  onSimulate: () => void;
-  onBranch: () => void;
+// The Assistant (file 37 section 6.17): one rule-based suggestion at a time, shown on the canvas.
+// It is never a chat window. Each suggestion states Intent, Proposal, Why and Expected effect, and
+// has one action plus Reject. Expected effects describe what will happen, never invented numbers.
+
+export interface AssistantProposal {
+  id: string;
+  intent: string;
+  proposal: string;
+  why: string;
+  effect: string;
+  action: { label: string; run: () => void };
 }
 
-export const AssistantBar: React.FC<AssistantBarProps> = ({
-  isOpen = true,
-  onClose,
-  onApply,
-  onSimulate,
-  onBranch
-}) => {
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+export interface AssistantBarProps {
+  isOpen: boolean;
+  proposal: AssistantProposal | null;
+  onClose: () => void;
+}
 
+export const AssistantBar: React.FC<AssistantBarProps> = ({ isOpen, proposal, onClose }) => {
   if (!isOpen) return null;
 
   return (
     <aside
-      aria-label="Engineering Assistant Panel"
-      className="fixed bottom-6 right-6 z-40 max-w-sm w-full pointer-events-auto select-none animate-fade-in shadow-2xl"
+      aria-label="Assistant suggestion"
+      className="absolute left-5 bottom-5 z-40 w-[340px] surface-glass animate-rise overflow-hidden"
     >
-      <div className="p-3.5 rounded-[12px] bg-[#0E1B2E]/95 backdrop-blur-md border border-[#8B5CF6]/50 shadow-[0_0_30px_rgba(139,92,246,0.25)] space-y-2.5">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#22395A] pb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[#8B5CF6] text-xs">✦</span>
-            <span className="text-xs font-bold text-white font-mono">Rule-Based Assistant</span>
-            <PreviewTag label="PREVIEW" />
+      <header className="flex items-center justify-between pl-4 pr-2 h-11 border-b border-line">
+        <div className="flex items-center gap-2 text-[13px] font-medium text-strong">
+          <Sparkles size={14} className="text-assistant" />
+          Suggestion
+          <PreviewTag />
+        </div>
+        <IconButton label="Close suggestion" onClick={onClose}><X size={15} /></IconButton>
+      </header>
+
+      {proposal ? (
+        <div className="p-4 space-y-4">
+          <div>
+            <p className="text-[11px] text-muted">Intent</p>
+            <p className="text-[14px] font-medium text-strong leading-snug">{proposal.intent}</p>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setIsExpanded(p => !p)}
-              className="text-[#7F93AF] hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/5"
-              title={isExpanded ? 'Collapse' : 'Expand'}
-            >
-              {isExpanded ? '▲' : '▼'}
-            </button>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="text-[#7F93AF] hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/5"
-                title="Close Assistant"
-              >
-                ✕
-              </button>
-            )}
+          <p className="text-[13px] text-ink leading-relaxed">{proposal.proposal}</p>
+          <dl className="space-y-2.5 text-xs">
+            <div>
+              <dt className="text-muted">Why</dt>
+              <dd className="text-ink mt-0.5">{proposal.why}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">Expected effect</dt>
+              <dd className="text-ink mt-0.5">{proposal.effect}</dd>
+            </div>
+          </dl>
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-[11px] text-muted">Rule-based, not AI.</p>
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="ghost" onClick={onClose}>Reject</Button>
+              <Button size="sm" variant="assistant" onClick={() => { proposal.action.run(); onClose(); }}>{proposal.action.label}</Button>
+            </div>
           </div>
         </div>
-
-        {isExpanded && (
-          <div className="space-y-2 text-xs">
-            {/* Intent & Proposal (Section 6.17) */}
-            <div>
-              <div className="text-[10px] font-mono text-[#7F93AF]">INTENT</div>
-              <div className="text-white font-medium">Prevent Stator Thermal Failure Trip</div>
-            </div>
-
-            <div>
-              <div className="text-[10px] font-mono text-[#7F93AF]">PROPOSAL</div>
-              <div className="text-[#22D3EE] font-semibold">Enable Liquid Cooling Bypass (+20% Convection)</div>
-            </div>
-
-            {/* Reasoning & Expected Effect (Section 6.17) */}
-            <div className="p-2 rounded bg-[#13253D] border border-[#22395A] space-y-1 font-mono text-[10px]">
-              <div>
-                <span className="text-[#7F93AF]">Reasoning: </span>
-                <span className="text-slate-300">Joule heating exceeds heat sink convective boundary at t=8.42s</span>
-              </div>
-              <div>
-                <span className="text-[#7F93AF]">Expected Effect: </span>
-                <span className="text-[#4ADE80] font-bold">Peak temperature drops by 18.8 °C (remains below 120 °C)</span>
-              </div>
-            </div>
-
-            {/* Action Buttons: Apply, Simulate, Create branch, Reject (Section 6.17) */}
-            <div className="flex items-center justify-end gap-1.5 pt-1">
-              <button
-                onClick={onClose}
-                className="px-2 py-1 rounded text-[10px] font-medium text-[#7F93AF] hover:text-white"
-              >
-                Dismiss
-              </button>
-              <button
-                onClick={onApply}
-                className="px-2.5 py-1 rounded text-[10px] font-semibold text-white bg-[#2F7BFF] hover:bg-[#3B82F6]"
-              >
-                Apply
-              </button>
-              <button
-                onClick={onBranch}
-                className="px-2.5 py-1 rounded text-[10px] font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED]"
-              >
-                Create Branch
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="p-4 space-y-1">
+          <p className="text-[13px] text-strong">Nothing to suggest here.</p>
+          <p className="text-xs text-muted">Suggestions come from rules over your model's state, and appear when a next step is clear.</p>
+        </div>
+      )}
     </aside>
   );
 };

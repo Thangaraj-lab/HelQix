@@ -1,107 +1,66 @@
 import React, { useState } from 'react';
-import { ExampleTag, PlaceholderTag } from '../../components/ui/UiKit';
+import { Check, Plus, Upload } from 'lucide-react';
+import { Button, Chip, ExampleTag, PlaceholderTag, PreviewTag } from '../../components/ui/UiKit';
 import { EXAMPLE_COMPONENT_CATEGORIES as componentCategories } from '../../mock/defineExamples';
-import { ExampleNotice } from './ExampleNotice';
+import { StepFrame } from './StepFrame';
 
 export interface ComponentsStepProps {
   onContinue: () => void;
 }
 
-export const ComponentsStep: React.FC<ComponentsStepProps> = ({ onContinue }) => {
-  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({
-    'block-ps': 'c-ps-1',
-    'block-act': 'c-act-1',
-    'block-sens': 'c-sens-1',
-    'block-disp': 'c-disp-placeholder'
-  });
-
+// Components (file 37 section 6.6): for each block, candidates from connected sources with a visible
+// ranking reason, plus Define from scratch and Import. Candidates here are the canned example.
+export const ComponentsStep: React.FC<ComponentsStepProps> = () => {
+  const [chosen, setChosen] = useState<Record<string, string>>(
+    Object.fromEntries(componentCategories.map(c => [c.id, c.candidates[0].id]))
+  );
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 space-y-4 my-auto z-10 overflow-y-auto max-h-[85vh]">
-      <ExampleNotice />
-      {/* Top Header */}
-      <div className="p-3.5 rounded-[12px] bg-[#0E1B2E] border border-[#22395A] flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-[#F2F6FB]">Component Resolution & Sourcing</h2>
-          <p className="text-[11px] text-[#7F93AF]">Select validated models from connected vaults, or define placeholders from scratch.</p>
-        </div>
-        <button
-          onClick={onContinue}
-          className="px-5 py-2 rounded-[8px] text-xs font-semibold text-white bg-[#2F7BFF] hover:bg-[#3B82F6] shadow-[0_0_16px_rgba(47,123,255,0.4)] transition-all flex items-center gap-1.5"
-        >
-          <span>Continue to Assemble</span>
-          <span>→</span>
-        </button>
-      </div>
-
-      {/* Categories Grid */}
+    <StepFrame title="Components" subtitle="Pick a model for each block from your connected sources, or define it yourself." example>
       <div className="space-y-4">
         {componentCategories.map(cat => (
-          <div key={cat.id} className="p-4 rounded-[14px] bg-[#0A1422] border border-[#22395A] space-y-3">
-            <div className="flex items-center justify-between border-b border-[#22395A] pb-2">
-              <span className="text-xs font-mono font-bold text-[#22D3EE] uppercase">{cat.subsystem}</span>
-              <span className="text-[10px] text-[#7F93AF] font-mono">1 resolution candidate</span>
-            </div>
-
+          <section key={cat.id} className="surface p-4 space-y-3" aria-label={cat.subsystem}>
+            <h3 className="text-[13px] font-medium text-strong">{cat.subsystem}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Sourced Candidate Card */}
-              {cat.candidates.map(cand => (
-                <div
-                  key={cand.id}
-                  className="p-3.5 rounded-[10px] bg-[#0E1B2E] border border-[#2F7BFF]/50 shadow-[0_0_15px_rgba(47,123,255,0.15)] flex flex-col justify-between space-y-2"
-                >
-                  <div className="space-y-1">
+              {cat.candidates.map(c => {
+                const on = chosen[cat.id] === c.id;
+                return (
+                  <article key={c.id} className={`rounded-[12px] border p-4 flex flex-col gap-3 transition-colors ${on ? 'border-accent/50 bg-accent/[0.05]' : 'border-line bg-white/[0.02]'}`}>
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-xs font-bold text-[#F2F6FB] flex items-center gap-1.5">
-                        <span>{cand.name}</span>
-                        <ExampleTag />
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium text-strong flex items-center gap-1.5 flex-wrap">{c.name}<ExampleTag /></div>
+                        <div className="num text-xs text-muted mt-1">{c.specs}</div>
                       </div>
-                      {cand.maturity === 'Placeholder' ? (
-                        <PlaceholderTag label="PLACEHOLDER" />
-                      ) : (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                          {cand.maturity}
-                        </span>
-                      )}
+                      {c.maturity === 'Placeholder' ? <PlaceholderTag /> : <Chip tone="neutral">{c.maturity}</Chip>}
                     </div>
-                    <div className="text-[11px] text-[#22D3EE] font-mono">{cand.specs}</div>
-                    <div className="text-[10px] text-[#7F93AF]">Source: {cand.source} (as of {cand.asOf})</div>
-                  </div>
-
-                  {/* Visible Ranking Reason (Section 6.6) */}
-                  <div className="p-2 rounded-[6px] bg-[#13253D] border border-[#22395A] text-[10px] text-[#D6E2F3] font-mono leading-tight">
-                    Ranking reason: {cand.reason}
-                  </div>
-
-                  <button className="w-full py-1.5 rounded-[6px] text-xs font-semibold bg-[#2F7BFF]/25 border border-[#2F7BFF]/60 text-[#22D3EE]">
-                    ✓ Selected
-                  </button>
-                </div>
-              ))}
-
-              {/* Define from scratch Card (Always present - Section 6.6) */}
-              <div
-                onClick={() => alert('Define from scratch: opens part parameter & port authoring panel.')}
-                className="p-3.5 rounded-[10px] bg-[#0A1422] border border-dashed border-[#22395A] hover:border-[#22D3EE] transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-1.5"
-              >
-                <span className="text-xl text-[#7F93AF]">+</span>
-                <span className="text-xs font-bold text-[#D6E2F3]">Define from scratch</span>
-                <span className="text-[10px] text-[#7F93AF] max-w-[180px]">Specify custom geometry primitives, ports, and relations</span>
+                    <p className="text-[11px] text-muted">{c.source}, as of {c.asOf}</p>
+                    <p className="text-xs text-ink leading-relaxed"><span className="text-muted">Why it ranks here: </span>{c.reason}</p>
+                    <Button
+                      size="sm"
+                      variant={on ? 'primary' : 'secondary'}
+                      className="mt-auto"
+                      icon={on ? <Check size={13} /> : undefined}
+                      onClick={() => setChosen(p => ({ ...p, [cat.id]: c.id }))}
+                    >
+                      {on ? 'Selected' : 'Select'}
+                    </Button>
+                  </article>
+                );
+              })}
+              <div className="rounded-[12px] border border-dashed border-line p-4 flex flex-col items-center justify-center text-center gap-1.5 text-muted">
+                <Plus size={16} />
+                <span className="text-[13px] text-ink">Define from scratch</span>
+                <span className="text-[11px] max-w-[200px]">Available in Assemble: geometry, ports and parameters you enter.</span>
               </div>
-
-              {/* Import file Card (Always present - Section 6.6) */}
-              <div
-                onClick={() => alert('Import file: upload STEP AP242, glTF, or Parasolid file.')}
-                className="p-3.5 rounded-[10px] bg-[#0A1422] border border-dashed border-[#22395A] hover:border-[#22D3EE] transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-1.5"
-              >
-                <span className="text-xl text-[#7F93AF]">⬆</span>
-                <span className="text-xs font-bold text-[#D6E2F3]">Import CAD / Geometry</span>
-                <span className="text-[10px] text-[#7F93AF] max-w-[180px]">Load external geometry with automatic port recognition</span>
+              <div className="rounded-[12px] border border-dashed border-line p-4 flex flex-col items-center justify-center text-center gap-1.5 text-muted">
+                <Upload size={16} />
+                <span className="text-[13px] text-ink flex items-center gap-1.5">Import file <PreviewTag /></span>
+                <span className="text-[11px] max-w-[200px]">glTF import is not connected to the Studio yet.</span>
               </div>
             </div>
-          </div>
+          </section>
         ))}
       </div>
-    </div>
+    </StepFrame>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAppState } from '../../engineering/stateStore';
-import { DeterminismChip } from '../ui/HonestyBadges';
+import { DeterminismChip } from '../ui/UiKit';
 
 export const TimelineBar: React.FC<{
   showFreezeBtn?: boolean;

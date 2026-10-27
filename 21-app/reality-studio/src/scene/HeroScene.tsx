@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { QualityTier } from '../engineering/stateStore';
 import { GeometryKind } from '../contracts';
 import { createExampleAssembly, ExampleAssemblyContext } from '../mock/exampleAssembly';
-import { ExampleTag } from '../components/ui/UiKit';
+import { ExampleTag, IconButton, Tabs } from '../components/ui/UiKit';
+import { Pause, Play } from 'lucide-react';
 import {
   createBrushedMetalTextures,
   createMachinedRadialTexture,
@@ -59,6 +60,9 @@ export interface HeroSceneProps {
   explodedOffset?: number; // 0 to 1
   isGhostMode?: boolean;
   initialRenderMode?: RenderMode;
+  /** Realistic is the dark cinematic floor; Engineering is a neutral studio floor with a grid. */
+  look?: 'Realistic' | 'Engineering';
+  cameraPreset?: 'Perspective' | 'Top' | 'Front' | 'Right' | 'Follow' | 'Orbit' | 'FPV';
   repairState?: 'none' | 'fault' | 'repairing' | 'repaired';
   /** The project's parts. When absent, the canvas shows the labelled Example scene instead. */
   parts?: ScenePart[] | null;
@@ -73,18 +77,18 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
   explodedOffset = 0,
   isGhostMode = false,
   initialRenderMode = 'realistic',
+  look = 'Realistic',
+  cameraPreset = 'Perspective',
   repairState = 'none',
   parts = null,
   className = ''
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const partsKey = parts ? JSON.stringify(parts) : '';
-  const [fps, setFps] = useState<number>(60);
   const [isRotating, setIsRotating] = useState<boolean>(true);
   
   // Shading modes: Ghost (draft), Wireframe, Realistic
   const [renderMode, setRenderMode] = useState<RenderMode>(isGhostMode ? 'ghost' : initialRenderMode);
-  const [showShadingMenu, setShowShadingMenu] = useState<boolean>(false);
 
   // Example-scene look per stage (fault colours in Understand, changed design in Improve)
   const [localRepairState, setLocalRepairState] = useState<'none' | 'fault' | 'repairing' | 'repaired'>(repairState);
@@ -111,8 +115,10 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
 
     // 1. Scene & Camera
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020612);
-    scene.fog = new THREE.FogExp2(0x020612, variant === 'landing' ? 0.025 : 0.035);
+    const engineering = look === 'Engineering';
+    const bg = engineering ? 0x0b1626 : 0x020612;
+    scene.background = new THREE.Color(bg);
+    scene.fog = new THREE.FogExp2(bg, variant === 'landing' ? 0.025 : engineering ? 0.02 : 0.035);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     if (variant === 'landing') {
@@ -124,6 +130,11 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
     } else {
       camera.position.set(3.8, 3.0, 5.2);
     }
+    // Camera presets (Perspective is the stage default above)
+    const dist = camera.position.length();
+    if (cameraPreset === 'Top') camera.position.set(0, dist, 0.01);
+    else if (cameraPreset === 'Front') camera.position.set(0, 1.4, dist * 0.95);
+    else if (cameraPreset === 'Right') camera.position.set(dist * 0.95, 1.4, 0);
     camera.lookAt(0, 0.5, 0);
 
     // 2. WebGL renderer
@@ -379,14 +390,6 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
     window.addEventListener('mouseup', onMouseUp);
     container.addEventListener('wheel', onWheel, { passive: false });
 
-    // Shading menu hotkey (Z key)
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'KeyZ') {
-        setShowShadingMenu(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
 
     // 11. Animation loop
     let animationFrameId: number;
@@ -398,7 +401,6 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
       const now = performance.now();
       frameCount++;
       if (now - lastTime >= 1000) {
-        setFps(Math.round((frameCount * 1000) / (now - lastTime)));
         frameCount = 0;
         lastTime = now;
       }
@@ -441,7 +443,6 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('keydown', onKeyDown);
       container.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
@@ -454,73 +455,42 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
       renderer.forceContextLoss(); // release the WebGL context now; rebuilds would otherwise pile them up
     };
     // Rebuilt only when the parts' content changes, not on every new array from the build stream.
-  }, [variant, qualityTier, thermalHotspot, explodedOffset, interactive, isRotating, renderMode, localRepairState, partsKey]);
+  }, [variant, qualityTier, thermalHotspot, explodedOffset, interactive, isRotating, renderMode, localRepairState, partsKey, look, cameraPreset]);
+
+  const modeTab = renderMode === 'wireframe' ? 'wireframe' : renderMode === 'ghost' ? 'ghost' : 'realistic';
 
   return (
     <div className={`relative w-full h-full overflow-hidden select-none ${className}`}>
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating Canvas Badges & Engine Status */}
-      <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-10 font-mono text-[10px]">
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 pointer-events-none">
         {parts ? (
-          <span data-testid="canvas-source" className="px-2.5 py-0.5 rounded bg-[#0A1422]/90 border border-[#2F7BFF]/40 text-[#22D3EE] font-bold">
+          <span data-testid="canvas-source" className="h-6 px-2.5 inline-flex items-center rounded-full text-[11px] text-ink bg-black/40 border border-white/10 backdrop-blur">
             {parts.length} {parts.length === 1 ? 'part' : 'parts'}
           </span>
         ) : (
-          <span data-testid="canvas-source"><ExampleTag label="Example scene" /></span>
+          <span data-testid="canvas-source" className="pointer-events-auto"><ExampleTag label="Example scene" /></span>
         )}
-        <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-700 text-slate-300 num">
-          {fps} FPS
-        </span>
-        <span className={`px-2 py-0.5 rounded uppercase font-semibold ${
-          renderMode === 'ghost' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' :
-          renderMode === 'wireframe' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
-          'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-        }`}>
-          {renderMode} MODE
-        </span>
       </div>
 
-      {/* VIEWPORT CONTROLS: shading mode and rotation */}
       {interactive && (
-        <div className="absolute top-3 right-3 flex items-center gap-2 z-20 pointer-events-auto">
-          {/* Shading Mode Switcher: Ghost / Wireframe / Realistic */}
-          <div className="p-1 rounded-lg bg-[#0A1422]/90 backdrop-blur-md border border-[#22395A] flex items-center gap-1 text-xs font-mono">
-            {(['ghost', 'wireframe', 'realistic'] as const).map(mode => (
-              <button
-                key={mode}
-                onClick={() => setRenderMode(mode)}
-                className={`px-2.5 py-1 rounded-[6px] capitalize transition-all ${
-                  renderMode === mode
-                    ? 'bg-[#2F7BFF] text-white font-bold shadow-[0_0_12px_rgba(47,123,255,0.4)]'
-                    : 'text-[#7F93AF] hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {mode === 'ghost' ? '👻 Ghost' : mode === 'wireframe' ? '🕸 Wireframe' : '💎 Realistic'}
-              </button>
-            ))}
-          </div>
-
-          {/* Auto-Rotate Toggle */}
-          <button
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 pointer-events-auto">
+          <Tabs
+            tabs={[{ id: 'realistic', label: 'Solid' }, { id: 'wireframe', label: 'Wireframe' }, { id: 'ghost', label: 'Ghost' }]}
+            activeTab={modeTab}
+            onChange={id => setRenderMode(id as RenderMode)}
+            className="!bg-black/40 backdrop-blur"
+          />
+          <IconButton
+            label={isRotating ? 'Pause rotation' : 'Resume rotation'}
+            active={isRotating}
             onClick={() => setIsRotating(!isRotating)}
-            className={`p-1.5 rounded-lg border backdrop-blur text-xs transition-colors ${
-              isRotating
-                ? 'bg-blue-600/30 text-cyan-300 border-blue-500/40'
-                : 'bg-[#0A1422]/90 border-[#22395A] text-slate-400 hover:text-white'
-            }`}
-            title="Toggle rotation"
+            className="!bg-black/40 backdrop-blur border border-white/10"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-              <path d="M16 21h5v-5" />
-            </svg>
-          </button>
+            {isRotating ? <Pause size={15} /> : <Play size={15} />}
+          </IconButton>
         </div>
       )}
-
     </div>
   );
 };
