@@ -30,6 +30,7 @@
     "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.6.1",
+    "axe-core": "4.10.2",
     "jsdom": "25.0.1",
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",

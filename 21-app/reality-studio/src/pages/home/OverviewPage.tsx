@@ -98,7 +98,7 @@ export const OverviewPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
         <div className="space-y-9 min-w-0">
           <section aria-label="Projects" className="space-y-3">
-            <SectionLabel aside={projects && <span className="num text-xs text-muted">{projects.length}</span>}>Projects</SectionLabel>
+            <SectionLabel level={2} aside={projects && <span className="num text-xs text-muted">{projects.length}</span>}>Projects</SectionLabel>
             {error ? (
               <ErrorState error="Projects could not be loaded" reason={error} onRetry={load} />
             ) : projects === null ? (

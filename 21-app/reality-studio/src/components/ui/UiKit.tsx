@@ -77,12 +77,15 @@ export const IconButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> 
 // --- Text ------------------------------------------------------------------
 
 /** Section label: sentence case, muted. No all-caps eyebrow labels (file 37 section 3). */
-export const SectionLabel: React.FC<{ children: React.ReactNode; aside?: React.ReactNode; className?: string }> = ({ children, aside, className = '' }) => (
+export const SectionLabel: React.FC<{ children: React.ReactNode; aside?: React.ReactNode; className?: string; /** heading level; 2 directly under a page title, 3 (default) inside panels */ level?: 2 | 3 }> = ({ children, aside, className = '', level = 3 }) => {
+  const Tag = level === 2 ? 'h2' : 'h3';
+  return (
   <div className={`flex items-center justify-between gap-2 ${className}`}>
-    <h3 className="text-xs font-medium text-muted">{children}</h3>
+    <Tag className="text-xs font-medium text-muted">{children}</Tag>
     {aside}
   </div>
-);
+  );
+};
 
 export const Chip: React.FC<{ children: React.ReactNode; tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'accent'; className?: string }> = ({ children, tone = 'neutral', className = '' }) => {
   const tones = {
