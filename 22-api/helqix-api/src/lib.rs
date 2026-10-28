@@ -5,6 +5,7 @@ pub mod auth;
 pub mod builds;
 pub mod config;
 pub mod error;
+pub mod branching;
 pub mod frames;
 pub mod request_id;
 pub mod resources;

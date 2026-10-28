@@ -178,11 +178,16 @@ export class RealEngineClient implements EngineClient {
     return fromWireFrame(data.frame);
   }
 
-  async freeze(): Promise<Checkpoint> {
-    throw new EngineUnavailable('freeze', 'Freezing a state is not available in the real engine yet.');
+  async freeze(runId: string, t: number): Promise<Checkpoint> {
+    const { data } = await this.call<{ checkpointId: string; runId: string; t: number; hash: string; state: Record<string, number> }>('POST', `/v1/runs/${runId}/freeze`, { t });
+    const units: Record<string, string> = { x: 'm', y: 'm', z: 'm', vx: 'm/s', vy: 'm/s', vz: 'm/s' };
+    const snapshot = Object.fromEntries(Object.entries(data.state).map(([k, v]) => [k, { v, unit: units[k] ?? '', origin: 'simulated' as const, status: 'unverified' as const }]));
+    return { id: data.checkpointId, runId: data.runId, t: data.t, hash: data.hash, stateSnapshot: snapshot };
   }
 
-  async branch(_cp: string, _intervention: Intervention): Promise<{ runId: string }> {
-    throw new EngineUnavailable('branch', 'Branching is not available in the real engine yet.');
+  async branch(cp: string, intervention: Intervention): Promise<{ runId: string }> {
+    const overrides = Object.fromEntries(Object.entries(intervention.paramOverrides).map(([k, val]) => [k, val.v]));
+    const { data } = await this.call<{ runId: string }>('POST', '/v1/branches', { checkpointId: cp, overrides });
+    return { runId: data.runId };
   }
 }

@@ -31,6 +31,8 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
         .route("/v1/builds/{id}/commit", axum::routing::post(builds::commit))
         .route("/v1/sources", get(sources::list))
         .route("/v1/runs", get(frames::list_runs).post(frames::start_run))
+        .route("/v1/runs/{id}/freeze", axum::routing::post(crate::branching::freeze_run))
+        .route("/v1/branches", axum::routing::post(crate::branching::branch_run))
         .route("/v1/runs/{id}/frames", get(frames::run_frames))
         .route("/v1/runs/{id}/frame", get(frames::get_frame))
         .route("/v1/{resource}", get(resources::list).post(resources::create))

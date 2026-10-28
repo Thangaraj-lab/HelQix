@@ -39,7 +39,7 @@ export async function startStub(port = 0): Promise<{ server: http.Server; base: 
     req.on('end', () => {
       if (req.headers.authorization) seen.authorization = true;
       const url = new URL(req.url!, 'http://x');
-      const body = raw ? JSON.parse(raw) : undefined;
+      const body: any = raw ? JSON.parse(raw) : undefined;
       const m = (re: RegExp) => re.exec(url.pathname);
       let r: RegExpExecArray | null;
       if (req.method === 'POST' && url.pathname === '/v1/projects') {
@@ -114,6 +114,17 @@ export async function startStub(port = 0): Promise<{ server: http.Server; base: 
         const t = Number(url.searchParams.get('t'));
         const f = DROP.find(x => Math.abs(x.t.v - t) < 1e-9);
         return f ? send(res, 200, { framesBlake3: 'b'.repeat(64), frame: f }) : send(res, 422, { error: 'rejected: time outside the run' });
+      }
+      if ((r = m(/^\/v1\/runs\/([^/]+)\/freeze$/)) && req.method === 'POST') {
+        const keys = Object.keys(body ?? {});
+        if (keys.length !== 1 || keys[0] !== 't' || typeof body.t !== 'number') return send(res, 422, { error: 'unknown field' });
+        const f = DROP.find(x => Math.abs(x.t.v - body.t) < 1e-9) ?? DROP[0];
+        return send(res, 200, { checkpointId: `${r[1]}@${f.index}`, runId: r[1], index: f.index, t: f.t.v, hash: 'c'.repeat(64), state: { x: 0, y: 20, z: 0, vx: 3, vy: 0, vz: 0 } });
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/branches') {
+        const keys = Object.keys(body ?? {}).sort().join();
+        if (keys !== 'checkpointId,overrides' || typeof body.overrides?.referenceAreaM2 !== 'number') return send(res, 422, { error: 'unknown field' });
+        return send(res, 201, { runId: 'br-stub', parentRunId: 'reference-drop', index: 0, rows: DROP.length, framesBlake3: 'd'.repeat(64) });
       }
       if (req.method === 'GET' && url.pathname === '/v1/sources') return send(res, 200, { sources: [], note: 'No sources connected. Parts will be placeholders or defined from scratch.' });
       return send(res, 404, { error: 'resource not found' });

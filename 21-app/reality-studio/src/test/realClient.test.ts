@@ -67,12 +67,21 @@ describe('RealEngineClient against the API wire format', () => {
     await expect(c.commit(buildId)).rejects.toThrow(/409/);
   });
 
-  it('does not pretend: no interpreter, no solver, no branching', async () => {
+  it('does not pretend: no interpreter and no scenario runner', async () => {
     const c = new RealEngineClient(base);
     await expect(c.startBuild('p', { prompt: 'a pump' })).rejects.toBeInstanceOf(EngineUnavailable);
     await expect(c.run()).rejects.toBeInstanceOf(EngineUnavailable);
-    await expect(c.freeze()).rejects.toBeInstanceOf(EngineUnavailable);
     expect(await c.listRuns()).toEqual([]);
+  });
+
+  it('freezes a stored run and branches it with the wire format the API accepts', async () => {
+    const c = new RealEngineClient(base);
+    const cp = await c.freeze('reference-drop', 0);
+    expect(cp.id).toMatch(/^reference-drop@/);
+    expect(cp.stateSnapshot.y).toMatchObject({ v: 20, unit: 'm', origin: 'simulated', status: 'unverified' });
+    const ov = { v: 0.3, unit: '', origin: 'user_stated' as const, status: 'unverified' as const };
+    const br = await c.branch(cp.id, { id: '', name: 'b', checkpointId: cp.id, paramOverrides: { referenceAreaM2: ov } });
+    expect(br.runId).toBe('br-stub');
   });
 
   it('never sends the API key itself (the dev proxy adds it)', () => {

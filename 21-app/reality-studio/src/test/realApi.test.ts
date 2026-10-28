@@ -45,6 +45,12 @@ describe.skipIf(!URL_ || !KEY)('RealEngineClient against the real API', () => {
     const frames: number[] = [];
     for await (const f of client.runFrames(a.runId)) frames.push(f.t);
     expect(frames.length).toBeGreaterThan(190);
+    const cp = await client.freeze(a.runId, 0.1);
+    expect(cp.id).toBe(`${a.runId}@100`);
+    const br = await client.branch(cp.id, { id: '', name: 'b', checkpointId: cp.id, paramOverrides: { referenceAreaM2: { v: 0.3, unit: '', origin: 'user_stated', status: 'unverified' } } });
+    const after: number[] = [];
+    for await (const f of client.runFrames(br.runId)) after.push(f.t);
+    expect(after.length).toBe(frames.length);
   });
 
   const v = (x: number, unit = 'm') => ({ v: x, unit, origin: 'user_stated' as const, status: 'unverified' as const });

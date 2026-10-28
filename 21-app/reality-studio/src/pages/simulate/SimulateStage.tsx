@@ -27,6 +27,41 @@ const VERBS: Record<string, string> = { rotation: 'spins with', color: 'heats wi
 // requirement marks the part that broke it. The run is a fixed script from the mock engine, so every
 // reading carries MOCK, Simulated and Unverified.
 
+// Real engine: continue the frozen state with one changed number and play the result next to the original.
+const BRANCH_FIELDS = [['referenceAreaM2', 'Reference area (m²)'], ['dragCoefficient', 'Drag coefficient'], ['massKg', 'Mass (kg)']] as const;
+const BranchForm: React.FC<{ checkpoint: Checkpoint }> = ({ checkpoint }) => {
+  const [field, setField] = useState<(typeof BRANCH_FIELDS)[number][0]>('referenceAreaM2');
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const num = Number(value);
+  const valid = value.trim() !== '' && Number.isFinite(num) && (field === 'massKg' ? num > 0 : num >= 0);
+  const go = async () => {
+    setBusy(true); setError(null);
+    try {
+      const { runId } = await engine.branch(checkpoint.id, { id: '', name: 'Branch', checkpointId: checkpoint.id, paramOverrides: { [field]: { v: num, unit: '', origin: 'user_stated', status: 'unverified' } } });
+      runsChanged.dispatchEvent(new Event('change'));
+      setQuery({ run: runId });
+    } catch (e) { setError(e instanceof Error ? e.message : 'The branch could not be run.'); }
+    setBusy(false);
+  };
+  return (
+    <div className="space-y-2 pt-2 border-t border-line">
+      <p className="text-[11px] text-muted">Change one number from the frozen point on. Everything before it stays the same.</p>
+      <div className="flex items-end gap-2">
+        <label className="block space-y-1 flex-1"><span className="text-[11px] text-muted">Change</span>
+          <select value={field} onChange={e => setField(e.target.value as typeof field)} aria-label="Parameter to change" className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60">
+            {BRANCH_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select></label>
+        <label className="block space-y-1 w-24"><span className="text-[11px] text-muted">To</span>
+          <input value={value} inputMode="decimal" onChange={e => setValue(e.target.value)} aria-label="New value" className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60" /></label>
+      </div>
+      {error && <p role="alert" className="text-xs text-bad">{error}</p>}
+      <Button size="sm" variant="primary" disabled={!valid || busy} onClick={() => void go()}>Run the branch</Button>
+    </div>
+  );
+};
+
 // Real engine: starts the point-mass model with the numbers typed here (nothing is assumed) and plays the result.
 const NewRunForm: React.FC = () => {
   const [v, setV] = useState({ mass: '0.5', drag: '0.47', area: '0.01', end: '2', height: '20', vx: '3' });
@@ -66,6 +101,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
   const { run, failure, bindings, series, requirements } = model;
   const [scenario, setScenario] = useState(RUNNABLE_SCENARIO);
   const [frozen, setFrozen] = useState<Checkpoint | null>(null);
+  const [branching, setBranching] = useState(false);
   const started = useRef<string | null>(null);
 
   const duration = run?.duration ?? 12;
@@ -120,7 +156,13 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
   }
 
   const failed = !!failure && t >= failure.t;
-  const freeze = async () => { playback.pause(); setFrozen(await engine.freeze(MOCK_RUN_ID, t)); };
+  const realRunId = model.runChoice.runId;
+  const [freezeError, setFreezeError] = useState<string | null>(null);
+  const freeze = async () => {
+    playback.pause(); setFreezeError(null);
+    try { setFrozen(await engine.freeze(engineMode === 'real' && realRunId ? realRunId : MOCK_RUN_ID, t)); }
+    catch (e) { setFrozen(null); setFreezeError(e instanceof Error ? e.message : 'The state could not be frozen.'); }
+  };
 
   const left = (
     <>
@@ -181,9 +223,11 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" icon={<Snowflake size={13} />} onClick={freeze}>Freeze state</Button>
-          <Button size="sm" variant="secondary" icon={<GitBranch size={13} />} onClick={onForkBranch}>Branch</Button>
+          <Button size="sm" variant="secondary" icon={<GitBranch size={13} />} disabled={engineMode === 'real' && !frozen} onClick={engineMode === 'real' ? () => setBranching(b => !b) : onForkBranch}>Branch</Button>
         </div>
-        {frozen && <p className="text-[11px] text-trace">Frozen at <span className="num">{frozen.t.toFixed(1)} s</span>, hash <span className="num">{frozen.hash}</span></p>}
+        {freezeError && <p role="alert" className="text-xs text-bad">{freezeError}</p>}
+        {frozen && <p className="text-[11px] text-trace">Frozen at <span className="num">{frozen.t.toFixed(3)} s</span>, hash <span className="num">{frozen.hash.slice(0, 16)}</span></p>}
+        {engineMode === 'real' && branching && frozen && <BranchForm checkpoint={frozen} />}
       </PanelCard>
 
     </>

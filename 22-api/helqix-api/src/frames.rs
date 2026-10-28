@@ -16,7 +16,7 @@ pub struct FramesQuery { #[serde(default)] pub from: Option<u64>, #[serde(defaul
 #[derive(Debug, Deserialize)]
 pub struct FrameQuery { pub t: f64 }
 
-fn map(e: FrameError) -> ApiError {
+pub(crate) fn map(e: FrameError) -> ApiError {
     match e {
         FrameError::NotFound(_) => ApiError::NotFound,
         FrameError::OutOfRange(m) => ApiError::Rejected(m),
@@ -57,7 +57,7 @@ pub async fn get_frame(State(state): State<AppState>, Path(id): Path<String>, Qu
 }
 
 /// Body of `POST /v1/runs`: the point-mass model the engine can run today. Unknown fields are refused.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct StartRun {
     pub mass_kg: f64,
@@ -87,14 +87,21 @@ pub async fn start_run(State(state): State<AppState>, Json(b): Json<StartRun>) -
     if b.mass_kg <= 0.0 || b.reference_area_m2 < 0.0 || b.drag_coefficient < 0.0 || b.air_density_kg_m3 < 0.0 { return Err(ApiError::BadRequest("mass must be positive; drag coefficient, area and density must not be negative".into())); }
     if b.step_seconds <= 0.0 || b.end_seconds <= 0.0 || b.end_seconds / b.step_seconds > MAX_STEPS { return Err(ApiError::BadRequest(format!("end/step must be positive and at most {MAX_STEPS} steps"))); }
     let id = format!("run-{}", &helqix_frames::blake3_hex(format!("{:?}", (&b.mass_kg, &b.gravity_m_s2, &b.air_density_kg_m3, &b.wind_m_s, &b.applied_force_n, &b.drag_coefficient, &b.reference_area_m2, &b.end_seconds, &b.step_seconds, &b.initial_state)).as_bytes())[..16]);
-    let spec = helqix_freeze::RunSpec {
-        model: helqix_freeze::PointMassSpec { mass_kg: b.mass_kg, gravity_m_s2: b.gravity_m_s2, air_density_kg_m3: b.air_density_kg_m3, wind_m_s: b.wind_m_s, applied_force_n: b.applied_force_n, drag_coefficient: b.drag_coefficient, reference_area_m2: b.reference_area_m2 },
-        start_seconds: 0.0, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state: b.initial_state.to_vec(), seeds: vec![],
-    };
+    let spec = to_spec(&b);
     let rid = id.clone();
+    let body = b.clone();
     let entry = tokio::task::spawn_blocking(move || -> Result<_, String> {
         let r = helqix_freeze::run(&spec).map_err(|e| e.to_string())?;
-        FrameStore::open(dir).and_then(|s| s.put(&rid, &r, &helqix_frames::point_mass_variables(), &helqix_freeze::chain_genesis(&spec))).map_err(|e| e.to_string())
+        let entry = FrameStore::open(&dir).and_then(|s| s.put(&rid, &r, &helqix_frames::point_mass_variables(), &helqix_freeze::chain_genesis(&spec))).map_err(|e| e.to_string())?;
+        crate::branching::save_spec(&dir, &rid, &crate::branching::StoredSpec { params: body, parent: None })?;
+        Ok(entry)
     }).await.map_err(|_| ApiError::Internal)?.map_err(ApiError::Rejected)?;
     Ok((axum::http::StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism}))))
+}
+
+pub(crate) fn to_spec(b: &StartRun) -> helqix_freeze::RunSpec {
+    helqix_freeze::RunSpec {
+        model: helqix_freeze::PointMassSpec { mass_kg: b.mass_kg, gravity_m_s2: b.gravity_m_s2, air_density_kg_m3: b.air_density_kg_m3, wind_m_s: b.wind_m_s, applied_force_n: b.applied_force_n, drag_coefficient: b.drag_coefficient, reference_area_m2: b.reference_area_m2 },
+        start_seconds: 0.0, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state: b.initial_state.to_vec(), seeds: vec![],
+    }
 }

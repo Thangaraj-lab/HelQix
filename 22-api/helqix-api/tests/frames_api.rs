@@ -129,3 +129,40 @@ async fn a_run_started_through_the_api_is_stored_and_repeatable() {
     assert_eq!(post(&app, "/v1/runs", bad(1.0, 1.0e6)).await.0, StatusCode::BAD_REQUEST);
     assert_eq!(post(&app, "/v1/runs", bad(1.0, 0.1)).await.0, StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn a_branch_keeps_the_past_and_changes_only_the_future() {
+    let dir = std::env::temp_dir().join(format!("helqix-api-branch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let app = app(Some(dir.clone()));
+    let (_, run) = post(&app, "/v1/runs", serde_json::json!({"massKg": 0.5, "dragCoefficient": 0.47, "referenceAreaM2": 0.01, "endSeconds": 1.0, "initialState": [0.0, 20.0, 0.0, 3.0, 0.0, 0.0]})).await;
+    let id = run["runId"].as_str().unwrap().to_owned();
+
+    let (st, cp) = post(&app, &format!("/v1/runs/{id}/freeze"), serde_json::json!({"t": 0.5})).await;
+    assert_eq!(st, StatusCode::OK, "{cp}");
+    assert_eq!(cp["index"], 500);
+    let cp_id = cp["checkpointId"].as_str().unwrap().to_owned();
+    let (_, again) = post(&app, &format!("/v1/runs/{id}/freeze"), serde_json::json!({"t": 0.5})).await;
+    assert_eq!(cp["hash"], again["hash"], "the same point freezes to the same hash");
+
+    let body = serde_json::json!({"checkpointId": cp_id, "overrides": {"referenceAreaM2": 0.3}});
+    let (st, br) = post(&app, "/v1/branches", body.clone()).await;
+    assert_eq!(st, StatusCode::CREATED, "{br}");
+    assert_eq!(br["parentRunId"], id.as_str());
+    let (_, br2) = post(&app, "/v1/branches", body).await;
+    assert_eq!(br["framesBlake3"], br2["framesBlake3"], "a branch is repeatable");
+
+    let bid = br["runId"].as_str().unwrap();
+    let (_, parent) = get(&app, &format!("/v1/runs/{id}/frames?limit=1001")).await;
+    let (_, child) = get(&app, &format!("/v1/runs/{bid}/frames?limit=1001")).await;
+    let (p, c) = (parent["frames"].as_array().unwrap(), child["frames"].as_array().unwrap());
+    assert_eq!(p.len(), c.len());
+    assert_eq!(p[..500], c[..500], "everything before the checkpoint is the parent's");
+    assert_ne!(p[1000]["state"]["vy"], c[1000]["state"]["vy"], "the changed area changes the fall afterwards");
+
+    // Refused: no change, branch of a branch, unknown run, a run without saved parameters.
+    assert_eq!(post(&app, "/v1/branches", serde_json::json!({"checkpointId": format!("{id}@10"), "overrides": {}})).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(post(&app, "/v1/branches", serde_json::json!({"checkpointId": format!("{bid}@10"), "overrides": {"massKg": 1.0}})).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(post(&app, "/v1/runs/nope/freeze", serde_json::json!({"t": 0.1})).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(post(&app, "/v1/branches", serde_json::json!({"checkpointId": "nope", "overrides": {"massKg": 1.0}})).await.0, StatusCode::BAD_REQUEST);
+}
