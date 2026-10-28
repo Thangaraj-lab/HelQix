@@ -910,6 +910,7 @@ dependencies = [
  "axum",
  "chrono",
  "futures-util",
+ "helqix-agent",
  "helqix-contracts",
  "helqix-frames",
  "helqix-freeze",
