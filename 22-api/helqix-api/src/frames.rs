@@ -82,21 +82,26 @@ const MAX_STEPS: f64 = 200_000.0;
 /// same request gives the same id and the same frames (the engine is deterministic); repeating it is harmless.
 pub async fn start_run(State(state): State<AppState>, Json(b): Json<StartRun>) -> Result<(axum::http::StatusCode, Json<Value>), ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    let (id, entry) = store_run(dir, b, None).await?;
+    Ok((axum::http::StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism}))))
+}
+
+/// Validates, runs and stores one run; `model` records which committed model revision it came from.
+pub(crate) async fn store_run(dir: std::path::PathBuf, b: StartRun, model: Option<crate::branching::ModelLink>) -> Result<(String, helqix_frames::RunIndex), ApiError> {
     let all = [b.mass_kg, b.air_density_kg_m3, b.drag_coefficient, b.reference_area_m2, b.end_seconds, b.step_seconds];
     if !all.iter().chain(&b.gravity_m_s2).chain(&b.wind_m_s).chain(&b.applied_force_n).chain(&b.initial_state).all(|v| v.is_finite()) { return Err(ApiError::BadRequest("every number must be finite".into())); }
     if b.mass_kg <= 0.0 || b.reference_area_m2 < 0.0 || b.drag_coefficient < 0.0 || b.air_density_kg_m3 < 0.0 { return Err(ApiError::BadRequest("mass must be positive; drag coefficient, area and density must not be negative".into())); }
     if b.step_seconds <= 0.0 || b.end_seconds <= 0.0 || b.end_seconds / b.step_seconds > MAX_STEPS { return Err(ApiError::BadRequest(format!("end/step must be positive and at most {MAX_STEPS} steps"))); }
-    let id = format!("run-{}", &helqix_frames::blake3_hex(format!("{:?}", (&b.mass_kg, &b.gravity_m_s2, &b.air_density_kg_m3, &b.wind_m_s, &b.applied_force_n, &b.drag_coefficient, &b.reference_area_m2, &b.end_seconds, &b.step_seconds, &b.initial_state)).as_bytes())[..16]);
+    let id = format!("run-{}", &helqix_frames::blake3_hex(format!("{:?}", (&b.mass_kg, &b.gravity_m_s2, &b.air_density_kg_m3, &b.wind_m_s, &b.applied_force_n, &b.drag_coefficient, &b.reference_area_m2, &b.end_seconds, &b.step_seconds, &b.initial_state, &model)).as_bytes())[..16]);
     let spec = to_spec(&b);
     let rid = id.clone();
-    let body = b.clone();
     let entry = tokio::task::spawn_blocking(move || -> Result<_, String> {
         let r = helqix_freeze::run(&spec).map_err(|e| e.to_string())?;
         let entry = FrameStore::open(&dir).and_then(|s| s.put(&rid, &r, &helqix_frames::point_mass_variables(), &helqix_freeze::chain_genesis(&spec))).map_err(|e| e.to_string())?;
-        crate::branching::save_spec(&dir, &rid, &crate::branching::StoredSpec { params: body, parent: None })?;
+        crate::branching::save_spec(&dir, &rid, &crate::branching::StoredSpec { params: b, parent: None, model })?;
         Ok(entry)
     }).await.map_err(|_| ApiError::Internal)?.map_err(ApiError::Rejected)?;
-    Ok((axum::http::StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism}))))
+    Ok((id, entry))
 }
 
 pub(crate) fn to_spec(b: &StartRun) -> helqix_freeze::RunSpec {

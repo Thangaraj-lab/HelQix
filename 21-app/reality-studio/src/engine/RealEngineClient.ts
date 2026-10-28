@@ -36,7 +36,7 @@ export class RealEngineClient implements EngineClient {
     const text = await res.text();
     if (!res.ok) {
       let detail = text;
-      try { detail = JSON.parse(text).error ?? JSON.parse(text).message ?? text; } catch { /* plain text */ }
+      try { const j = JSON.parse(text); detail = typeof j.error === 'string' ? j.error : (j.error?.message ?? j.message ?? text); } catch { /* plain text */ }
       throw new Error(`The engine answered ${res.status}: ${String(detail).slice(0, 300) || res.statusText}`);
     }
     return { data: (text ? JSON.parse(text) : null) as T, etag: res.headers.get('etag') };
@@ -76,8 +76,14 @@ export class RealEngineClient implements EngineClient {
     return { runId: data.runId };
   }
 
-  async listRuns(): Promise<RunSummary[]> {
-    return []; // the API has no endpoint that lists runs yet
+  async runRevision(pid: string, revisionNum: number, p: Omit<PointMassRunParams, 'massKg' | 'referenceAreaM2'>): Promise<{ runId: string; massKg: number; areaM2: number; parts: number }> {
+    const { data } = await this.call<{ runId: string; massKg: number; areaM2: number; parts: number }>('POST', `/v1/projects/${pid}/revisions/${revisionNum}/run`, p);
+    return data;
+  }
+
+  async listRuns(pid: string): Promise<RunSummary[]> {
+    const { data } = await this.call<{ runs: { runId: string; revision: number; startedAt: string }[] }>('GET', `/v1/projects/${pid}/runs`);
+    return data.runs.map(r => ({ id: r.runId, projectId: pid, scenarioId: 'lumped-body', revisionNum: r.revision, startedAt: r.startedAt }));
   }
 
   async getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null> {

@@ -131,6 +131,15 @@ export async function startStub(port = 0): Promise<{ server: http.Server; base: 
         if (String(body.prompt).includes('no-model')) return send(res, 503, { error: 'unavailable' });
         return send(res, 200, { model: 'stub-model', origin: 'ai_hypothesis', note: '', parts: [{ name: 'Pump', shape: 'cylinder', dimsMm: [80, 120, 80], positionM: [0, 0.5, 0] }] });
       }
+      if ((r = m(/^\/v1\/projects\/([^/]+)\/revisions\/(\d+)\/run$/)) && req.method === 'POST') {
+        const keys = Object.keys(body ?? {}).sort().join();
+        if (keys !== 'dragCoefficient,endSeconds,initialState') return send(res, 422, { error: { code: 'rejected', message: 'unknown field' } });
+        if (r[1] === 'nodensity') return send(res, 422, { error: { code: 'rejected', message: 'this model cannot be run yet: b (b): no density stated' } });
+        return send(res, 201, { runId: 'run-stubmodel', rows: 3, framesBlake3: 'e'.repeat(64), massKg: 2, areaM2: 0.06, parts: 2 });
+      }
+      if ((r = m(/^\/v1\/projects\/([^/]+)\/runs$/)) && req.method === 'GET') {
+        return send(res, 200, { runs: [{ runId: 'run-stubmodel', revision: 1, parentRunId: null, startedAt: '2026-10-28T10:00:00.000Z' }] });
+      }
       if (req.method === 'GET' && url.pathname === '/v1/sources') return send(res, 200, { sources: [], note: 'No sources connected. Parts will be placeholders or defined from scratch.' });
       return send(res, 404, { error: 'resource not found' });
     });

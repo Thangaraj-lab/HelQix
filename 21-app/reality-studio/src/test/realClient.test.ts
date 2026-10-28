@@ -71,7 +71,6 @@ describe('RealEngineClient against the API wire format', () => {
     const c = new RealEngineClient(base);
     await expect(c.startBuild('p', { prompt: 'a pump, no-model' })).rejects.toBeInstanceOf(EngineUnavailable);
     await expect(c.run()).rejects.toBeInstanceOf(EngineUnavailable);
-    expect(await c.listRuns()).toEqual([]);
   });
 
   it('freezes a stored run and branches it with the wire format the API accepts', async () => {
@@ -94,6 +93,14 @@ describe('RealEngineClient against the API wire format', () => {
     expect(add.name).toBe('Pump');
     expect(add.maturity).toBe('placeholder');
     expect(add.geometry.dims[0]).toMatchObject({ v: 80, unit: 'mm', origin: 'ai_hypothesis', status: 'unverified' });
+  });
+
+  it('runs a committed revision and lists the project runs the engine linked to it', async () => {
+    const c = new RealEngineClient(base);
+    const r = await c.runRevision('p1', 1, { dragCoefficient: 0.8, endSeconds: 0.2, initialState: [0, 10, 0, 0, 0, 0] });
+    expect(r).toMatchObject({ runId: 'run-stubmodel', massKg: 2, parts: 2 });
+    await expect(c.runRevision('nodensity', 1, { dragCoefficient: 0.8, endSeconds: 0.2, initialState: [0, 10, 0, 0, 0, 0] })).rejects.toThrow(/no density stated/);
+    expect(await c.listRuns('p1')).toEqual([{ id: 'run-stubmodel', projectId: 'p1', scenarioId: 'lumped-body', revisionNum: 1, startedAt: '2026-10-28T10:00:00.000Z' }]);
   });
 
   it('never sends the API key itself (the dev proxy adds it)', () => {

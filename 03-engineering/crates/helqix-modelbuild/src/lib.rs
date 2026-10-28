@@ -6,6 +6,7 @@
 //!
 //! Checks are rules, not judgement: port direction, port kind, unit dimension (helqix-core unit
 //! registry), unknown units, references to missing parts, placeholder parts.
+pub mod lumped;
 use std::collections::{BTreeMap, BTreeSet};
 
 use helqix_contracts::{BuildEventKind, Direction, Issue, Maturity, ModelOp, PortRef, Severity, Value};

@@ -14,9 +14,14 @@ use crate::{error::ApiError, frames::{StartRun, map, to_spec}, state::AppState};
 
 /// What a run was made from.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct StoredSpec { pub params: StartRun, pub parent: Option<Parent> }
+pub struct StoredSpec { pub params: StartRun, pub parent: Option<Parent>, #[serde(default)] pub model: Option<ModelLink> }
+/// The committed model revision a run was made from.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct ModelLink { pub project_id: String, pub revision: u32 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Parent { pub run_id: String, pub index: usize }
+
+pub(crate) fn spec_dir(dir: &std::path::Path) -> std::path::PathBuf { dir.join("specs") }
 
 fn spec_path(dir: &std::path::Path, id: &str) -> std::path::PathBuf { dir.join("specs").join(format!("{id}.json")) }
 
@@ -98,7 +103,7 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
         chain.extend(tail.chain);
         let whole = helqix_freeze::RecordedRun { genesis: original.genesis.clone(), samples, chain, determinism: tail.determinism };
         let entry = FrameStore::open(&dir).and_then(|s| s.put(&rid, &whole, &point_mass_variables(), &original.genesis)).map_err(map)?;
-        save_spec(&dir, &rid, &StoredSpec { params: changed, parent: Some(Parent { run_id: parent_id.clone(), index }) }).map_err(|_| ApiError::Internal)?;
+        save_spec(&dir, &rid, &StoredSpec { params: changed, parent: Some(Parent { run_id: parent_id.clone(), index }), model: parent.model.clone() }).map_err(|_| ApiError::Internal)?;
         Ok(json!({"runId": rid, "parentRunId": parent_id, "index": index, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3}))
     }).await.map_err(|_| ApiError::Internal)??;
     Ok((StatusCode::CREATED, Json(out)))

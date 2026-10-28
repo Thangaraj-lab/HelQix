@@ -205,6 +205,8 @@ export interface EngineClient {
   listRuns(pid: string): Promise<RunSummary[]>;
   /** Real engine only: run the point-mass model and store its frames. Absent on the mock engine. */
   startPointMassRun?(p: PointMassRunParams): Promise<{ runId: string }>;
+  /** Real engine only: run a committed revision as one lumped body (the engine computes mass and area from the parts). */
+  runRevision?(pid: string, revisionNum: number, p: Omit<PointMassRunParams, 'massKg' | 'referenceAreaM2'>): Promise<{ runId: string; massKg: number; areaM2: number; parts: number }>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
   getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(

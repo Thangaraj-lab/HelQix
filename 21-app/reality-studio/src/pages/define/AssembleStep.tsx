@@ -8,7 +8,7 @@ import { createMockValue } from '../../mock/examplePack';
 import { checkGltf, getAsset, LICENCES, Licence, putAsset } from '../../app/assets';
 import { useRun } from '../simulate/useRun';
 import { SUPPORTED_CHANNELS } from '../../scene/bindings';
-import { DENSITY_KEY } from '../../app/lumped';
+const DENSITY_KEY = 'density_kg_m3'; // the part parameter the engine reads to find mass (volume x density)
 import { Button, Chip, Drawer, IconButton, MockTag, PlaceholderTag, SectionLabel, StatusDot, Tabs, ValueView } from '../../components/ui/UiKit';
 
 export interface AssembleStepProps {

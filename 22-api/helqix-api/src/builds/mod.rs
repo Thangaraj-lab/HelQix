@@ -65,6 +65,17 @@ async fn load(tx: &mut Transaction<'_, Postgres>, id: Uuid) -> Result<(Uuid, Sta
     Ok((project_id, build))
 }
 
+/// The active operations of a committed revision (undone ops past the cursor are not part of it).
+pub(crate) async fn revision_ops(state: &AppState, project_id: Uuid, number: i32) -> Result<Vec<ModelOp>, ApiError> {
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT build_id FROM helqix_model_revisions WHERE project_id = $1 AND number = $2")
+        .bind(project_id).bind(number).fetch_optional(&state.database).await?;
+    let (build_id,) = row.ok_or(ApiError::NotFound)?;
+    let mut tx = state.database.begin().await?;
+    let (_, build) = load(&mut tx, build_id).await?;
+    tx.commit().await?;
+    Ok(build.active_ops().to_vec())
+}
+
 async fn save(tx: &mut Transaction<'_, Postgres>, id: Uuid, build: &StagedBuild) -> Result<(), ApiError> {
     sqlx::query("DELETE FROM helqix_build_ops WHERE build_id = $1").bind(id).execute(&mut **tx).await?;
     for (position, op) in build.ops().iter().enumerate() {

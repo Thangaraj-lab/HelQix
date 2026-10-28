@@ -33,6 +33,8 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
         .route("/v1/runs", get(frames::list_runs).post(frames::start_run))
         .route("/v1/runs/{id}/freeze", axum::routing::post(crate::branching::freeze_run))
         .route("/v1/interpret", axum::routing::post(crate::interpret::interpret))
+        .route("/v1/projects/{project_id}/revisions/{number}/run", axum::routing::post(crate::model_run::run_revision))
+        .route("/v1/projects/{project_id}/runs", get(crate::model_run::project_runs))
         .route("/v1/branches", axum::routing::post(crate::branching::branch_run))
         .route("/v1/runs/{id}/frames", get(frames::run_frames))
         .route("/v1/runs/{id}/frame", get(frames::get_frame))

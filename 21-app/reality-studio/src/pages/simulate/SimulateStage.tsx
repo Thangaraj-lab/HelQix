@@ -11,7 +11,6 @@ import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { LineChart } from '../../components/charts/LineChart';
 import { useModelData } from '../studio/ModelContext';
 import { runsChanged } from './useRun';
-import { lumpedModel } from '../../app/lumped';
 import { valueAtTime } from '../../scene/bindings';
 
 export interface SimulateStageProps {
@@ -64,13 +63,12 @@ const BranchForm: React.FC<{ checkpoint: Checkpoint }> = ({ checkpoint }) => {
 };
 
 // Real engine: starts the point-mass model with the numbers typed here (nothing is assumed) and plays the result.
-const fmt = (x: number) => String(Number(x.toPrecision(5)));
 const NewRunForm: React.FC<{ revision?: ModelRevision | null }> = ({ revision }) => {
-  const lumped = useMemo(() => (revision ? lumpedModel(revision) : null), [revision]);
   const [v, setV] = useState({ mass: '0.5', drag: '0.47', area: '0.01', end: '2', height: '20', vx: '3' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const n = (k: keyof typeof v) => Number(v[k]);
+  const validRest = ['drag', 'end', 'height', 'vx'].every(k => v[k as keyof typeof v].trim() !== '' && Number.isFinite(Number(v[k as keyof typeof v]))) && n('end') > 0;
   const valid = Object.values(v).every(x => x.trim() !== '' && Number.isFinite(Number(x))) && n('mass') > 0 && n('end') > 0;
   const go = async () => {
     if (!engine.startPointMassRun || !valid) return;
@@ -82,26 +80,34 @@ const NewRunForm: React.FC<{ revision?: ModelRevision | null }> = ({ revision })
     } catch (e) { setError(e instanceof Error ? e.message : 'The run could not be started.'); }
     setBusy(false);
   };
+  const [note, setNote] = useState<string | null>(null);
+  const goModel = async () => {
+    if (!engine.runRevision || !revision || !validRest) return;
+    setBusy(true); setError(null); setNote(null);
+    try {
+      const r = await engine.runRevision(revision.projectId, revision.revisionNum, { dragCoefficient: n('drag'), endSeconds: n('end'), initialState: [0, n('height'), 0, n('vx'), 0, 0] });
+      setNote(`Ran your ${r.parts} parts as one body: ${Number(r.massKg.toPrecision(5))} kg, ${Number(r.areaM2.toPrecision(5))} m² footprint.`);
+      runsChanged.dispatchEvent(new Event('change'));
+      setQuery({ run: r.runId });
+    } catch (e) { setError(e instanceof Error ? e.message.replace(/^[^:]*:\s*\d+:\s*/, '') : 'The run could not be started.'); }
+    setBusy(false);
+  };
   const field = (k: keyof typeof v, label: string) => (
     <label key={k} className="block space-y-1"><span className="text-[11px] text-muted">{label}</span>
       <input value={v[k]} inputMode="decimal" onChange={e => setV({ ...v, [k]: e.target.value })} aria-label={label} className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60" /></label>
   );
   return (
     <div className="space-y-2.5">
-      {lumped && lumped.ok === true && (
-        <div className="space-y-1.5">
-          <Button size="sm" variant="secondary" onClick={() => setV({ ...v, mass: fmt(lumped.massKg), area: fmt(lumped.areaM2) })}>Use my model's mass and area</Button>
-          <p className="text-[11px] text-muted">Treats your {lumped.parts} parts as one body: {fmt(lumped.massKg)} kg from volume x density, {fmt(lumped.areaM2)} m² as the box footprint. Drag coefficient is yours to state.</p>
-        </div>
-      )}
-      {lumped && lumped.ok === false && (
-        <p className="text-[11px] text-muted">To run your own model, state a material density for: {lumped.missing.map(m => `${m.name} (${m.reason})`).join('; ')}.</p>
-      )}
       <div className="grid grid-cols-2 gap-2">
         {field('mass', 'Mass (kg)')}{field('drag', 'Drag coefficient')}{field('area', 'Reference area (m²)')}{field('end', 'Duration (s)')}{field('height', 'Start height (m)')}{field('vx', 'Sideways speed (m/s)')}
       </div>
       {error && <p role="alert" className="text-xs text-bad">{error}</p>}
-      <Button size="sm" variant="primary" disabled={!valid || busy} onClick={() => void go()}>Run the engine</Button>
+      {note && <p className="text-[11px] text-trace">{note}</p>}
+      <div className="flex flex-wrap gap-2">
+        {revision && engine.runRevision && <Button size="sm" variant="primary" disabled={!validRest || busy} onClick={() => void goModel()}>Run my model</Button>}
+        <Button size="sm" variant={revision && engine.runRevision ? 'secondary' : 'primary'} disabled={!valid || busy} onClick={() => void go()}>Run a free body</Button>
+      </div>
+      {revision && engine.runRevision && <p className="text-[11px] text-muted">Run my model uses the mass and footprint the engine works out from your parts and their stated densities; the mass and area above apply to a free body only.</p>}
       <p className="text-[11px] text-muted">A falling body with air drag, run by the engine and stored. The same numbers always give the same run.</p>
     </div>
   );
