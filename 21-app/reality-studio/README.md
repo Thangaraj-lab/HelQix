@@ -28,10 +28,19 @@ The browser calls `/api/*`; the dev server forwards it to `HELQIX_API_URL` and a
 server side. The key is never in the bundle. For a recorded run to play in Simulate, start the API
 with `HELQIX_FRAME_STORE=<dir>` after `cargo run -p helqix-frames --bin helqix-frames-record <dir>`.
 
-## What the real engine does not do yet
+## Describe a system (local open-source model)
 
-It cannot interpret a typed description (use Start from scratch), start a run, freeze or branch.
-Simulate plays a recorded run from the frame store and you bind model parts to its variables.
+Install [Ollama](https://ollama.com) (MIT), pull an open-weights model (for example `ollama pull qwen2.5:7b-instruct`, Apache-2.0)
+and start the API with `HELQIX_OLLAMA_MODEL=qwen2.5:7b-instruct` (optional `HELQIX_OLLAMA_HOST`, loopback only; set
+`HELQIX_API_TIMEOUT_SECONDS=300` on a CPU-only machine). A description typed on the Hero then becomes parts labelled
+as AI hypotheses with placeholder sizes; you edit and commit them like any other part. Without a model the Studio says so
+and Start from scratch still works.
+
+## What the real engine does
+
+Simulate starts the point-mass model from the numbers you type (`POST /v1/runs`), can freeze any time and branch with one changed
+number, and plays recorded runs from the frame store. A Studio project's parts are not yet translated into a solver model, so
+you bind parts to the run's variables yourself.
 
 ## Rules the tests enforce
 

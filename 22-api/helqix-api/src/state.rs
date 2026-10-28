@@ -8,11 +8,18 @@ pub struct AppState {
     pub(crate) api_key: Arc<str>,
     /// Directory of stored run frames (`HELQIX_FRAME_STORE`); frame routes answer 503 without it.
     pub frame_store: Option<PathBuf>,
+    /// Local Ollama (`HELQIX_OLLAMA_MODEL`, `HELQIX_OLLAMA_HOST`): `(host, model)`. Interpretation answers 503 without it.
+    pub ollama: Option<(String, String)>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None }
+    }
+
+    pub fn with_ollama(mut self, host_and_model: Option<(String, String)>) -> Self {
+        self.ollama = host_and_model;
+        self
     }
 
     pub fn with_frame_store(mut self, dir: Option<PathBuf>) -> Self {

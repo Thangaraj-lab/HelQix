@@ -91,9 +91,34 @@ export class RealEngineClient implements EngineClient {
   }
 
   async startBuild(pid: string, input: { prompt: string; attachments?: AssetRef[] } | { scratch: true } | { importAsset: AssetRef }): Promise<{ buildId: string }> {
-    if ('prompt' in input) throw new EngineUnavailable('interpret', 'The real engine cannot interpret a description yet. Start from scratch and define the parts yourself.');
+    if ('prompt' in input) return this.interpretIntoBuild(pid, input.prompt);
     if ('importAsset' in input) throw new EngineUnavailable('import', 'Importing a file as a whole model is not available in the real engine yet.');
     const { data } = await this.call<{ buildId: string }>('POST', `/v1/projects/${pid}/builds`);
+    return { buildId: data.buildId };
+  }
+
+  /**
+   * A local open-source model proposes parts for the description; the API validates them. They are applied as
+   * ordinary operations in a new build, labelled as AI hypotheses, so the engineer edits and commits them.
+   */
+  private async interpretIntoBuild(pid: string, prompt: string): Promise<{ buildId: string }> {
+    let proposal: { model: string; parts: { name: string; shape: 'box' | 'cylinder' | 'sphere' | 'plate'; dimsMm: number[]; positionM: number[] }[] };
+    try {
+      proposal = (await this.call<typeof proposal>('POST', '/v1/interpret', { prompt })).data;
+    } catch (e) {
+      if (e instanceof Error && / 503:/.test(e.message)) throw new EngineUnavailable('interpret', 'No local language model is connected. Start Ollama and the API with HELQIX_OLLAMA_MODEL, or start from scratch and define the parts yourself.');
+      throw e;
+    }
+    const { data } = await this.call<{ buildId: string }>('POST', `/v1/projects/${pid}/builds`);
+    const hyp = (v: number, unit: string) => ({ v, unit, origin: 'ai_hypothesis' as const, status: 'unverified' as const });
+    const ops: ModelOp[] = proposal.parts.flatMap((p, i): ModelOp[] => {
+      const id = `part-ai-${i + 1}`;
+      return [
+        { op: 'part.add', id, name: p.name, geometry: { kind: 'primitive', shape: p.shape, dims: p.dimsMm.map(d => hyp(d, 'mm')) }, maturity: 'placeholder', prov: { kind: 'inferred', note: `Proposed by ${proposal.model} from your description; sizes are placeholders` } },
+        { op: 'part.place', id, transform: { pos: [hyp(p.positionM[0], 'm'), hyp(p.positionM[1], 'm'), hyp(p.positionM[2], 'm')], rot: [hyp(0, 'deg'), hyp(0, 'deg'), hyp(0, 'deg')], scale: [1, 1, 1], frame: 'world' } }
+      ];
+    });
+    await this.applyOps(data.buildId, ops);
     return { buildId: data.buildId };
   }
 

@@ -20,6 +20,7 @@ axum = "0.8.9"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 helqix-contracts = { path = "../../15-sdk/platform/contracts" }
+helqix-agent = { path = "../../19-intelligence/crates/helqix-agent" }
 helqix-frames = { path = "../../07-time/crates/helqix-frames" }
 helqix-freeze = { path = "../../07-time/crates/helqix-freeze" }
 helqix-modelbuild = { path = "../../03-engineering/crates/helqix-modelbuild" }

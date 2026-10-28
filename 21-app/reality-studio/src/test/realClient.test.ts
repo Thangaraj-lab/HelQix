@@ -69,7 +69,7 @@ describe('RealEngineClient against the API wire format', () => {
 
   it('does not pretend: no interpreter and no scenario runner', async () => {
     const c = new RealEngineClient(base);
-    await expect(c.startBuild('p', { prompt: 'a pump' })).rejects.toBeInstanceOf(EngineUnavailable);
+    await expect(c.startBuild('p', { prompt: 'a pump, no-model' })).rejects.toBeInstanceOf(EngineUnavailable);
     await expect(c.run()).rejects.toBeInstanceOf(EngineUnavailable);
     expect(await c.listRuns()).toEqual([]);
   });
@@ -82,6 +82,18 @@ describe('RealEngineClient against the API wire format', () => {
     const ov = { v: 0.3, unit: '', origin: 'user_stated' as const, status: 'unverified' as const };
     const br = await c.branch(cp.id, { id: '', name: 'b', checkpointId: cp.id, paramOverrides: { referenceAreaM2: ov } });
     expect(br.runId).toBe('br-stub');
+  });
+
+  it('turns a description into AI-labelled parts in a new build', async () => {
+    const c = new RealEngineClient(base);
+    const p = await c.createProject();
+    const { buildId } = await c.startBuild(p.id, { prompt: 'a pump pushing water' });
+    const seen: any[] = [];
+    for await (const e of c.buildEvents(buildId)) { if (e.op) seen.push(e.op); }
+    const add = seen.find(o => o.op === 'part.add');
+    expect(add.name).toBe('Pump');
+    expect(add.maturity).toBe('placeholder');
+    expect(add.geometry.dims[0]).toMatchObject({ v: 80, unit: 'mm', origin: 'ai_hypothesis', status: 'unverified' });
   });
 
   it('never sends the API key itself (the dev proxy adds it)', () => {

@@ -28,7 +28,8 @@ async fn main() -> anyhow::Result<()> {
         .context("database migrations failed")?;
     spawn_idempotency_cleanup(database.clone());
 
-    let state = AppState::new(database, config.api_key).with_frame_store(std::env::var_os("HELQIX_FRAME_STORE").map(Into::into));
+    let state = AppState::new(database, config.api_key).with_frame_store(std::env::var_os("HELQIX_FRAME_STORE").map(Into::into))
+        .with_ollama(std::env::var("HELQIX_OLLAMA_MODEL").ok().map(|m| (std::env::var("HELQIX_OLLAMA_HOST").unwrap_or_else(|_| "127.0.0.1:11434".into()), m)));
     let app = routes::router(state, &config.allowed_origins, config.request_timeout)
         .context("could not configure API routes")?;
     let listener = tokio::net::TcpListener::bind(config.listen_addr)

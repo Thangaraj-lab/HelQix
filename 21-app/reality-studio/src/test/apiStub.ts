@@ -126,6 +126,11 @@ export async function startStub(port = 0): Promise<{ server: http.Server; base: 
         if (keys !== 'checkpointId,overrides' || typeof body.overrides?.referenceAreaM2 !== 'number') return send(res, 422, { error: 'unknown field' });
         return send(res, 201, { runId: 'br-stub', parentRunId: 'reference-drop', index: 0, rows: DROP.length, framesBlake3: 'd'.repeat(64) });
       }
+      if (req.method === 'POST' && url.pathname === '/v1/interpret') {
+        if (Object.keys(body ?? {}).join() !== 'prompt') return send(res, 422, { error: 'unknown field' });
+        if (String(body.prompt).includes('no-model')) return send(res, 503, { error: 'unavailable' });
+        return send(res, 200, { model: 'stub-model', origin: 'ai_hypothesis', note: '', parts: [{ name: 'Pump', shape: 'cylinder', dimsMm: [80, 120, 80], positionM: [0, 0.5, 0] }] });
+      }
       if (req.method === 'GET' && url.pathname === '/v1/sources') return send(res, 200, { sources: [], note: 'No sources connected. Parts will be placeholders or defined from scratch.' });
       return send(res, 404, { error: 'resource not found' });
     });
