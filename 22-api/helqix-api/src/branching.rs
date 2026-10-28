@@ -19,6 +19,7 @@ pub struct FreezeBody { pub t: f64 }
 pub async fn freeze_run(State(state): State<AppState>, Path(id): Path<String>, Json(b): Json<FreezeBody>) -> Result<Json<Value>, ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     if !b.t.is_finite() || b.t < 0.0 { return Err(ApiError::BadRequest("t must be a finite time of at least 0".into())); }
+    if let Some(m) = &state.mirror { m.ensure(&dir, &id).await?; }
     let stored = state.spec_store().ok_or(ApiError::Unavailable)?.load(&id).await?;
     let out = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
         let run = FrameStore::open(&dir).and_then(|s| s.load(&id)).map_err(map)?;
@@ -60,10 +61,12 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
     let id = format!("br-{}", &helqix_frames::blake3_hex(format!("{}|{:?}", b.checkpoint_id, (o.mass_kg, o.drag_coefficient, o.reference_area_m2, o.wind_m_s, o.applied_force_n)).as_bytes())[..16]);
     let rid = id.clone();
     let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
+    if let Some(m) = &state.mirror { m.ensure(&dir, &parent_id).await?; }
     let parent = specs.load(&parent_id).await?;
     if parent.parent.is_some() { return Err(ApiError::Rejected("branch from an original run, not from another branch".into())); }
     let parent_model = parent.model.clone();
     let parent_run = parent_id.clone();
+    let frames_dir = dir.clone();
     let (entry, changed) = tokio::task::spawn_blocking(move || -> Result<(helqix_frames::RunIndex, crate::frames::StartRun), ApiError> {
         let original = helqix_freeze::run(&to_spec(&parent.params)).map_err(|e| ApiError::Rejected(e.to_string()))?;
         if index >= original.samples.len() { return Err(ApiError::Rejected("checkpoint is outside the run".into())); }
@@ -83,6 +86,7 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
         let entry = FrameStore::open(&dir).and_then(|s| s.put(&rid, &whole, &point_mass_variables(), &original.genesis)).map_err(map)?;
         Ok((entry, changed))
     }).await.map_err(|_| ApiError::Internal)??;
+    if let Some(m) = &state.mirror { m.push(&frames_dir, &id).await?; }
     specs.save(&id, &StoredSpec { params: changed, parent: Some(Parent { run_id: parent_run.clone(), index }), model: parent_model }).await?;
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "parentRunId": parent_run, "index": index, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3}))))
 }

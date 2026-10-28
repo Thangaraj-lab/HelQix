@@ -16,12 +16,14 @@ pub struct AppState {
     pub metrics: Arc<crate::metrics::Metrics>,
     /// Keep each run's parameters in PostgreSQL (the API binary's default) instead of files beside the frames.
     pub run_metadata_in_postgres: bool,
+    /// Durable copy of the frame files in an S3-compatible store (see `mirror.rs`); absent means the local directory is the only copy.
+    pub mirror: Option<Arc<crate::mirror::ObjectMirror>>,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
     }
 
     pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
@@ -37,6 +39,11 @@ impl AppState {
     /// Where run parameters live; none when no frame store is configured.
     pub fn spec_store(&self) -> Option<crate::specs::SpecStore> {
         self.frame_store.clone().map(|dir| crate::specs::SpecStore::new(dir, self.run_metadata_in_postgres.then(|| self.database.clone())))
+    }
+
+    pub fn with_mirror(mut self, mirror: Option<crate::mirror::ObjectMirror>) -> Self {
+        self.mirror = mirror.map(Arc::new);
+        self
     }
 
     pub fn with_ollama(mut self, host_and_model: Option<(String, String)>) -> Self {

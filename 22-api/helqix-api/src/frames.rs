@@ -28,6 +28,7 @@ pub(crate) fn map(e: FrameError) -> ApiError {
 
 async fn load(state: &AppState, id: String) -> Result<StoredRun, ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    if let Some(m) = &state.mirror { m.ensure(&dir, &id).await?; }
     tokio::task::spawn_blocking(move || FrameStore::open(dir).and_then(|s| s.load(&id))).await.map_err(|_| ApiError::Internal)?.map_err(map)
 }
 
@@ -35,6 +36,7 @@ async fn load(state: &AppState, id: String) -> Result<StoredRun, ApiError> {
 /// read with `/v1/runs/{id}/frames`; nothing here computes a run.
 pub async fn list_runs(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    if let Some(m) = &state.mirror { m.sync_indexes(&dir).await?; }
     let runs = tokio::task::spawn_blocking(move || FrameStore::open(dir).and_then(|s| s.list())).await.map_err(|_| ApiError::Internal)?.map_err(map)?;
     let runs: Vec<Value> = runs.into_iter().map(|r| json!({"runId": r.meta.run_id, "rows": r.meta.rows, "determinism": r.meta.determinism, "variables": r.meta.variables, "framesBlake3": r.frames_blake3})).collect();
     Ok(Json(json!({"runs": runs})))
@@ -83,7 +85,8 @@ const MAX_STEPS: f64 = 200_000.0;
 pub async fn start_run(State(state): State<AppState>, Json(b): Json<StartRun>) -> Result<(axum::http::StatusCode, Json<Value>), ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
-    let (id, entry) = store_run(dir, &specs, b, None).await?;
+    let (id, entry) = store_run(dir.clone(), &specs, b, None).await?;
+    if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
     Ok((axum::http::StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism}))))
 }
 

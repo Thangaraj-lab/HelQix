@@ -36,7 +36,8 @@ pub async fn run_revision(State(state): State<AppState>, Path((project_id, numbe
         drag_coefficient: b.drag_coefficient, reference_area_m2: body.area_m2, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state: b.initial_state,
     };
     let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
-    let (id, entry) = store_run(dir, &specs, run, Some(ModelLink { project_id: pid.to_string(), revision: number as u32 })).await?;
+    let (id, entry) = store_run(dir.clone(), &specs, run, Some(ModelLink { project_id: pid.to_string(), revision: number as u32 })).await?;
+    if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "massKg": body.mass_kg, "areaM2": body.area_m2, "parts": body.parts}))))
 }
 

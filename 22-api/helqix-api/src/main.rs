@@ -30,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(database, config.api_key).with_frame_store(std::env::var_os("HELQIX_FRAME_STORE").map(Into::into))
         .with_run_metadata_in_postgres(std::env::var("HELQIX_RUN_METADATA").map_or(true, |v| v != "files"))
+        .with_mirror(helqix_api::mirror::ObjectMirror::from_env()?)
         .with_oidc(oidc_from_env()?)
         .with_ollama(std::env::var("HELQIX_OLLAMA_MODEL").ok().map(|m| (std::env::var("HELQIX_OLLAMA_HOST").unwrap_or_else(|_| "127.0.0.1:11434".into()), m)));
     let app = routes::router(state, &config.allowed_origins, config.request_timeout)
