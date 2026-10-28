@@ -63,8 +63,10 @@ pub async fn interpret(State(state): State<AppState>, Json(b): Json<InterpretBod
     let (host, model) = state.ollama.clone().ok_or(ApiError::Unavailable)?;
     let prompt = b.prompt.trim().to_owned();
     if prompt.is_empty() || prompt.chars().count() > MAX_PROMPT_CHARS { return Err(ApiError::BadRequest(format!("the description must be 1 to {MAX_PROMPT_CHARS} characters"))); }
+    let permit = state.model_gate.clone().try_acquire_owned().map_err(|_| ApiError::Busy)?;
     let m = model.clone();
     let answer = tokio::task::spawn_blocking(move || -> Result<Value, String> {
+        let _permit = permit; // held until the model has answered
         let provider = OllamaProvider::new(&host, &m)?.with_timeout(std::time::Duration::from_secs(240));
         provider.complete_json(TASK, &format!("Description:\n{prompt}"))
     }).await.map_err(|_| ApiError::Internal)?.map_err(|e| { tracing::warn!(error = %e, "interpretation failed"); ApiError::Rejected(e) })?;

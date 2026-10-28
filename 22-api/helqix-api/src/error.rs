@@ -18,6 +18,8 @@ pub enum ApiError {
     Unauthorized,
     #[error("service unavailable")]
     Unavailable,
+    #[error("busy")]
+    Busy,
     #[error("rejected: {0}")]
     Rejected(String),
     #[error("state conflict: {0}")]
@@ -49,6 +51,7 @@ impl IntoResponse for ApiError {
             Self::PreconditionRequired => (StatusCode::PRECONDITION_REQUIRED, "precondition_required", "If-Match with the current resource version is required.".into()),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", "Valid API credentials are required.".into()),
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "unavailable", "The service is temporarily unavailable.".into()),
+            Self::Busy => (StatusCode::TOO_MANY_REQUESTS, "busy", "The language model is busy with another request. Try again in a moment.".into()),
             Self::Rejected(message) => (StatusCode::UNPROCESSABLE_ENTITY, "rejected", message.clone()),
             Self::StateConflict(message) => (StatusCode::CONFLICT, "state_conflict", message.clone()),
             Self::Database(error) => {

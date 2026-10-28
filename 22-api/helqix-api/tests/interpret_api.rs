@@ -86,3 +86,29 @@ async fn live_a_real_model_proposes_checked_parts() {
     assert!(!v["parts"].as_array().unwrap().is_empty());
     assert_eq!(v["origin"], "ai_hypothesis");
 }
+
+#[tokio::test]
+async fn a_second_request_while_the_model_is_busy_is_told_to_wait() {
+    // A fake model that answers slowly: the second request arrives while the first is in flight.
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = l.local_addr().unwrap().to_string();
+    std::thread::spawn(move || {
+        let Ok((mut s, _)) = l.accept() else { return };
+        let mut chunk = [0u8; 8192];
+        let mut req = Vec::new();
+        loop {
+            let n = s.read(&mut chunk).unwrap_or(0);
+            req.extend_from_slice(&chunk[..n]);
+            if n == 0 || req.windows(4).any(|w| w == [13u8, 10, 13, 10]) && req.len() > 300 { break; }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        let body = json!({"message": {"role": "assistant", "content": json!({"parts": [{"name": "A", "shape": "box", "dimsMm": [10, 10, 10], "positionM": [0, 0, 0]}]}).to_string()}}).to_string();
+        let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes());
+    });
+    let app = app(Some((host, "slow".into())));
+    let first = { let a = app.clone(); tokio::spawn(async move { post(&a, json!({"prompt": "first"})).await }) };
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    assert_eq!(post(&app, json!({"prompt": "second"})).await.0, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(first.await.unwrap().0, StatusCode::OK);
+    assert_ne!(post(&app, json!({"prompt": "third"})).await.0, StatusCode::TOO_MANY_REQUESTS, "the gate is released after the first call");
+}
