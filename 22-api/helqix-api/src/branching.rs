@@ -2,40 +2,15 @@
 //! - `POST /v1/runs/{id}/freeze {t}`: the checkpoint at the grid point at or before `t`.
 //! - `POST /v1/branches {checkpointId, overrides}`: the run continued from that checkpoint with changed parameters.
 //!
-//! A run started through `POST /v1/runs` has its parameters saved beside its frames (`specs/<id>.json`), so the
+//! A run started through `POST /v1/runs` has its parameters saved (see `specs.rs`), so the
 //! engine can reproduce any point of it exactly. A checkpoint is therefore just `run@index` plus the state hash;
 //! nothing else is stored. Runs recorded some other way have no saved parameters and are refused.
 use axum::{Json, extract::{Path, State}, http::StatusCode};
 use helqix_frames::{FrameStore, point_mass_variables};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use crate::{error::ApiError, frames::{StartRun, map, to_spec}, state::AppState};
-
-/// What a run was made from.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct StoredSpec { pub params: StartRun, pub parent: Option<Parent>, #[serde(default)] pub model: Option<ModelLink> }
-/// The committed model revision a run was made from.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct ModelLink { pub project_id: String, pub revision: u32 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Parent { pub run_id: String, pub index: usize }
-
-pub(crate) fn spec_dir(dir: &std::path::Path) -> std::path::PathBuf { dir.join("specs") }
-
-fn spec_path(dir: &std::path::Path, id: &str) -> std::path::PathBuf { dir.join("specs").join(format!("{id}.json")) }
-
-pub fn save_spec(dir: &std::path::Path, id: &str, s: &StoredSpec) -> Result<(), String> {
-    let p = spec_path(dir, id);
-    std::fs::create_dir_all(p.parent().expect("has a parent")).map_err(|e| e.to_string())?;
-    std::fs::write(p, serde_json::to_vec(s).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
-}
-
-fn load_spec(dir: &std::path::Path, id: &str) -> Result<StoredSpec, ApiError> {
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') { return Err(ApiError::BadRequest("bad run id".into())); }
-    let bytes = std::fs::read(spec_path(dir, id)).map_err(|_| ApiError::Rejected("this run was not started through the API, so its model is unknown and it cannot be frozen".into()))?;
-    serde_json::from_slice(&bytes).map_err(|_| ApiError::Internal)
-}
+use crate::{error::ApiError, frames::{map, to_spec}, specs::{Parent, StoredSpec}, state::AppState};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,8 +19,8 @@ pub struct FreezeBody { pub t: f64 }
 pub async fn freeze_run(State(state): State<AppState>, Path(id): Path<String>, Json(b): Json<FreezeBody>) -> Result<Json<Value>, ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     if !b.t.is_finite() || b.t < 0.0 { return Err(ApiError::BadRequest("t must be a finite time of at least 0".into())); }
+    let stored = state.spec_store().ok_or(ApiError::Unavailable)?.load(&id).await?;
     let out = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
-        let stored = load_spec(&dir, &id)?;
         let run = FrameStore::open(&dir).and_then(|s| s.load(&id)).map_err(map)?;
         let t = b.t.min(stored.params.end_seconds);
         let index = ((t / stored.params.step_seconds) + 1e-9).floor() as usize;
@@ -84,9 +59,12 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
     }
     let id = format!("br-{}", &helqix_frames::blake3_hex(format!("{}|{:?}", b.checkpoint_id, (o.mass_kg, o.drag_coefficient, o.reference_area_m2, o.wind_m_s, o.applied_force_n)).as_bytes())[..16]);
     let rid = id.clone();
-    let out = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
-        let parent = load_spec(&dir, &parent_id)?;
-        if parent.parent.is_some() { return Err(ApiError::Rejected("branch from an original run, not from another branch".into())); }
+    let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
+    let parent = specs.load(&parent_id).await?;
+    if parent.parent.is_some() { return Err(ApiError::Rejected("branch from an original run, not from another branch".into())); }
+    let parent_model = parent.model.clone();
+    let parent_run = parent_id.clone();
+    let (entry, changed) = tokio::task::spawn_blocking(move || -> Result<(helqix_frames::RunIndex, crate::frames::StartRun), ApiError> {
         let original = helqix_freeze::run(&to_spec(&parent.params)).map_err(|e| ApiError::Rejected(e.to_string()))?;
         if index >= original.samples.len() { return Err(ApiError::Rejected("checkpoint is outside the run".into())); }
         let mut changed = parent.params.clone();
@@ -103,8 +81,8 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
         chain.extend(tail.chain);
         let whole = helqix_freeze::RecordedRun { genesis: original.genesis.clone(), samples, chain, determinism: tail.determinism };
         let entry = FrameStore::open(&dir).and_then(|s| s.put(&rid, &whole, &point_mass_variables(), &original.genesis)).map_err(map)?;
-        save_spec(&dir, &rid, &StoredSpec { params: changed, parent: Some(Parent { run_id: parent_id.clone(), index }), model: parent.model.clone() }).map_err(|_| ApiError::Internal)?;
-        Ok(json!({"runId": rid, "parentRunId": parent_id, "index": index, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3}))
+        Ok((entry, changed))
     }).await.map_err(|_| ApiError::Internal)??;
-    Ok((StatusCode::CREATED, Json(out)))
+    specs.save(&id, &StoredSpec { params: changed, parent: Some(Parent { run_id: parent_run.clone(), index }), model: parent_model }).await?;
+    Ok((StatusCode::CREATED, Json(json!({"runId": id, "parentRunId": parent_run, "index": index, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3}))))
 }

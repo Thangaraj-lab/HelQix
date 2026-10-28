@@ -174,7 +174,7 @@ async fn app_with_frames(dir: &std::path::Path) -> Option<Router> {
     let url = std::env::var("HELQIX_TEST_DATABASE_URL").ok()?;
     let pool = sqlx::postgres::PgPoolOptions::new().max_connections(4).connect(&url).await.expect("connect to test database");
     sqlx::migrate!("./migrations").run(&pool).await.expect("migrations");
-    Some(routes::router(AppState::new(pool, KEY).with_frame_store(Some(dir.to_owned())), &["http://localhost:5173".to_owned()], std::time::Duration::from_secs(20)).expect("router"))
+    Some(routes::router(AppState::new(pool, KEY).with_frame_store(Some(dir.to_owned())).with_run_metadata_in_postgres(true), &["http://localhost:5173".to_owned()], std::time::Duration::from_secs(20)).expect("router"))
 }
 
 fn placed_box(id: &str, x: f64) -> Vec<Value> {
@@ -228,4 +228,18 @@ async fn a_committed_model_runs_as_one_lumped_body_and_the_run_is_linked_to_it()
     assert_eq!(list["runs"].as_array().unwrap().len(), 1);
     assert_eq!(list["runs"][0]["revision"].as_u64(), Some(n));
     assert_eq!(list["runs"][0]["runId"], r["runId"]);
+
+    // The run's parameters are in PostgreSQL, not in files: freeze and branch work from them, and the branch is listed.
+    assert!(!dir.join("specs").exists(), "no spec files when the metadata is in PostgreSQL");
+    let run_id = r["runId"].as_str().unwrap().to_owned();
+    let (s, cp) = call(&app, "POST", &format!("/v1/runs/{run_id}/freeze"), Some(json!({"t": 0.1}))).await;
+    assert_eq!(s, StatusCode::OK, "{cp}");
+    let (s, br) = call(&app, "POST", "/v1/branches", Some(json!({"checkpointId": cp["checkpointId"], "overrides": {"dragCoefficient": 2.0}}))).await;
+    assert_eq!(s, StatusCode::CREATED, "{br}");
+    let (_, list) = call(&app, "GET", &format!("/v1/projects/{pid}/runs"), None).await;
+    let ids: Vec<&str> = list["runs"].as_array().unwrap().iter().map(|x| x["runId"].as_str().unwrap()).collect();
+    assert!(ids.contains(&br["runId"].as_str().unwrap()) && ids.contains(&run_id.as_str()), "{list}");
+    let branch_row = list["runs"].as_array().unwrap().iter().find(|x| x["runId"] == br["runId"]).unwrap();
+    assert_eq!(branch_row["parentRunId"], run_id.as_str());
+    assert_eq!(branch_row["revision"].as_u64(), Some(n));
 }

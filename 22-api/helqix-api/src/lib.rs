@@ -11,6 +11,7 @@ pub mod interpret;
 pub mod metrics;
 pub mod model_run;
 pub mod ownership;
+pub mod specs;
 pub mod request_id;
 pub mod resources;
 pub mod routes;

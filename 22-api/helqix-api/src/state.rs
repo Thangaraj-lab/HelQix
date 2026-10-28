@@ -14,17 +14,29 @@ pub struct AppState {
     /// OIDC token validation (`HELQIX_OIDC_ISSUER`, `HELQIX_OIDC_AUDIENCE`, `HELQIX_OIDC_JWKS_FILE`); absent means only the service key works.
     pub oidc: Option<Arc<crate::auth::Oidc>>,
     pub metrics: Arc<crate::metrics::Metrics>,
+    /// Keep each run's parameters in PostgreSQL (the API binary's default) instead of files beside the frames.
+    pub run_metadata_in_postgres: bool,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
     }
 
     pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
         self.oidc = oidc.map(Arc::new);
         self
+    }
+
+    pub fn with_run_metadata_in_postgres(mut self, on: bool) -> Self {
+        self.run_metadata_in_postgres = on;
+        self
+    }
+
+    /// Where run parameters live; none when no frame store is configured.
+    pub fn spec_store(&self) -> Option<crate::specs::SpecStore> {
+        self.frame_store.clone().map(|dir| crate::specs::SpecStore::new(dir, self.run_metadata_in_postgres.then(|| self.database.clone())))
     }
 
     pub fn with_ollama(mut self, host_and_model: Option<(String, String)>) -> Self {

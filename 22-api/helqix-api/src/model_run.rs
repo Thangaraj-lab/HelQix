@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{branching::{ModelLink, StoredSpec, spec_dir}, error::ApiError, frames::{StartRun, store_run}, state::AppState};
+use crate::{error::ApiError, frames::{StartRun, store_run}, specs::ModelLink, state::AppState};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -35,30 +35,16 @@ pub async fn run_revision(State(state): State<AppState>, Path((project_id, numbe
         mass_kg: body.mass_kg, gravity_m_s2: [0.0, -9.80665, 0.0], air_density_kg_m3: 1.225, wind_m_s: [0.0; 3], applied_force_n: [0.0; 3],
         drag_coefficient: b.drag_coefficient, reference_area_m2: body.area_m2, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state: b.initial_state,
     };
-    let (id, entry) = store_run(dir, run, Some(ModelLink { project_id: pid.to_string(), revision: number as u32 })).await?;
+    let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
+    let (id, entry) = store_run(dir, &specs, run, Some(ModelLink { project_id: pid.to_string(), revision: number as u32 })).await?;
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "massKg": body.mass_kg, "areaM2": body.area_m2, "parts": body.parts}))))
 }
 
 /// `GET /v1/projects/{project_id}/runs`: the runs made from this project's revisions, newest first.
 pub async fn project_runs(State(state): State<AppState>, Path(project_id): Path<String>) -> Result<Json<Value>, ApiError> {
-    let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
     let pid = Uuid::parse_str(&project_id).map_err(|_| ApiError::BadRequest("id must be a UUID".into()))?.to_string();
-    let runs = tokio::task::spawn_blocking(move || {
-        let mut out: Vec<(std::time::SystemTime, Value)> = Vec::new();
-        let Ok(rd) = std::fs::read_dir(spec_dir(&dir)) else { return out };
-        for e in rd.flatten() {
-            let path = e.path();
-            if path.extension().and_then(|x| x.to_str()) != Some("json") { continue; }
-            let Ok(bytes) = std::fs::read(&path) else { continue };
-            let Ok(spec) = serde_json::from_slice::<StoredSpec>(&bytes) else { continue };
-            let Some(link) = spec.model.filter(|m| m.project_id == pid) else { continue };
-            let Some(id) = path.file_stem().and_then(|x| x.to_str()) else { continue };
-            let at = e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-            out.push((at, json!({"runId": id, "revision": link.revision, "parentRunId": spec.parent.map(|p| p.run_id),
-                                 "startedAt": chrono::DateTime::<chrono::Utc>::from(at).to_rfc3339_opts(chrono::SecondsFormat::Millis, true)})));
-        }
-        out.sort_by(|a, b| b.0.cmp(&a.0));
-        out
-    }).await.map_err(|_| ApiError::Internal)?;
-    Ok(Json(json!({"runs": runs.into_iter().map(|(_, v)| v).collect::<Vec<_>>()})))
+    let runs = specs.project_runs(&pid).await?;
+    let runs: Vec<Value> = runs.into_iter().map(|r| json!({"runId": r.run_id, "revision": r.revision, "parentRunId": r.parent_run_id, "startedAt": r.started_at})).collect();
+    Ok(Json(json!({"runs": runs})))
 }
