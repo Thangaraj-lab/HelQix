@@ -39,11 +39,21 @@ HELQIX_OLLAMA_MODEL=qwen2.5:7b-instruct HELQIX_API_TIMEOUT_SECONDS=300 HELQIX_FR
 
 Type a description on the Hero. The model proposes parts; the API checks them; they appear labelled as AI hypotheses with placeholder sizes. One model call runs at a time (a second one gets "busy").
 
-## 4. Verify evidence independently
+## 4. Keep runs somewhere durable (optional)
+
+By default each run's parameters are stored in PostgreSQL and the frame files in `HELQIX_FRAME_STORE`. To share runs between API instances, mirror the frame files to an S3-compatible store (SeaweedFS, Apache-2.0, is the one used in CI):
+
+```bash
+HELQIX_S3_ENDPOINT=http://127.0.0.1:8333 HELQIX_S3_BUCKET=helqix HELQIX_S3_ACCESS_KEY_ID=... HELQIX_S3_SECRET_ACCESS_KEY=... HELQIX_S3_ALLOW_HTTP=1   HELQIX_FRAME_STORE=/tmp/helqix-frames cargo run -p helqix-api --bin helqix-api
+```
+
+Set all four or none. The local directory becomes a cache; every read re-checks the file's BLAKE3 address and the state chain, so a corrupted object is refused. `HELQIX_RUN_METADATA=files` keeps run parameters in files instead of PostgreSQL (single machine). Metrics are at `GET /metrics` (service key). User sign-in is in [AUTH.md](AUTH.md).
+
+## 5. Verify evidence independently
 
 See [EVIDENCE.md](EVIDENCE.md): `helqix-evidence-verify <package-dir> --trusted-key <public key>` needs no HELQIX runtime.
 
-## 5. Checks you can run
+## 6. Checks you can run
 
 ```bash
 python -I scripts/secret_scan.py .        # no secrets in tracked files
