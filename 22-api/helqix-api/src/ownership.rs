@@ -38,6 +38,7 @@ pub fn need(method: &str, path: &str) -> Need {
         ["v1", "projects", pid, "builds" | "revisions" | "runs", ..] => Need::Owner((*pid).to_owned()),
         ["v1", "builds", bid, ..] => Need::BuildOwner((*bid).to_owned()),
         ["v1", "runs"] if method == "GET" => Need::ServiceOnly,
+        ["metrics"] => Need::ServiceOnly,
         ["v1", "runs"] | ["v1", "branches"] | ["v1", "interpret"] | ["v1", "sources"] => Need::Nothing,
         ["v1", "runs", _, "freeze" | "frames" | "frame"] => Need::Nothing,
         ["v1", kind] if KINDS.contains(kind) => Need::Nothing,
