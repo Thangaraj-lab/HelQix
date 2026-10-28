@@ -161,13 +161,13 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
 
   if (!run) {
     return (
-      <div className="relative z-10 m-auto max-w-md">
-        {engineMode === 'real' && model.revision && model.bindings.length > 0 && !model.runChoice.runs?.length && engine.startPointMassRun ? (
+      <div className="relative z-10 m-auto max-w-md space-y-3">
+        {engineMode === 'real' && model.revision && engine.startPointMassRun ? (
           <PanelCard title="Run the engine"><NewRunForm revision={model.revision} /></PanelCard>
         ) : null}
         <EmptyState
           title={model.revision ? 'Nothing to simulate yet' : 'No committed model'}
-          description={!model.revision ? 'Create model r1 in Define first.' : engineMode === 'real' && model.bindings.length > 0 ? (model.runChoice.runs?.length ? 'The selected stored run could not be read.' : 'The engine has no stored run to play. Record one with helqix-frames-record, or use the mock engine for a scripted demonstration.') : 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.'}
+          description={!model.revision ? 'Create model r1 in Define first.' : engineMode === 'real' ? (model.runChoice.runs?.length ? 'The selected stored run could not be read.' : 'The engine has no stored run to play yet. Run your model above, or record one with helqix-frames-record.') : 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.'}
         />
       </div>
     );
