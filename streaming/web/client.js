@@ -46,23 +46,23 @@ addEventListener("keydown", (e) => send({ t: "key", key: e.key === " " ? "Space"
 
 // Marker detection on decoded frames.
 const probe = document.createElement("canvas");
-probe.width = 16; probe.height = 9;
+probe.width = 40; probe.height = 30;
 const pctx = probe.getContext("2d", { willReadFrequently: true });
 function markerColour() {
-  // Look at the top-left 128 x 72 px of the frame as 16 x 9 cells of 8 px, and count cells that are
+  // Look at the top-left 320 x 240 px of the frame (the browser can leave a band above the page) as 40 x 30 cells of 8 px, and count cells that are
   // clearly red or clearly green. This finds the marker wherever the capture puts it, and does not
   // depend on one exact rectangle.
   const sx = video.videoWidth / 1280, sy = video.videoHeight / 720;
-  pctx.drawImage(video, 0, 0, 128 * sx, 72 * sy, 0, 0, 16, 9);
-  const d = pctx.getImageData(0, 0, 16, 9).data;
+  pctx.drawImage(video, 0, 0, 320 * sx, 240 * sy, 0, 0, 40, 30);
+  const d = pctx.getImageData(0, 0, 40, 30).data;
   let red = 0, green = 0;
   for (let i = 0; i < d.length; i += 4) {
     if (d[i] > 150 && d[i + 1] < 110 && d[i + 2] < 110) red++;
     else if (d[i + 1] > 150 && d[i] < 110 && d[i + 2] < 110) green++;
   }
   window.__lastRgb = [red, green];
-  if (red >= 4 && red > green) return "red";
-  if (green >= 4 && green > red) return "green";
+  if (red >= 12 && red > green) return "red";
+  if (green >= 12 && green > red) return "green";
   return "none";
 }
 
