@@ -44,7 +44,12 @@ jobs:
       - name: Install cargo-deny 0.20.2
         run: cargo install cargo-deny --locked --version 0.20.2
       - name: cargo-deny (licences, bans, sources, advisories)
-        run: cargo deny --locked check
+        run: |
+          cargo deny --locked check > deny.log 2>&1 || {
+            grep -A8 -E '^(error|warning\[(unmaintained|yanked|vulnerability))' deny.log | head -90 > deny.err
+            bash scripts/ci_annotate.sh "cargo-deny" deny.err 90
+            exit 1
+          }
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
