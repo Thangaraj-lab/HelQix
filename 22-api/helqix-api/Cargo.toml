@@ -34,6 +34,8 @@ tower-http = { version = "0.7.1", features = ["cors", "limit", "timeout", "trace
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1", features = ["serde", "v4"] }
+jsonwebtoken = { version = "11", default-features = false, features = ["aws_lc_rs"] }
 
 [dev-dependencies]
+aws-lc-rs = "1"
 tower = { version = "0.5", features = ["util"] }

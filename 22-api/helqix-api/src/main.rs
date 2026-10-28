@@ -29,6 +29,7 @@ async fn main() -> anyhow::Result<()> {
     spawn_idempotency_cleanup(database.clone());
 
     let state = AppState::new(database, config.api_key).with_frame_store(std::env::var_os("HELQIX_FRAME_STORE").map(Into::into))
+        .with_oidc(oidc_from_env()?)
         .with_ollama(std::env::var("HELQIX_OLLAMA_MODEL").ok().map(|m| (std::env::var("HELQIX_OLLAMA_HOST").unwrap_or_else(|_| "127.0.0.1:11434".into()), m)));
     let app = routes::router(state, &config.allowed_origins, config.request_timeout)
         .context("could not configure API routes")?;
@@ -81,4 +82,18 @@ async fn shutdown_signal() {
         _ = terminate => {}
     }
     tracing::info!("shutdown signal received");
+}
+
+/// `HELQIX_OIDC_ISSUER`, `HELQIX_OIDC_AUDIENCE` and `HELQIX_OIDC_JWKS_FILE` together turn on user sign-in; none turns it off;
+/// a partial setting is an error so a typo cannot silently leave sign-in off.
+fn oidc_from_env() -> anyhow::Result<Option<helqix_api::auth::Oidc>> {
+    let get = |name: &str| std::env::var(name).ok();
+    match (get("HELQIX_OIDC_ISSUER"), get("HELQIX_OIDC_AUDIENCE"), get("HELQIX_OIDC_JWKS_FILE")) {
+        (None, None, None) => Ok(None),
+        (Some(issuer), Some(audience), Some(file)) => {
+            let jwks = std::fs::read_to_string(&file).with_context(|| format!("could not read {file}"))?;
+            helqix_api::auth::Oidc::from_jwks_json(&issuer, &audience, &jwks).map(Some).map_err(anyhow::Error::msg)
+        }
+        _ => anyhow::bail!("set all of HELQIX_OIDC_ISSUER, HELQIX_OIDC_AUDIENCE and HELQIX_OIDC_JWKS_FILE, or none"),
+    }
 }

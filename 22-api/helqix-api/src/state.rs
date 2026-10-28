@@ -11,12 +11,19 @@ pub struct AppState {
     /// Local Ollama (`HELQIX_OLLAMA_MODEL`, `HELQIX_OLLAMA_HOST`): `(host, model)`. Interpretation answers 503 without it.
     pub ollama: Option<(String, String)>,
     /// One local model call at a time: a CPU-bound model would otherwise queue up behind itself.
+    /// OIDC token validation (`HELQIX_OIDC_ISSUER`, `HELQIX_OIDC_AUDIENCE`, `HELQIX_OIDC_JWKS_FILE`); absent means only the service key works.
+    pub oidc: Option<Arc<crate::auth::Oidc>>,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+    }
+
+    pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
+        self.oidc = oidc.map(Arc::new);
+        self
     }
 
     pub fn with_ollama(mut self, host_and_model: Option<(String, String)>) -> Self {
