@@ -149,7 +149,7 @@ export interface ModelRevision {
   projectId: string;
   revisionNum: number;
   committedAt: string;
-  parts: Record<string, { id: string; name: string; geometry: GeometryKind; transform: Transform; maturity: Maturity }>;
+  parts: Record<string, { id: string; name: string; geometry: GeometryKind; transform: Transform; maturity: Maturity; params?: Record<string, Value> }>;
   ports: Record<string, { id: string; partId: string; kind: string; direction: 'in' | 'out' | 'bi'; unit?: string }>;
   connections: Record<string, { id: string; from: PortRef; to: PortRef; kind: string }>;
   requirements: Record<string, { id: string; text: string; expr?: string }>;

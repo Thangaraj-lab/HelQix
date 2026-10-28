@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GitBranch, Pause, Play, Snowflake, Square, TriangleAlert } from 'lucide-react';
 import { useStudio } from '../../stores';
 import { engine, engineMode } from '../../engine';
-import { Checkpoint } from '../../contracts';
+import { Checkpoint, ModelRevision } from '../../contracts';
 import { EXAMPLE_SCENARIOS, MOCK_RUN_ID, RUNNABLE_SCENARIO } from '../../mock/scenarios';
 import { violates, limitLabel } from '../../app/requirements';
 import { setQuery } from '../../app/router';
@@ -11,6 +11,7 @@ import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { LineChart } from '../../components/charts/LineChart';
 import { useModelData } from '../studio/ModelContext';
 import { runsChanged } from './useRun';
+import { lumpedModel } from '../../app/lumped';
 import { valueAtTime } from '../../scene/bindings';
 
 export interface SimulateStageProps {
@@ -63,7 +64,9 @@ const BranchForm: React.FC<{ checkpoint: Checkpoint }> = ({ checkpoint }) => {
 };
 
 // Real engine: starts the point-mass model with the numbers typed here (nothing is assumed) and plays the result.
-const NewRunForm: React.FC = () => {
+const fmt = (x: number) => String(Number(x.toPrecision(5)));
+const NewRunForm: React.FC<{ revision?: ModelRevision | null }> = ({ revision }) => {
+  const lumped = useMemo(() => (revision ? lumpedModel(revision) : null), [revision]);
   const [v, setV] = useState({ mass: '0.5', drag: '0.47', area: '0.01', end: '2', height: '20', vx: '3' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +88,15 @@ const NewRunForm: React.FC = () => {
   );
   return (
     <div className="space-y-2.5">
+      {lumped && lumped.ok === true && (
+        <div className="space-y-1.5">
+          <Button size="sm" variant="secondary" onClick={() => setV({ ...v, mass: fmt(lumped.massKg), area: fmt(lumped.areaM2) })}>Use my model's mass and area</Button>
+          <p className="text-[11px] text-muted">Treats your {lumped.parts} parts as one body: {fmt(lumped.massKg)} kg from volume x density, {fmt(lumped.areaM2)} m² as the box footprint. Drag coefficient is yours to state.</p>
+        </div>
+      )}
+      {lumped && lumped.ok === false && (
+        <p className="text-[11px] text-muted">To run your own model, state a material density for: {lumped.missing.map(m => `${m.name} (${m.reason})`).join('; ')}.</p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {field('mass', 'Mass (kg)')}{field('drag', 'Drag coefficient')}{field('area', 'Reference area (m²)')}{field('end', 'Duration (s)')}{field('height', 'Start height (m)')}{field('vx', 'Sideways speed (m/s)')}
       </div>
@@ -145,7 +157,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
     return (
       <div className="relative z-10 m-auto max-w-md">
         {engineMode === 'real' && model.revision && model.bindings.length > 0 && !model.runChoice.runs?.length && engine.startPointMassRun ? (
-          <PanelCard title="Run the engine"><NewRunForm /></PanelCard>
+          <PanelCard title="Run the engine"><NewRunForm revision={model.revision} /></PanelCard>
         ) : null}
         <EmptyState
           title={model.revision ? 'Nothing to simulate yet' : 'No committed model'}
@@ -177,7 +189,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
           </label>
           <p className="text-[11px] text-muted">A recorded run, not generated from this model. Its variables drive the parts you bound to them.</p>
         </PanelCard>
-        {engine.startPointMassRun && <PanelCard title="New run"><NewRunForm /></PanelCard>}
+        {engine.startPointMassRun && <PanelCard title="New run"><NewRunForm revision={model.revision} /></PanelCard>}
         </>
       ) : (
       <PanelCard title="Scenario" aside={<ExampleTag />}>

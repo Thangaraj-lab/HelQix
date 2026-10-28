@@ -8,6 +8,7 @@ import { createMockValue } from '../../mock/examplePack';
 import { checkGltf, getAsset, LICENCES, Licence, putAsset } from '../../app/assets';
 import { useRun } from '../simulate/useRun';
 import { SUPPORTED_CHANNELS } from '../../scene/bindings';
+import { DENSITY_KEY } from '../../app/lumped';
 import { Button, Chip, Drawer, IconButton, MockTag, PlaceholderTag, SectionLabel, StatusDot, Tabs, ValueView } from '../../components/ui/UiKit';
 
 export interface AssembleStepProps {
@@ -472,6 +473,9 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
                   </ul>
                 </div>
               )}
+              {engineMode === 'real' && !isCommitted && sel.geometry.kind === 'primitive' && (
+                <DensityField current={sel.params[DENSITY_KEY]?.v} onSet={d => apply([{ op: 'part.setParam', id: sel.id, key: DENSITY_KEY, value: { v: d, unit: 'kg/m3', origin: 'user_stated', status: 'unverified' } }])} />
+              )}
               {Object.keys(sel.params).length > 0 && (
                 <div className="space-y-2">{Object.entries(sel.params).map(([k, v]) => <ValueView key={k} label={k} value={v} />)}</div>
               )}
@@ -632,6 +636,20 @@ const DefinePartDrawer: React.FC<{ open: boolean; onClose: () => void; onAdd: (o
 
 
 // --- Add a binding: tie a stored variable to a part so it moves, heats, glows or shakes ---
+
+// The mass of the lumped body the engine runs comes from volume x this density; it is never guessed.
+const DensityField: React.FC<{ current?: number; onSet: (kgPerM3: number) => void }> = ({ current, onSet }) => {
+  const [text, setText] = useState(current === undefined ? '' : String(current));
+  const n = Number(text);
+  const valid = text.trim() !== '' && Number.isFinite(n) && n > 0;
+  return (
+    <div className="space-y-1.5">
+      <label className="block space-y-1"><span className="text-[11px] text-muted">Material density (kg/m³), used to find the mass</span>
+        <input value={text} inputMode="decimal" onChange={e => setText(e.target.value)} aria-label="Material density" placeholder="for example 7850 for steel" className="h-8 rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60 w-full" /></label>
+      <Button size="sm" variant="secondary" disabled={!valid || n === current} onClick={() => onSet(n)}>Set density</Button>
+    </div>
+  );
+};
 
 type Variable = { key: string; unit: string; pts: [number, number][] };
 const CHANNEL_LABEL: Record<string, string> = { rotation: 'Spin', color: 'Heat colour', emissive: 'Glow', vibration: 'Shake', translation: 'Slide', visibility: 'Show or hide' };

@@ -256,6 +256,8 @@ class MockEngineClientImpl implements EngineClient {
           },
           maturity: op.maturity
         };
+      } else if (op.op === 'part.setParam') {
+        if (revision.parts[op.id]) revision.parts[op.id].params = { ...revision.parts[op.id].params, [op.key]: op.value };
       } else if (op.op === 'part.place') {
         if (revision.parts[op.id]) {
           revision.parts[op.id].transform = op.transform;

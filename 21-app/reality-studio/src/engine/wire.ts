@@ -106,6 +106,7 @@ export function foldRevision(summary: Wire, ops: Wire[]): ModelRevision {
     const op = fromWireOp(w);
     if (op.op === 'part.add') rev.parts[op.id] = { id: op.id, name: op.name, geometry: op.geometry, transform: DEFAULT_TRANSFORM(), maturity: op.maturity };
     else if (op.op === 'part.place' && rev.parts[op.id]) rev.parts[op.id].transform = op.transform;
+    else if (op.op === 'part.setParam' && rev.parts[op.id]) rev.parts[op.id].params = { ...rev.parts[op.id].params, [op.key]: op.value };
     else if (op.op === 'part.remove') delete rev.parts[op.id];
     else if (op.op === 'port.add') rev.ports[`${op.part}:${op.id}`] = { id: op.id, partId: op.part, kind: op.kind, direction: op.direction, unit: op.unit };
     else if (op.op === 'connection.add') rev.connections[op.id] = { id: op.id, from: op.from, to: op.to, kind: op.kind };
