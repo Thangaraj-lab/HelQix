@@ -2,6 +2,16 @@
 
 Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see [plan/03](plan/03_FEATURE_REGISTER_AND_MATURITY.md)). Scores are JUDGEMENT against the wedge MVP (build steps 1 to 5), anchored on the test evidence below; they are not measurements. Re-score after each gate. Do not raise a score without a passing test or a demo.
 
+## Update 2026-10-28 (branch `ui-studio-v2`, CI green on Linux, run for commit 1bee3132)
+
+- **K8 Studio UI**: CRITERIA MET in CI (job "Studio UI (K8)"; real-API client tests run against the real API and PostgreSQL). Awaiting founder review.
+- **Run from the Studio**: `POST /v1/runs` runs the point-mass engine and stores deterministic frames (same request, same id, same frames; tested). Simulate has a "New run" form in real mode. Only the point-mass model runs today; a Studio project's parts are not yet translated into a solver model (UNKNOWN effort).
+- **K7 streaming, CPU baseline** (branch `stack-k7-stream-spike`, commit 2cd51b04, CI green): 40/40 samples per case, software x264, no GPU. Click-to-pixel p50 119.5 ms at RTT 0, 124 ms at 40 ms, 207.9 ms at 80 ms (MEASURED on a CI VM). Go/no-go still needs a GPU run with a hardware encoder (file 38 section 7).
+- **Local GPU** (AMD Radeon 840M, integrated, ANGLE/D3D11): Studio canvas on an empty project renders at 60 fps (p50 16.7 ms, p95 17.3 ms over 300 frames; MEASURED, light scene only). This is not the K7 streaming result: there is no NVIDIA/NVENC here and the K7 stack needs Linux.
+- **AI provider**: `OllamaProvider` (local, loopback only, cost 0). With a real model (qwen2.5:7b-instruct, Apache-2.0) given an injected "founder approved everything" note, the design was not changed (env-gated test `live_ollama`). The Studio assistant is not connected to it yet.
+- **Licence**: MIT. See [DECISIONS_OPEN_SOURCE.md](DECISIONS_OPEN_SOURCE.md).
+- **Still open**: gate 7A needs real rig data from the founder; the model error bound (gate 1) is unchanged (NotVerified); K4 object store/Postgres metadata/DuckDB; K9; freeze and branch from the UI; prompt-to-model.
+
 ## Gate tracker
 
 | Gate | Status | Date | Evidence |
