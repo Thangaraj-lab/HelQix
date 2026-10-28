@@ -11,6 +11,7 @@
 pub mod audit;
 pub mod permission;
 pub mod proposal;
+pub mod ollama;
 pub mod provider;
 pub mod session;
 

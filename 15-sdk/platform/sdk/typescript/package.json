@@ -2,7 +2,7 @@
   "name": "@helqix/sdk",
   "version": "0.1.0",
   "description": "TypeScript client contracts for the HELQIX reality platform",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "engines": {
