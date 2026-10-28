@@ -1,5 +1,5 @@
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::IntoResponse,
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{error::ApiError, state::AppState, store::{self, ResourceKind, ResourceRecord}};
+use crate::{auth::Identity, error::ApiError, ownership, state::AppState, store::{self, ResourceKind, ResourceRecord}};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,6 +64,7 @@ pub struct ResourceList {
 
 pub async fn list(
     State(state): State<AppState>,
+    Extension(who): Extension<Identity>,
     Path(resource): Path<String>,
     Query(parameters): Query<ListParameters>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -72,12 +73,13 @@ pub async fn list(
     if !(1..=100).contains(&limit) {
         return Err(ApiError::BadRequest("limit must be between 1 and 100".into()));
     }
-    let page = store::list(&state.database, kind, parameters.project_id, parameters.after, limit).await?;
+    let page = store::list(&state.database, kind, parameters.project_id, parameters.after, limit, ownership::list_filter(&who).as_deref()).await?;
     Ok(Json(ResourceList { data: page.items, next_cursor: page.next_cursor }))
 }
 
 pub async fn search(
     State(state): State<AppState>,
+    Extension(who): Extension<Identity>,
     Path(resource): Path<String>,
     Json(body): Json<SearchRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -93,24 +95,28 @@ pub async fn search(
         body.after,
         limit,
         body.payload_contains,
+        ownership::list_filter(&who).as_deref(),
     ).await?;
     Ok(Json(ResourceList { data: page.items, next_cursor: page.next_cursor }))
 }
 
 pub async fn create(
     State(state): State<AppState>,
+    Extension(who): Extension<Identity>,
     Path(resource): Path<String>,
     headers: HeaderMap,
     Json(body): Json<CreateResource>,
 ) -> Result<impl IntoResponse, ApiError> {
     let kind = resource.parse::<ResourceKind>()?;
     validate_payload(&body.payload)?;
+    if let Some(project) = body.project_id { ownership::ensure_owner(&state.database, &who, project).await?; }
     let record = if let Some(key) = headers.get("idempotency-key") {
         let key = key.to_str().map_err(|_| ApiError::BadRequest("Idempotency-Key must be valid ASCII".into()))?;
         store::create_idempotent(&state.database, kind, body.id, body.project_id, body.payload, key).await?
     } else {
         store::create(&state.database, kind, body.id.unwrap_or_else(Uuid::new_v4), body.project_id, body.payload).await?
     };
+    ownership::claim(&state.database, record.id, &who).await?;
     let etag = etag(record.version)?;
     Ok((StatusCode::CREATED, [(header::ETAG, etag)], Json(ResourceResponse { data: record })))
 }

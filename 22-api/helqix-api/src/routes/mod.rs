@@ -41,6 +41,7 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
         .route("/v1/{resource}", get(resources::list).post(resources::create))
         .route("/v1/{resource}/query", axum::routing::post(resources::search))
         .route("/v1/{resource}/{id}", get(resources::get).put(resources::replace).delete(resources::delete))
+        .route_layer(middleware::from_fn_with_state(state.clone(), crate::ownership::guard))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth::require_api_key));
 
     Ok(Router::new()

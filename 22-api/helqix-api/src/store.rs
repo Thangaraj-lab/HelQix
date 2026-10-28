@@ -197,8 +197,9 @@ pub async fn list(
     project_id: Option<Uuid>,
     after: Option<Uuid>,
     limit: u16,
+    owner: Option<&str>,
 ) -> Result<ResourcePage, ApiError> {
-    list_filtered(pool, kind, project_id, after, limit, None).await
+    list_filtered(pool, kind, project_id, after, limit, None, owner).await
 }
 
 pub async fn search(
@@ -208,11 +209,12 @@ pub async fn search(
     after: Option<Uuid>,
     limit: u16,
     payload_contains: Value,
+    owner: Option<&str>,
 ) -> Result<ResourcePage, ApiError> {
     if !payload_contains.is_object() {
         return Err(ApiError::BadRequest("payloadContains must be a JSON object".into()));
     }
-    list_filtered(pool, kind, project_id, after, limit, Some(payload_contains)).await
+    list_filtered(pool, kind, project_id, after, limit, Some(payload_contains), owner).await
 }
 
 async fn list_filtered(
@@ -222,6 +224,7 @@ async fn list_filtered(
     after: Option<Uuid>,
     limit: u16,
     payload_contains: Option<Value>,
+    owner: Option<&str>,
 ) -> Result<ResourcePage, ApiError> {
     if limit == 0 { return Err(ApiError::BadRequest("limit must be greater than zero".into())); }
     let cursor_time: Option<DateTime<Utc>> = if let Some(cursor) = after {
@@ -243,6 +246,7 @@ async fn list_filtered(
          WHERE resource_type = $1 AND ($2::uuid IS NULL OR project_id = $2) \
            AND ($3::jsonb IS NULL OR payload @> $3) \
            AND ($4::timestamptz IS NULL OR (created_at, id) < ($4, $5::uuid)) \
+           AND ($7::text IS NULL OR id IN (SELECT resource_id FROM helqix_owners WHERE owner = $7)) \
          ORDER BY created_at DESC, id DESC LIMIT $6",
     )
     .bind(kind.as_str())
@@ -251,6 +255,7 @@ async fn list_filtered(
     .bind(cursor_time)
     .bind(after)
     .bind(i64::from(limit) + 1)
+    .bind(owner)
     .fetch_all(pool)
     .await?;
 
