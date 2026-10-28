@@ -202,10 +202,10 @@ Priority: **P0** blocks v1, **P1** needed for a credible v1, **P2** can ship aft
 | E7 | Improve stage on engine intervention verdicts | E4 | Verdict from `intervention_test` shown, incompatible comparison disclosed | P1 | 1 week |
 | E8 | Evidence export from the UI (server builds and signs) | F4 | Downloaded package passes the offline verifier | P0 | 1 week |
 | E9 | K4 completion: object store (SeaweedFS), run metadata in Postgres, DuckDB queries | none | Runs survive a restart and a second machine; BLAKE3 unchanged | P1 | 2 weeks |
-| E10 | Accounts and ownership (Keycloak or Kratos), per-user data | none | Two users cannot see each other's projects; tested | P0 | 2 to 3 weeks |
-| E11 | Observability (OpenTelemetry), error reporting, dashboards | none | Traces for every API call; alert examples | P1 | 1 week |
+| E10 | Accounts and ownership (Keycloak or Kratos), per-user data | none | PARTLY DONE 2026-10-28: OIDC token validation and owner-scoped projects/builds/revisions/runs, see [AUTH.md](AUTH.md); unit-tested locally, two-user PostgreSQL test pending CI. Not done: Studio sign-in flow, key refresh, sharing/roles, a real Keycloak run | P0 | partly done |
+| E11 | Observability (OpenTelemetry), error reporting, dashboards | none | PARTLY DONE: `GET /metrics` (Prometheus text, service key, route-pattern labels, bounded series, tested). Not done: traces, error reporting, dashboards, alert examples | P1 | partly done |
 | E12 | Rate limits and a queue for model calls | E10 | PARTLY DONE: one model call at a time, 429 busy, tested. Per-user limits wait for accounts | P1 | partly done |
-| E13 | Packaging: container images, release build, install guide | E10 | Clean-machine install in under 30 minutes | P0 | 1 to 2 weeks |
+| E13 | Packaging: container images, release build, install guide | E10 | PARTLY DONE: API image (`deploy/Dockerfile.api`) built, started against PostgreSQL and probed in CI (green at 6d094f8a). Not done: Studio static image, compose file for the whole stack, release tags, install-time measurement | P0 | partly done |
 | E14 | Accessibility and keyboard pass; mobile layouts | none | PARTLY DONE: axe-core structural rules pass on Hero, Home, New project (one real defect fixed); Studio stages, keyboard walk and contrast still to do | P1 | partly done |
 | E15 | Performance budgets for big models and imports | none | Frame time and memory budgets enforced in tests | P1 | 1 week |
 | E16 | Causal limitation (gate 3): nonlinear onset | none | The missed chain is found, or the claim is relabelled with a test | P1 | 1 to 2 weeks |
