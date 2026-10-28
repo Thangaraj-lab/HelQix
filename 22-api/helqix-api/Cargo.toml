@@ -35,7 +35,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 jsonwebtoken = { version = "11", default-features = false, features = ["aws_lc_rs"] }
-object_store = { version = "0.12", features = ["aws"] }
+object_store = { version = "0.14", features = ["aws"] }
 
 [dev-dependencies]
 aws-lc-rs = "1"

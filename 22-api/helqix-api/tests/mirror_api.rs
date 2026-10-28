@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use axum::{Router, body::Body, http::{Request, StatusCode}};
 use helqix_api::{mirror::ObjectMirror, routes, state::AppState};
-use object_store::{ObjectStore, PutPayload, memory::InMemory, path::Path as ObjectPath};
+use object_store::{ObjectStore, ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 

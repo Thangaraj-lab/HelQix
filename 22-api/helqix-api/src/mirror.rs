@@ -12,7 +12,7 @@ use std::{path::{Path, PathBuf}, sync::Arc};
 
 use futures_util::TryStreamExt;
 use helqix_frames::RunIndex;
-use object_store::{ObjectStore, PutPayload, path::Path as ObjectPath};
+use object_store::{ObjectStore, ObjectStoreExt, PutPayload, path::Path as ObjectPath};
 
 use crate::error::ApiError;
 
