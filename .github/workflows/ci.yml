@@ -55,6 +55,36 @@ jobs:
       - name: Secret scan (tracked files)
         run: python3 -I scripts/secret_scan.py .
 
+  container:
+    name: Container image (E13)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-trixie
+        env:
+          POSTGRES_USER: helqix
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: helqix
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helqix" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the API image
+        run: docker build -f deploy/Dockerfile.api -t helqix-api:ci .
+      - name: The image runs as a non-root user
+        run: test "$(docker run --rm --entrypoint id helqix-api:ci -u)" != "0"
+      - name: Start it against PostgreSQL and probe it
+        run: |
+          docker run -d --name api --network host             -e DATABASE_URL=postgres://helqix:ci-only-password@127.0.0.1:5432/helqix             -e HELQIX_API_KEY=ci-container-key-not-a-secret-0123456789             -e HELQIX_ALLOWED_ORIGINS=http://localhost:5173             -e HELQIX_API_LISTEN=127.0.0.1:8080 helqix-api:ci
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health/ready && break; sleep 2; done
+          curl -sf http://127.0.0.1:8080/health/live
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/v1/projects)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'authorization: Bearer ci-container-key-not-a-secret-0123456789' http://127.0.0.1:8080/v1/projects)" = "200"
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs api || true
+
   api:
     name: Contracts and staged-build API (K2)
     runs-on: ubuntu-latest

@@ -1,0 +1,19 @@
+# HELQIX API image. Build from the repository root:
+#   docker build -f deploy/Dockerfile.api -t helqix-api .
+# Run: DATABASE_URL, HELQIX_API_KEY (32+ characters), HELQIX_ALLOWED_ORIGINS are required.
+# Optional: HELQIX_FRAME_STORE (mount a volume), HELQIX_OLLAMA_MODEL / HELQIX_OLLAMA_HOST.
+FROM rust:1-bookworm AS build
+WORKDIR /src
+COPY . .
+RUN cargo build --release --locked -p helqix-api --bin helqix-api
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin helqix \
+    && mkdir -p /data/frames && chown helqix /data/frames
+COPY --from=build /src/target/release/helqix-api /usr/local/bin/helqix-api
+USER helqix
+ENV HELQIX_API_LISTEN=0.0.0.0:8080 HELQIX_FRAME_STORE=/data/frames
+VOLUME /data/frames
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/helqix-api"]

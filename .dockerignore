@@ -1,0 +1,8 @@
+.git
+.claude
+target
+**/node_modules
+assets-local
+.keys
+*.key
+.env*

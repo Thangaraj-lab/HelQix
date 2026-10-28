@@ -2,7 +2,11 @@
 
 Last measured: 2026-10-25, branch `phase-0-hygiene`. Labels are test-based (see [plan/03](plan/03_FEATURE_REGISTER_AND_MATURITY.md)). Scores are JUDGEMENT against the wedge MVP (build steps 1 to 5), anchored on the test evidence below; they are not measurements. Re-score after each gate. Do not raise a score without a passing test or a demo.
 
-## Update 2026-10-28 (branch `ui-studio-v2`, CI green on Linux, run for commit 1bee3132)
+## Update 2026-10-28 (branch `ui-studio-v2`)
+
+Latest CI: commit c84dabab, 12 of 12 jobs green, including the PostgreSQL test that runs a committed model as a lumped body and lists a project's runs, the secret scan, and the axe-core accessibility rules. Added since: container image for the API (job "Container image (E13)", result pending), [QUICKSTART.md](QUICKSTART.md), [V1_REMAINING_WORK_REPORT.md](V1_REMAINING_WORK_REPORT.md).
+
+### Earlier in this update (CI run for commit 1bee3132)
 
 - **K8 Studio UI**: CRITERIA MET in CI (job "Studio UI (K8)"; real-API client tests run against the real API and PostgreSQL). Awaiting founder review.
 - **Run from the Studio**: `POST /v1/runs` runs the point-mass engine and stores deterministic frames (same request, same id, same frames; tested). Simulate has a "New run" form in real mode. Only the point-mass model runs today; a Studio project's parts are not yet translated into a solver model (UNKNOWN effort).
