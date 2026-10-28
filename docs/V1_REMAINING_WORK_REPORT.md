@@ -91,7 +91,7 @@ The local GPU is an integrated AMD part. A render-only measurement was taken: th
 | Verify | Evidence sheet hashes and replay check exist; export of a signed package from the UI is not wired | Medium | An API endpoint that builds and signs a package server-side |
 | Observe | PREVIEW only; needs 7A data | High | Founder data |
 | Build | PREVIEW; Build Spec is gate 8 | Low for v1 | Defer |
-| Assistant | Chat is still mock; provider exists | Medium | Wire the provider, keep tool requests under the permission ladder |
+| Assistant | CORRECTION 2026-10-28: the Studio assistant is a rule-based suggestion bar computed from project state, not a chat, so there is nothing to wire; AI enters through `/v1/interpret` | None | Optional: a real chat later, under the permission ladder |
 | All | I did not click through the newest real-engine screens in a browser (density field, "Use my model's mass and area", Freeze and Branch). Tests cover the logic only | Medium | A browser walkthrough with screenshots |
 
 ### 5.3 Quality items not yet done (UNKNOWN unless stated)
@@ -194,30 +194,30 @@ Priority: **P0** blocks v1, **P1** needed for a credible v1, **P2** can ship aft
 | ID | Work | Depends on | Acceptance | Priority | Effort |
 |---|---|---|---|---|---|
 | E1 | Browser walkthrough of new real-engine screens with screenshots; fix findings | none | Written check list, zero blocking defects | P0 | 1 day |
-| E2 | Wire Studio assistant chat to Ollama through the permission ladder | none | Chat proposals appear as pending proposals; injection test in CI-less env-gated suite | P1 | 3 days |
+| E2 | ~~Wire Studio assistant chat to Ollama~~ NOT NEEDED (the assistant is a rule-based bar; AI is in `/v1/interpret`) | n/a | n/a | closed | 0 |
 | E3 | Interpretation v2: connections, ports, requirements | E2 | Validated proposals for a pump, a battery pack and a gearbox | P1 | 1 week |
-| E4 | Model schema with physical roles; translator to a solver adapter (FMU first) | none | A Studio model runs through FMPy and the frames store, tied to its revision | P0 | 3 to 5 weeks |
+| E4 | Model schema with physical roles; translator to a solver adapter (FMU first). First step DONE: lumped-body translation in Rust (`helqix-modelbuild::lumped`) | none | A Studio model runs through FMPy and the frames store, tied to its revision | P0 | 3 to 5 weeks |
 | E5 | Battery domain pack in the Studio (PyBaMM adapter behind a Studio model) | E4 | A cell model defined in the Studio reproduces the reference run | P0 | 2 to 3 weeks |
-| E6 | Link runs to model revisions; real `listRuns` | E4 | Home shows true run counts per project | P0 | 3 days |
+| E6 | Link runs to model revisions; real `listRuns` | E4 | DONE locally 2026-10-28 (commit 05ce5f0a): runs record project and revision; `GET /v1/projects/{id}/runs`; CI result pending (push blocked on sign-in) | P0 | done |
 | E7 | Improve stage on engine intervention verdicts | E4 | Verdict from `intervention_test` shown, incompatible comparison disclosed | P1 | 1 week |
 | E8 | Evidence export from the UI (server builds and signs) | F4 | Downloaded package passes the offline verifier | P0 | 1 week |
 | E9 | K4 completion: object store (SeaweedFS), run metadata in Postgres, DuckDB queries | none | Runs survive a restart and a second machine; BLAKE3 unchanged | P1 | 2 weeks |
 | E10 | Accounts and ownership (Keycloak or Kratos), per-user data | none | Two users cannot see each other's projects; tested | P0 | 2 to 3 weeks |
 | E11 | Observability (OpenTelemetry), error reporting, dashboards | none | Traces for every API call; alert examples | P1 | 1 week |
-| E12 | Rate limits and a queue for model calls | E10 | Load test shows bounded latency | P1 | 3 days |
+| E12 | Rate limits and a queue for model calls | E10 | PARTLY DONE: one model call at a time, 429 busy, tested. Per-user limits wait for accounts | P1 | partly done |
 | E13 | Packaging: container images, release build, install guide | E10 | Clean-machine install in under 30 minutes | P0 | 1 to 2 weeks |
-| E14 | Accessibility and keyboard pass; mobile layouts | none | axe-core clean in CI; manual keyboard walk | P1 | 1 week |
+| E14 | Accessibility and keyboard pass; mobile layouts | none | PARTLY DONE: axe-core structural rules pass on Hero, Home, New project (one real defect fixed); Studio stages, keyboard walk and contrast still to do | P1 | partly done |
 | E15 | Performance budgets for big models and imports | none | Frame time and memory budgets enforced in tests | P1 | 1 week |
 | E16 | Causal limitation (gate 3): nonlinear onset | none | The missed chain is found, or the claim is relabelled with a test | P1 | 1 to 2 weeks |
 | E17 | Model accuracy work (gate 1) | F5 | Held-out RMSE under the agreed threshold, or an approved wider bound | P0 | 1 to 3 weeks |
 | E18 | Uncertainty and sensitivity in results (SALib) | E4 | Reports show intervals with their method | P1 | 1 to 2 weeks |
 | E19 | K7 production design: LiveKit/WebRTC, TURN, session limits | F2 | Decision record plus a 10-session soak | P1 | 2 weeks |
-| E20 | Secret scanning and dependency updates in CI | none | CI fails on a planted fake secret | P1 | 1 day |
+| E20 | Secret scanning and dependency updates in CI | none | DONE locally: `scripts/secret_scan.py` (0 findings on the repo; tests plant secrets); wired into the licence job; dependency updates not done | P1 | partly done |
 | E21 | Naming cleanup HELIX to HELQIX, documentation warnings | F5 | Zero mixed names; warning count reduced | P2 | 2 days |
 | E22 | Part library with density and licence records | none | 20 CC0 parts checked by the importer | P2 | 1 week |
 | E23 | Rapier or Jolt for rigid-body scenes | E4 | Only if v1 scope needs it | P2 | 2 weeks |
 | E24 | K9 quantum module | none | Only if v1 scope needs it | P2 | 2 weeks |
-| E25 | User docs, quick start, sample project end to end | E4 to E8 | A new user completes the golden demo from the docs | P0 | 1 week |
+| E25 | User docs, quick start, sample project end to end | E4 to E8 | PARTLY DONE: [QUICKSTART.md](QUICKSTART.md); sample project and golden demo from the docs not done | P0 | partly done |
 
 ### Release
 
