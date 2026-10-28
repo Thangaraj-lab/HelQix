@@ -1,0 +1,17 @@
+# HELQIX Studio image: the built UI served by nginx (unprivileged), with /api forwarded to the API.
+# Build from the repository root:  docker build -f deploy/Dockerfile.studio -t helqix-studio .
+# Run: HELQIX_API_UPSTREAM=host:port and HELQIX_API_KEY (the service key the API was started with).
+# The key lives only in nginx's configuration inside the container; it is never part of the browser bundle.
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY 21-app/reality-studio/package.json 21-app/reality-studio/package-lock.json ./
+RUN npm ci
+COPY 21-app/reality-studio/ ./
+ENV VITE_ENGINE=real
+RUN npm run build
+
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY deploy/studio.conf.template /etc/nginx/templates/default.conf.template
+ENV HELQIX_STUDIO_PORT=8080
+EXPOSE 8080

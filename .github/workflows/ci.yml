@@ -81,9 +81,18 @@ jobs:
           curl -sf http://127.0.0.1:8080/health/live
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/v1/projects)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'authorization: Bearer ci-container-key-not-a-secret-0123456789' http://127.0.0.1:8080/v1/projects)" = "200"
+      - name: Build the Studio image and reach the API through it
+        run: |
+          docker build -f deploy/Dockerfile.studio -t helqix-studio:ci .
+          docker run -d --name studio --network host             -e HELQIX_STUDIO_PORT=8088 -e HELQIX_API_UPSTREAM=127.0.0.1:8080             -e HELQIX_API_KEY=ci-container-key-not-a-secret-0123456789 helqix-studio:ci
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:8088/ > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:8088/ | grep -qi "<div id=\"root\""
+          curl -sf http://127.0.0.1:8088/some/client/route | grep -qi "<div id=\"root\"" 
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8088/api/v1/projects)" = "200"
+          test "$(curl -s http://127.0.0.1:8088/ | grep -c ci-container-key)" = "0"
       - name: Container logs on failure
         if: failure()
-        run: docker logs api || true
+        run: docker logs api || true; docker logs studio || true
 
   api:
     name: Contracts and staged-build API (K2)
