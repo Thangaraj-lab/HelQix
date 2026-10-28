@@ -10,6 +10,7 @@ import { Button, Chip, EmptyState, ExampleIfMock, ExampleTag, IconButton, MockTa
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { LineChart } from '../../components/charts/LineChart';
 import { useModelData } from '../studio/ModelContext';
+import { runsChanged } from './useRun';
 import { valueAtTime } from '../../scene/bindings';
 
 export interface SimulateStageProps {
@@ -25,6 +26,40 @@ const VERBS: Record<string, string> = { rotation: 'spins with', color: 'heats wi
 // controls: every bound variable moves, heats or shakes its part at time t, and a breached
 // requirement marks the part that broke it. The run is a fixed script from the mock engine, so every
 // reading carries MOCK, Simulated and Unverified.
+
+// Real engine: starts the point-mass model with the numbers typed here (nothing is assumed) and plays the result.
+const NewRunForm: React.FC = () => {
+  const [v, setV] = useState({ mass: '0.5', drag: '0.47', area: '0.01', end: '2', height: '20', vx: '3' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const n = (k: keyof typeof v) => Number(v[k]);
+  const valid = Object.values(v).every(x => x.trim() !== '' && Number.isFinite(Number(x))) && n('mass') > 0 && n('end') > 0;
+  const go = async () => {
+    if (!engine.startPointMassRun || !valid) return;
+    setBusy(true); setError(null);
+    try {
+      const { runId } = await engine.startPointMassRun({ massKg: n('mass'), dragCoefficient: n('drag'), referenceAreaM2: n('area'), endSeconds: n('end'), initialState: [0, n('height'), 0, n('vx'), 0, 0] });
+      runsChanged.dispatchEvent(new Event('change'));
+      setQuery({ run: runId });
+    } catch (e) { setError(e instanceof Error ? e.message : 'The run could not be started.'); }
+    setBusy(false);
+  };
+  const field = (k: keyof typeof v, label: string) => (
+    <label key={k} className="block space-y-1"><span className="text-[11px] text-muted">{label}</span>
+      <input value={v[k]} inputMode="decimal" onChange={e => setV({ ...v, [k]: e.target.value })} aria-label={label} className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60" /></label>
+  );
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-2 gap-2">
+        {field('mass', 'Mass (kg)')}{field('drag', 'Drag coefficient')}{field('area', 'Reference area (m²)')}{field('end', 'Duration (s)')}{field('height', 'Start height (m)')}{field('vx', 'Sideways speed (m/s)')}
+      </div>
+      {error && <p role="alert" className="text-xs text-bad">{error}</p>}
+      <Button size="sm" variant="primary" disabled={!valid || busy} onClick={() => void go()}>Run the engine</Button>
+      <p className="text-[11px] text-muted">A falling body with air drag, run by the engine and stored. The same numbers always give the same run.</p>
+    </div>
+  );
+};
+
 export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailure, onForkBranch }) => {
   const { playback } = useStudio();
   const model = useModelData();
@@ -73,6 +108,9 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
   if (!run) {
     return (
       <div className="relative z-10 m-auto max-w-md">
+        {engineMode === 'real' && model.revision && model.bindings.length > 0 && !model.runChoice.runs?.length && engine.startPointMassRun ? (
+          <PanelCard title="Run the engine"><NewRunForm /></PanelCard>
+        ) : null}
         <EmptyState
           title={model.revision ? 'Nothing to simulate yet' : 'No committed model'}
           description={!model.revision ? 'Create model r1 in Define first.' : engineMode === 'real' && model.bindings.length > 0 ? (model.runChoice.runs?.length ? 'The selected stored run could not be read.' : 'The engine has no stored run to play. Record one with helqix-frames-record, or use the mock engine for a scripted demonstration.') : 'This model has no bindings, so no stored variable can move or colour a part. Add a binding in Define (select a part, then Add binding), then commit again.'}
@@ -87,6 +125,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
   const left = (
     <>
       {engineMode === 'real' ? (
+        <>
         <PanelCard title="Stored run">
           <label className="block space-y-1.5">
             <span className="text-[11px] text-muted">Run to play</span>
@@ -96,6 +135,8 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
           </label>
           <p className="text-[11px] text-muted">A recorded run, not generated from this model. Its variables drive the parts you bound to them.</p>
         </PanelCard>
+        {engine.startPointMassRun && <PanelCard title="New run"><NewRunForm /></PanelCard>}
+        </>
       ) : (
       <PanelCard title="Scenario" aside={<ExampleTag />}>
         <ul className="space-y-1">

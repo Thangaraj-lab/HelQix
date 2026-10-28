@@ -1,4 +1,5 @@
 import {
+  PointMassRunParams,
   AssetRef,
   BuildEvent,
   Checkpoint,
@@ -68,6 +69,11 @@ export class RealEngineClient implements EngineClient {
   async listStoredRuns(): Promise<StoredRunInfo[]> {
     const { data } = await this.call<{ runs: any[] }>('GET', '/v1/runs');
     return data.runs.map(r => ({ id: r.runId, rows: r.rows, determinism: r.determinism, variables: r.variables }));
+  }
+
+  async startPointMassRun(p: PointMassRunParams): Promise<{ runId: string }> {
+    const { data } = await this.call<{ runId: string }>('POST', '/v1/runs', p);
+    return { runId: data.runId };
   }
 
   async listRuns(): Promise<RunSummary[]> {

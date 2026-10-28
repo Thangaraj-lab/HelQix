@@ -118,6 +118,15 @@ export interface StoredRunInfo {
   variables: { name: string; unit: string }[];
 }
 
+export interface PointMassRunParams {
+  massKg: number;
+  dragCoefficient: number;
+  referenceAreaM2: number;
+  endSeconds: number;
+  /** x, y, z (m) and vx, vy, vz (m/s) */
+  initialState: [number, number, number, number, number, number];
+}
+
 export interface RunSummary {
   id: string;
   projectId: string;
@@ -194,6 +203,8 @@ export interface EngineClient {
   listStoredRuns(): Promise<StoredRunInfo[]>;
   /** Runs started for a project, newest first. Not in file 35 section 8; added for Home's recent runs. */
   listRuns(pid: string): Promise<RunSummary[]>;
+  /** Real engine only: run the point-mass model and store its frames. Absent on the mock engine. */
+  startPointMassRun?(p: PointMassRunParams): Promise<{ runId: string }>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
   getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(

@@ -36,6 +36,17 @@ describe.skipIf(!URL_ || !KEY)('RealEngineClient against the real API', () => {
   });
   afterAll(() => { proxy.closeAllConnections?.(); proxy.close(); });
 
+  it('starts a point-mass run, stores it, and plays it back identically', async () => {
+    const params = { massKg: 0.5, dragCoefficient: 0.47, referenceAreaM2: 0.01, endSeconds: 0.2, initialState: [0, 20, 0, 3, 0, 0] as [number, number, number, number, number, number] };
+    const a = await client.startPointMassRun(params);
+    const b = await client.startPointMassRun(params);
+    expect(b.runId).toBe(a.runId);
+    expect((await client.listStoredRuns()).some(r => r.id === a.runId)).toBe(true);
+    const frames: number[] = [];
+    for await (const f of client.runFrames(a.runId)) frames.push(f.t);
+    expect(frames.length).toBeGreaterThan(190);
+  });
+
   const v = (x: number, unit = 'm') => ({ v: x, unit, origin: 'user_stated' as const, status: 'unverified' as const });
   const part = (id: string) => ({ op: 'part.add' as const, id, name: id, geometry: { kind: 'primitive' as const, shape: 'box' as const, dims: [v(100, 'mm'), v(80, 'mm'), v(60, 'mm')] }, maturity: 'user_defined' as const, prov: { kind: 'user_stated' as const } });
   const place = (id: string, x: number) => ({ op: 'part.place' as const, id, transform: { pos: [v(x), v(0.5), v(0)] as [ReturnType<typeof v>, ReturnType<typeof v>, ReturnType<typeof v>], rot: [v(0, 'deg'), v(0, 'deg'), v(0, 'deg')] as [ReturnType<typeof v>, ReturnType<typeof v>, ReturnType<typeof v>], scale: [1, 1, 1] as [number, number, number], frame: 'world' } });

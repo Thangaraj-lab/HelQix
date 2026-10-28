@@ -96,3 +96,36 @@ async fn stored_runs_are_listed_with_their_variables() {
 }
 
 fn app_none() -> Router { app(None) }
+
+async fn post(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    let req = Request::builder().method("POST").uri(uri).header("authorization", format!("Bearer {KEY}")).header("content-type", "application/json").body(Body::from(body.to_string())).unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+}
+
+#[tokio::test]
+async fn a_run_started_through_the_api_is_stored_and_repeatable() {
+    let dir = std::env::temp_dir().join(format!("helqix-api-start-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let app = app(Some(dir.clone()));
+    let req = serde_json::json!({"massKg": 0.5, "dragCoefficient": 0.47, "referenceAreaM2": 0.01, "endSeconds": 0.5, "initialState": [0.0, 20.0, 0.0, 3.0, 0.0, 0.0]});
+    let (st, a) = post(&app, "/v1/runs", req.clone()).await;
+    assert_eq!(st, StatusCode::CREATED, "{a}");
+    let (_, b) = post(&app, "/v1/runs", req).await;
+    assert_eq!(a["runId"], b["runId"]);
+    assert_eq!(a["framesBlake3"], b["framesBlake3"], "same request, same frames");
+    let id = a["runId"].as_str().unwrap();
+    let (st, frames) = get(&app, &format!("/v1/runs/{id}/frames?limit=2")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(frames["frames"].as_array().unwrap().len(), 2);
+    let (_, list) = get(&app, "/v1/runs").await;
+    assert_eq!(list["runs"].as_array().unwrap().len(), 1);
+    // Refused: unknown field, zero mass, too many steps.
+    assert_eq!(post(&app, "/v1/runs", serde_json::json!({"massKg": 1.0, "oops": 1})).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+    let bad = |m: f64, end: f64| serde_json::json!({"massKg": m, "dragCoefficient": 0.1, "referenceAreaM2": 0.01, "endSeconds": end, "initialState": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]});
+    assert_eq!(post(&app, "/v1/runs", bad(0.0, 1.0)).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(post(&app, "/v1/runs", bad(1.0, 1.0e6)).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(post(&app, "/v1/runs", bad(1.0, 0.1)).await.0, StatusCode::CREATED);
+}

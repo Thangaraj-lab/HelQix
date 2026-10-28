@@ -40,11 +40,16 @@ function useStoredRuns(): { runs: StoredRunInfo[] | null; error: string | null }
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    engine.listStoredRuns().then(r => live && setRuns(r)).catch(e => { if (live) { setRuns([]); setError(e instanceof Error ? e.message : String(e)); } });
-    return () => { live = false; };
+    const load = () => engine.listStoredRuns().then(r => live && setRuns(r)).catch(e => { if (live) { setRuns([]); setError(e instanceof Error ? e.message : String(e)); } });
+    void load();
+    runsChanged.addEventListener('change', load);
+    return () => { live = false; runsChanged.removeEventListener('change', load); };
   }, []);
   return { runs, error };
 }
+
+/** Fired after a run is started so every list of stored runs reloads. */
+export const runsChanged = new EventTarget();
 
 export interface RunSelection {
   /** Stored runs the engine offers (null while loading) */

@@ -21,6 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 helqix-contracts = { path = "../../15-sdk/platform/contracts" }
 helqix-frames = { path = "../../07-time/crates/helqix-frames" }
+helqix-freeze = { path = "../../07-time/crates/helqix-freeze" }
 helqix-modelbuild = { path = "../../03-engineering/crates/helqix-modelbuild" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -35,4 +36,3 @@ uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
-helqix-freeze = { path = "../../07-time/crates/helqix-freeze" }

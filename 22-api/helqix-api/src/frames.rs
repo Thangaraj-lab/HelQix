@@ -55,3 +55,46 @@ pub async fn get_frame(State(state): State<AppState>, Path(id): Path<String>, Qu
     let frame = run.get_frame(q.t).map_err(map)?;
     Ok(Json(json!({"framesBlake3": run.frames_blake3, "frame": frame})))
 }
+
+/// Body of `POST /v1/runs`: the point-mass model the engine can run today. Unknown fields are refused.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct StartRun {
+    pub mass_kg: f64,
+    #[serde(default = "default_gravity")] pub gravity_m_s2: [f64; 3],
+    #[serde(default = "default_density")] pub air_density_kg_m3: f64,
+    #[serde(default)] pub wind_m_s: [f64; 3],
+    #[serde(default)] pub applied_force_n: [f64; 3],
+    pub drag_coefficient: f64,
+    pub reference_area_m2: f64,
+    pub end_seconds: f64,
+    #[serde(default = "default_step")] pub step_seconds: f64,
+    /// x, y, z, vx, vy, vz
+    pub initial_state: [f64; 6],
+}
+fn default_gravity() -> [f64; 3] { [0.0, -9.80665, 0.0] }
+fn default_density() -> f64 { 1.225 }
+fn default_step() -> f64 { 0.001 }
+
+const MAX_STEPS: f64 = 200_000.0;
+
+/// `POST /v1/runs`: runs the engine and stores the frames. The run id is derived from the request, so the
+/// same request gives the same id and the same frames (the engine is deterministic); repeating it is harmless.
+pub async fn start_run(State(state): State<AppState>, Json(b): Json<StartRun>) -> Result<(axum::http::StatusCode, Json<Value>), ApiError> {
+    let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    let all = [b.mass_kg, b.air_density_kg_m3, b.drag_coefficient, b.reference_area_m2, b.end_seconds, b.step_seconds];
+    if !all.iter().chain(&b.gravity_m_s2).chain(&b.wind_m_s).chain(&b.applied_force_n).chain(&b.initial_state).all(|v| v.is_finite()) { return Err(ApiError::BadRequest("every number must be finite".into())); }
+    if b.mass_kg <= 0.0 || b.reference_area_m2 < 0.0 || b.drag_coefficient < 0.0 || b.air_density_kg_m3 < 0.0 { return Err(ApiError::BadRequest("mass must be positive; drag coefficient, area and density must not be negative".into())); }
+    if b.step_seconds <= 0.0 || b.end_seconds <= 0.0 || b.end_seconds / b.step_seconds > MAX_STEPS { return Err(ApiError::BadRequest(format!("end/step must be positive and at most {MAX_STEPS} steps"))); }
+    let id = format!("run-{}", &helqix_frames::blake3_hex(format!("{:?}", (&b.mass_kg, &b.gravity_m_s2, &b.air_density_kg_m3, &b.wind_m_s, &b.applied_force_n, &b.drag_coefficient, &b.reference_area_m2, &b.end_seconds, &b.step_seconds, &b.initial_state)).as_bytes())[..16]);
+    let spec = helqix_freeze::RunSpec {
+        model: helqix_freeze::PointMassSpec { mass_kg: b.mass_kg, gravity_m_s2: b.gravity_m_s2, air_density_kg_m3: b.air_density_kg_m3, wind_m_s: b.wind_m_s, applied_force_n: b.applied_force_n, drag_coefficient: b.drag_coefficient, reference_area_m2: b.reference_area_m2 },
+        start_seconds: 0.0, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state: b.initial_state.to_vec(), seeds: vec![],
+    };
+    let rid = id.clone();
+    let entry = tokio::task::spawn_blocking(move || -> Result<_, String> {
+        let r = helqix_freeze::run(&spec).map_err(|e| e.to_string())?;
+        FrameStore::open(dir).and_then(|s| s.put(&rid, &r, &helqix_frames::point_mass_variables(), &helqix_freeze::chain_genesis(&spec))).map_err(|e| e.to_string())
+    }).await.map_err(|_| ApiError::Internal)?.map_err(ApiError::Rejected)?;
+    Ok((axum::http::StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism}))))
+}
