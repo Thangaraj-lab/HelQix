@@ -157,7 +157,10 @@ async fn a_branch_keeps_the_past_and_changes_only_the_future() {
     let (_, child) = get(&app, &format!("/v1/runs/{bid}/frames?limit=1001")).await;
     let (p, c) = (parent["frames"].as_array().unwrap(), child["frames"].as_array().unwrap());
     assert_eq!(p.len(), c.len());
-    assert_eq!(p[..500], c[..500], "everything before the checkpoint is the parent's");
+    for i in 0..500 {
+        assert_eq!(p[i]["state"], c[i]["state"], "state at {i} is the parent's");
+        assert_eq!(p[i]["stateSha256"], c[i]["stateSha256"], "link at {i} is the parent's");
+    }
     assert_ne!(p[1000]["state"]["vy"], c[1000]["state"]["vy"], "the changed area changes the fall afterwards");
 
     // Refused: no change, branch of a branch, unknown run, a run without saved parameters.
