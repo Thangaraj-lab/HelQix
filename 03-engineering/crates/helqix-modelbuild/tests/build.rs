@@ -1,6 +1,6 @@
 //! K2 engine-logic tests: event order equals op order, undo removes exactly one op, a stored log
 //! restores the same build, blocking issues stop a commit, and the scratch path works with no resolver.
-use helqix_contracts::{Behavior, BuildEventKind, Direction, Geometry, Maturity, ModelOp, Origin, PortRef, Provenance, ProvenanceKind, Severity, Status, Value};
+use helqix_contracts::{Behavior, BuildEventKind, Load, Direction, Geometry, Maturity, ModelOp, Origin, PortRef, Provenance, ProvenanceKind, Severity, Status, Value};
 use helqix_modelbuild::{BuildError, OpError, StagedBuild};
 
 fn val(v: f64, unit: &str) -> Value { Value { v, unit: unit.into(), origin: Origin::UserStated, status: Status::Unverified, mock: false } }
@@ -178,7 +178,7 @@ fn the_latest_behaviour_wins_and_undo_restores_the_previous_one() {
     let mut b = StagedBuild::new();
     b.apply(&[part("ball", Maturity::UserDefined), fmu("ball", SHA, &[], &["h"])]).unwrap();
     b.apply(&[fmu("ball", SHA, &[], &["h", "v"])]).unwrap();
-    let outs = |b: &StagedBuild| match b.model().parts["ball"].behavior.clone().unwrap() { Behavior::Fmu { outputs, .. } => outputs };
+    let outs = |b: &StagedBuild| match b.model().parts["ball"].behavior.clone().unwrap() { Behavior::Fmu { outputs, .. } => outputs, other => panic!("not an FMU: {other:?}") };
     assert_eq!(outs(&b), vec!["h".to_owned(), "v".to_owned()]);
     b.undo().unwrap();
     assert_eq!(outs(&b), vec!["h".to_owned()]);
@@ -211,4 +211,44 @@ fn a_bad_unit_on_a_part_parameter_and_on_an_fmu_parameter_are_two_different_issu
     let ids: Vec<String> = b.issues().into_iter().filter(|i| i.code == "unit.unknown").map(|i| i.id).collect();
     assert_eq!(ids.len(), 2, "{ids:?}");
     assert_ne!(ids[0], ids[1]);
+}
+
+// E5.1: a battery cell behaviour. Structural errors are refused when the op is applied; wrong values are blocking issues that stop the commit.
+fn battery(id: &str, pack: &str, ocv: Value, r: Option<Value>, i: Value) -> ModelOp {
+    ModelOp::PartSetBehavior { id: id.into(), behavior: Behavior::BatteryCell { pack: pack.into(), initial_ocv: ocv, contact_resistance: r, load: Load::ConstantCurrent { current: i } } }
+}
+const PACK: &str = "lgm50_spm_chen2020";
+
+#[test]
+fn a_battery_pack_that_is_not_installed_is_refused_when_applied() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("cell", Maturity::UserDefined)]).unwrap();
+    let err = b.apply(&[battery("cell", "mystery", val(4.0, "V"), None, val(1.0, "A"))]).unwrap_err();
+    assert!(matches!(err, BuildError::Op { error: OpError::InvalidBehavior(ref m), .. } if m.contains("mystery")), "{err:?}");
+    assert!(b.model().parts["cell"].behavior.is_none());
+}
+
+#[test]
+fn wrong_quantities_and_out_of_range_values_are_blocking_issues_each_with_its_own_id() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("cell", Maturity::UserDefined), battery("cell", PACK, val(4.0, "A"), Some(val(5.0, "ohm")), val(1.0, "furlongs"))]).unwrap();
+    let issues = b.issues();
+    let find = |sub: &str| issues.iter().find(|i| i.subject == vec![format!("cell.behavior.{sub}")]).unwrap_or_else(|| panic!("no issue for {sub}: {issues:?}"));
+    assert_eq!((find("initialOcv").code.as_str(), find("contactResistance").code.as_str(), find("current").code.as_str()), ("behavior.dimension", "behavior.range", "unit.unknown"));
+    assert!(issues.iter().all(|i| i.severity == Severity::Blocking));
+    assert!(matches!(b.commit(), Err(BuildError::BlockingIssues(_))));
+}
+
+#[test]
+fn a_good_battery_cell_commits_and_the_hash_covers_its_values() {
+    let build = |a: f64| { let mut b = StagedBuild::new(); b.apply(&[part("cell", Maturity::UserDefined), battery("cell", PACK, val(4.18, "V"), Some(val(0.0158, "ohm")), val(a, "A"))]).unwrap(); assert!(b.issues().is_empty(), "{:?}", b.issues()); b.commit().unwrap() };
+    assert_eq!(build(5.0), build(5.0));
+    assert_ne!(build(5.0), build(2.0), "a different current is a different model revision");
+}
+
+#[test]
+fn replacing_an_fmu_behaviour_with_a_battery_cell_leaves_one_behaviour() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("cell", Maturity::UserDefined), fmu("cell", SHA, &[], &["h"]), battery("cell", PACK, val(4.0, "V"), None, val(1.0, "A"))]).unwrap();
+    assert!(matches!(b.model().parts["cell"].behavior, Some(Behavior::BatteryCell { .. })));
 }

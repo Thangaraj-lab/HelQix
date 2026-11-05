@@ -78,6 +78,12 @@ describe('part behaviour (E4.1)', () => {
     expect(rev.parts.ball.behavior).toEqual({ kind: 'fmu', fmuSha256: sha, outputs: ['h', 'v'] });
   });
 
+  it('a battery cell behaviour is folded into the revision with its values', () => {
+    const behavior = { kind: 'battery_cell', pack: 'lgm50_spm_chen2020', initialOcv: { v: 4.18, unit: 'V', origin: 'user_stated', status: 'unverified' }, load: { kind: 'constant_current', current: { v: 5, unit: 'A', origin: 'user_stated', status: 'unverified' } } };
+    const rev = foldRevision({ number: 1, projectId: 'p', committedAt: 't' }, [{ op: 'part.add', id: 'c', name: 'Cell', geometry: geom, maturity: 'user_defined', prov }, { op: 'part.setBehavior', id: 'c', behavior }]);
+    expect(rev.parts.c.behavior).toEqual(behavior);
+  });
+
   it('a part without a behaviour has none', () => {
     const rev = foldRevision({ number: 1, projectId: 'p', committedAt: 't' }, [{ op: 'part.add', id: 'a', name: 'A', geometry: geom, maturity: 'user_defined', prov }]);
     expect(rev.parts.a.behavior).toBeUndefined();

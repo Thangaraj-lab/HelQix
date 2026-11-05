@@ -194,6 +194,58 @@
             "x"
           ]
         }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": {
+            "v": 4.18,
+            "unit": "V",
+            "origin": "user_stated",
+            "status": "unverified"
+          },
+          "contactResistance": {
+            "v": 0.015805,
+            "unit": "ohm",
+            "origin": "user_stated",
+            "status": "unverified"
+          },
+          "load": {
+            "kind": "constant_current",
+            "current": {
+              "v": 5.0,
+              "unit": "A",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          }
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": {
+            "v": 4.18,
+            "unit": "V",
+            "origin": "user_stated",
+            "status": "unverified"
+          },
+          "load": {
+            "kind": "constant_current",
+            "current": {
+              "v": 0.5,
+              "unit": "A",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          }
+        }
       }
     ],
     "invalid": [
@@ -278,6 +330,103 @@
             "h"
           ],
           "path": "C:/x.fmu"
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": {
+            "v": 4.18,
+            "unit": "V",
+            "origin": "user_stated",
+            "status": "unverified"
+          }
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": 4.18,
+          "load": {
+            "kind": "constant_current",
+            "current": {
+              "v": 5.0,
+              "unit": "A",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          }
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": {
+            "v": 4.18,
+            "unit": "V",
+            "origin": "user_stated",
+            "status": "unverified"
+          },
+          "load": {
+            "kind": "constant_current",
+            "current": 5.0
+          }
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": {
+            "v": 4.18,
+            "unit": "V",
+            "origin": "user_stated",
+            "status": "unverified"
+          },
+          "load": {
+            "kind": "ramp",
+            "current": {
+              "v": 5.0,
+              "unit": "A",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          }
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "battery_cell",
+          "pack": "lgm50_spm_chen2020",
+          "initialOcv": {
+            "v": 4.18,
+            "unit": "V",
+            "origin": "user_stated",
+            "status": "unverified"
+          },
+          "load": {
+            "kind": "constant_current",
+            "current": {
+              "v": 5.0,
+              "unit": "A",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          },
+          "path": "C:/x"
         }
       }
     ]

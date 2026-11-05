@@ -8,6 +8,8 @@
 //! registry), unknown units, references to missing parts, placeholder parts.
 pub mod lumped;
 pub mod fmu;
+pub mod battery;
+pub mod plan;
 use std::collections::{BTreeMap, BTreeSet};
 
 use helqix_contracts::{Behavior, BuildEventKind, Direction, Issue, Maturity, ModelOp, PortRef, Severity, Value};
@@ -58,7 +60,13 @@ impl std::fmt::Display for OpError {
 
 /// An FMU is named by the lowercase hex SHA-256 of its file (never a path), and records at least one uniquely named output.
 fn check_behavior(b: &Behavior) -> Result<(), OpError> {
-    let Behavior::Fmu { fmu_sha256, outputs, parameters } = b;
+    let (fmu_sha256, outputs, parameters) = match b {
+        Behavior::Fmu { fmu_sha256, outputs, parameters } => (fmu_sha256, outputs, parameters),
+        Behavior::BatteryCell { pack, .. } => {
+            if !battery::BATTERY_PACKS.contains(&pack.as_str()) { return Err(OpError::InvalidBehavior(format!("the battery pack '{pack}' is not installed (known: {})", battery::BATTERY_PACKS.join(", ")))); }
+            return Ok(());
+        }
+    };
     if fmu_sha256.len() != 64 || !fmu_sha256.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
         return Err(OpError::InvalidBehavior("the FMU must be named by the lowercase hex SHA-256 of its file (64 characters), not by a path".into()));
     }
@@ -130,6 +138,9 @@ impl Model {
             if p.maturity == Maturity::Placeholder { push(Severity::Warning, "part.placeholder", vec![pid.clone()], format!("{} has no model (PLACEHOLDER MODEL)", p.name), Some("import a model or define the part")); }
             for (k, v) in &p.params {
                 if !unit_ok(&v.unit) { push(Severity::Blocking, "unit.unknown", vec![format!("{pid}.{k}")], format!("unit '{}' of {}.{k} is not a registered unit", v.unit, p.name), Some("use a registered unit symbol")); }
+            }
+            if let Some(b @ Behavior::BatteryCell { .. }) = &p.behavior {
+                for pr in battery::problems(b) { push(Severity::Blocking, pr.code, vec![format!("{pid}.behavior.{}", pr.field)], format!("battery cell {}: {}", p.name, pr.message), Some("correct the value or its unit")); }
             }
             if let Some(Behavior::Fmu { parameters, .. }) = &p.behavior {
                 for (k, v) in parameters {

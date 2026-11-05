@@ -38,7 +38,7 @@ describe('the behaviour op built from the form', () => {
   });
   it('no changed parameter means no parameters at all', () => {
     const r = buildBehaviorOp('ball', sha, ball, {}, ['h']);
-    expect('op' in r && r.op.op === 'part.setBehavior' && r.op.behavior.parameters).toEqual(undefined);
+    expect('op' in r && r.op.op === 'part.setBehavior' && r.op.behavior.kind === 'fmu' && r.op.behavior.parameters).toEqual(undefined);
   });
   it('refuses no output, a non-number, and a name the FMU does not have', () => {
     expect(buildBehaviorOp('ball', sha, ball, {}, [])).toEqual({ error: 'Choose at least one output to record.' });

@@ -1,3 +1,4 @@
+import type { PackBehavior } from '../domainpacks';
 // HELQIX Engineering Protocol Contracts (Section 9)
 // Shared interface contract between Engine and Frontend Studio
 
@@ -60,7 +61,9 @@ export type GeometryKind =
   | { kind: 'import'; assetId: string };
 
 /** What makes a part do something when the model runs. An FMU is named by the SHA-256 of its file, never by a path. */
-export type Behavior = { kind: 'fmu'; fmuSha256: string; parameters?: Record<string, Value>; outputs: string[] };
+export type FmuBehavior = { kind: 'fmu'; fmuSha256: string; parameters?: Record<string, Value>; outputs: string[] };
+/** A behaviour added by a domain pack (see src/domainpacks). */
+export type Behavior = FmuBehavior | PackBehavior;
 
 export type ModelOp =
   | { op: 'part.add'; id: string; name: string; geometry: GeometryKind; maturity: Maturity; prov: Provenance }

@@ -121,6 +121,17 @@ pub struct Binding {
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum Behavior {
     Fmu { fmu_sha256: String, #[serde(default, skip_serializing_if = "BTreeMap::is_empty")] parameters: BTreeMap<String, Value>, outputs: Vec<String> },
+    /// A battery cell of a domain pack (today `lgm50_spm_chen2020`: PyBaMM SPM with the Chen2020 parameters). The values carry units; the
+    /// engine converts and checks them. A run records terminal voltage, discharge capacity and current.
+    BatteryCell { pack: String, initial_ocv: Value, #[serde(default, skip_serializing_if = "Option::is_none")] contact_resistance: Option<Value>, load: Load },
+}
+
+/// What the cell is asked to do. A positive current discharges it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase", deny_unknown_fields)]
+pub enum Load {
+    ConstantCurrent { current: Value },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

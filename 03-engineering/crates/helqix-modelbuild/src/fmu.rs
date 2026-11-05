@@ -55,7 +55,7 @@ fn missing(part: &str, reason: impl Into<String>) -> Missing { Missing { part: p
 /// `ops` are the active operations of a committed revision, in order. `Ok(None)`: no part has a behaviour.
 pub fn fmu_plan(ops: &[ModelOp]) -> Result<Option<FmuPlan>, Vec<Missing>> {
     let model = Model::from_ops(ops).map_err(|e| vec![missing("", format!("the model does not replay: {e}"))])?;
-    let with: Vec<(&String, &crate::Part)> = model.parts.iter().filter(|(_, p)| p.behavior.is_some()).collect();
+    let with: Vec<(&String, &crate::Part)> = model.parts.iter().filter(|(_, p)| matches!(p.behavior, Some(Behavior::Fmu { .. }))).collect();
     let label = |id: &str, name: &str| format!("{name} ({id})");
     match with.as_slice() {
         [] => Ok(None),

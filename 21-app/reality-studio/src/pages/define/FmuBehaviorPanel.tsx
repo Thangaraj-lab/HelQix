@@ -47,8 +47,10 @@ export const FmuBehaviorPanel: React.FC<{ partId: string; locked: boolean; curre
     onApply(r.op);
   };
 
-  const now = current ? (
+  const now = current?.kind === 'fmu' ? (
     <p className="text-xs text-ink">FMU <span className="num">{short(current.fmuSha256)}</span>, records {current.outputs.join(', ')}{current.parameters ? `, sets ${Object.keys(current.parameters).join(', ')}` : ''}.</p>
+  ) : current ? (
+    <p className="text-xs text-ink">This part has a behaviour from a domain pack. Choosing an FMU here replaces it.</p>
   ) : <p className="text-xs text-muted">None. A part with an FMU behaviour is run through FMPy; without one the model runs as a simple falling body.</p>;
 
   return (

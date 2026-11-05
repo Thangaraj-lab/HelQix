@@ -32,6 +32,42 @@
             "outputs"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A battery cell of a domain pack (today `lgm50_spm_chen2020`: PyBaMM SPM with the Chen2020 parameters). The values carry units; the\nengine converts and checks them. A run records terminal voltage, discharge capacity and current.",
+          "properties": {
+            "contactResistance": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Value"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "initialOcv": {
+              "$ref": "#/$defs/Value"
+            },
+            "kind": {
+              "const": "battery_cell",
+              "type": "string"
+            },
+            "load": {
+              "$ref": "#/$defs/Load"
+            },
+            "pack": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "pack",
+            "initialOcv",
+            "load"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -208,6 +244,28 @@
         "subject"
       ],
       "type": "object"
+    },
+    "Load": {
+      "description": "What the cell is asked to do. A positive current discharges it.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "current": {
+              "$ref": "#/$defs/Value"
+            },
+            "kind": {
+              "const": "constant_current",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "current"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "Mapping": {
       "enum": [

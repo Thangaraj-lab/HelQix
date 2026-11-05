@@ -19,7 +19,8 @@ function files(dir: string): string[] {
 /** Product source: everything under src except mock data and the tests themselves. */
 const productFiles = files(SRC).filter((f) => {
   const rel = relative(SRC, f).replace(/\\/g, '/');
-  return !rel.startsWith('mock/') && !rel.startsWith('test/');
+  // Domain packs (src/domainpacks, E5) are where domain words belong; the rest of the product stays domain-neutral and is scanned.
+  return !rel.startsWith('mock/') && !rel.startsWith('test/') && !rel.startsWith('domainpacks/');
 });
 
 function hits(pattern: RegExp, list = productFiles): string[] {
@@ -32,7 +33,7 @@ function hits(pattern: RegExp, list = productFiles): string[] {
   return out;
 }
 
-describe('plan rule 2: no domain parts in product code (only src/mock, labelled Example)', () => {
+describe('plan rule 2: no domain parts in product code (only src/mock, labelled Example, and src/domainpacks)', () => {
   it('has no domain words outside src/mock', () => {
     expect(hits(/\b(motors?|batter(y|ies)|shafts?|bearings?|inverters?|drones?|pumps?)\b/i)).toEqual([]);
   });

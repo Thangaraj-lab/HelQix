@@ -50,7 +50,7 @@ Design: a second kind of part behaviour, the **battery cell** of the domain pack
 
 | Step | Work | Done when |
 |---|---|---|
-| E5.1 | `battery_cell` behaviour in the schema (Rust, JSON schema, fixtures, TS), rules in the model build (known pack, voltage / resistance / current dimensions, ranges), one behaviour per model across kinds, translator to a battery run plan | Tests first; mutation checks; plan dispatch (`run_plan`) covers point mass, FMU, battery cell |
+| E5.1 | `battery_cell` behaviour in the schema (Rust, JSON schema, fixtures, TS), rules in the model build (known pack, voltage / resistance / current dimensions, ranges), one behaviour per model across kinds, translator to a battery run plan | DONE 2026-11-05: contracts 5 (+ Python schema 11), modelbuild 27+19, UI 88; 7 mutations caught; `run_plan` covers point mass, FMU, battery cell and refuses two behaviours. **Rule change to confirm: plan rule 2 (no domain words in product code) now excludes `src/domainpacks`, the one place a domain pack's words may live; every other product file is still scanned.** Found by the tests: `fmu_plan` panicked when the one behaviour was not an FMU |
 | E5.2 | API: run the plan through the PyBaMM adapter, frames and the pack's label and published error in the answer; config from the environment, all or none | API test against PostgreSQL with PyBaMM: the Studio-built model equals a direct run of the pack; charge conservation checked; refusals named |
 | E5.3 | Studio: Battery cell panel in Define, run form and the NotVerified banner in Simulate, published error shown in Verify | Browser walkthrough; UI tests |
 | E5.4 | CI: extend the battery job with the API test (no skip) | Green on GitHub |

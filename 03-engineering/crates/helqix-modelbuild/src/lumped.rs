@@ -56,7 +56,7 @@ pub fn lumped_body(ops: &[ModelOp]) -> Result<Lumped, Vec<Missing>> {
     let (mut min_x, mut max_x, mut min_z, mut max_z) = (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
     for (id, p) in &parts {
         let mut fail = |reason: String| missing.push(Missing { part: format!("{} ({id})", p.name), reason });
-        if p.fmu { fail("has an FMU behaviour; running FMU models is not built yet, so it is not run as a point mass".into()); continue; }
+        if p.fmu { fail("has a behaviour (an FMU or a battery cell) that the point-mass run cannot give; run it as that behaviour, not as a falling body".into()); continue; }
         let Geometry::Primitive { shape: s, dims } = &p.geometry else { fail("imported geometry has no known volume".into()); continue };
         let Some(d) = &p.density else { fail("no density stated".into()); continue };
         if !matches!(d.unit.as_str(), "kg/m3" | "kg/m^3") || !(d.v.is_finite() && d.v > 0.0) { fail("density must be a positive number in kg/m3".into()); continue; }

@@ -25,6 +25,7 @@ describe('which part runs', () => {
     expect(fmuPartOf(revision(behavior))?.id).toBe('ball');
     expect(fmuPartOf(revision(undefined))).toBeNull();
     expect(fmuPartOf(null)).toBeNull();
+    expect(fmuPartOf(revision({ kind: 'battery_cell', pack: 'lgm50_spm_chen2020' }))).toBeNull();
   });
 });
 
