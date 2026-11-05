@@ -14,6 +14,8 @@ export interface EvidencePackage {
   items: PackageItem[];
   rootHash: string;
   replay: ReplayResult | null;
+  /** Why the replay check could not run (null when it ran or there was no run) */
+  replayError: string | null;
 }
 
 /**
@@ -31,15 +33,20 @@ export function useEvidencePackage(enabled = true): EvidencePackage | null {
     (async () => {
       const items: PackageItem[] = [];
       let replay: ReplayResult | null = null;
+      let replayError: string | null = null;
       if (revision) items.push({ id: 'revision', title: `Model revision r${revision.revisionNum}`, detail: `${Object.keys(revision.parts).length} parts, ${Object.keys(revision.connections).length} connections`, hash: await hashOf(revision) });
       if (run) {
         items.push({ id: 'frames', title: engineMode === 'mock' ? 'Run frames (mock)' : `Run frames (${run.id})`, detail: `${run.frames.length} frames`, hash: await hashOf(run.frames) });
         items.push({ id: 'requirement', title: requirements.length ? `Requirement ${requirements.map(r => r.id).join(', ')} result` : 'Requirements', detail: requirements.length ? (failure ? `Broken at ${failure.t.toFixed(2)} s` : 'Not broken in the run') : 'None defined', hash: await hashOf({ requirements, failureT: failure?.t ?? null }) });
-        replay = await replayCheck(run.frames);
-        items.push({ id: 'replay', title: 'Replay check', detail: replay.matches ? 'Replay matches original' : 'Replay differs', hash: replay.replayHash });
+        try {
+          replay = await replayCheck(run.id, run.frames, engineMode);
+          items.push({ id: 'replay', title: 'Replay check', detail: replay.matches ? `Replay matches original (${replay.checked} of ${replay.frames} frames re-read)` : 'Replay differs', hash: replay.replayHash });
+        } catch (e) {
+          replayError = e instanceof Error ? e.message : String(e);
+        }
       }
       const rootHash = await hashOf(items.map(i => i.hash));
-      if (live) setPkg({ items, rootHash, replay });
+      if (live) setPkg({ items, rootHash, replay, replayError });
     })();
     return () => { live = false; };
   }, [enabled, revision, run, requirements, failure]);

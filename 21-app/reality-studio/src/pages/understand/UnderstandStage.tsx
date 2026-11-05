@@ -3,6 +3,7 @@ import { CircleCheck, CircleX, TriangleAlert } from 'lucide-react';
 import { limitLabel } from '../../app/requirements';
 import { replayCheck, ReplayResult, short } from '../../app/evidence';
 import { useStudio } from '../../stores';
+import { engineMode } from '../../engine';
 import { Button, Chip, ExampleIfMock, MockTag, Reading } from '../../components/ui/UiKit';
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { valueAtTime } from '../../scene/bindings';
@@ -43,7 +44,7 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
   useEffect(() => {
     if (!run) return;
     let live = true;
-    replayCheck(run.frames).then(r => live && setReplay(r));
+    replayCheck(run.id, run.frames, engineMode).then(r => live && setReplay(r)).catch(() => live && setReplay(null));
     return () => { live = false; };
   }, [run]);
 
@@ -135,7 +136,7 @@ export const UnderstandStage: React.FC<UnderstandStageProps> = ({ onTestThisCaus
         ) : replay.matches ? (
           <div className="space-y-1">
             <p className="text-[13px] text-ok flex items-center gap-1.5"><CircleCheck size={14} />Replay matches original</p>
-            <p className="text-[11px] text-muted"><span className="num">{replay.frames}</span> frames, SHA-256 <span className="num text-ink">{short(replay.replayHash)}</span></p>
+            <p className="text-[11px] text-muted"><span className="num">{replay.checked}</span> of <span className="num">{replay.frames}</span> frames re-read, SHA-256 <span className="num text-ink">{short(replay.replayHash)}</span></p>
           </div>
         ) : (
           <p className="text-[13px] text-bad flex items-center gap-1.5"><CircleX size={14} />Replay differs from the original</p>

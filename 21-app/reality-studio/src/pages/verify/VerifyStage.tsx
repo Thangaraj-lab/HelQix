@@ -24,8 +24,8 @@ export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet })
     { title: 'Validation error against reference data', state: 'missing', note: 'No reference data is connected.' },
     { title: 'Uncertainty bounds', state: 'missing', note: 'No uncertainty study has been run.' },
     pkg?.replay
-      ? { title: 'Determinism', state: pkg.replay.matches ? 'done' : 'failed', note: pkg.replay.matches ? `Replay matches the original over ${pkg.replay.frames} frames.` : 'Replay differs from the original.' }
-      : { title: 'Determinism', state: 'missing', note: 'No run to replay.' },
+      ? { title: 'Determinism', state: pkg.replay.matches ? 'done' : 'failed', note: pkg.replay.matches ? `Replay matches the original: ${pkg.replay.checked} of ${pkg.replay.frames} frames re-read.` : 'Replay differs from the original.' }
+      : { title: 'Determinism', state: 'missing', note: pkg?.replayError ? `The replay check could not run: ${pkg.replayError}` : 'No run to replay.' },
     { title: 'Numerical checks', state: 'missing', note: 'No convergence data from a real solver.' },
     { title: 'Independent review', state: 'missing', note: 'No reviewer has signed off.' }
   ];

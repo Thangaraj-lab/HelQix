@@ -29,7 +29,7 @@ export const ImproveStage: React.FC<ImproveStageProps> = ({ branch, onBranchChan
   if (engineMode === 'real') {
     return (
       <div className="relative z-10 m-auto max-w-md">
-        <EmptyState title="Branching is not available yet" description="The real engine cannot fork a run. A branch here would be a scripted scaling of the curve, so it is only offered with the mock engine." />
+        <EmptyState title="Compare branches in Simulate" description="The real engine does fork a run: in Simulate, freeze at a time, change one number and play the branch. A side-by-side verdict from the engine's intervention tests is not built into this screen yet; the scripted comparison here is only offered with the mock engine." />
       </div>
     );
   }
