@@ -169,7 +169,7 @@ fn a_parameter_with_an_unknown_unit_is_a_blocking_issue_and_stops_the_commit() {
     let mut b = StagedBuild::new();
     b.apply(&[part("ball", Maturity::UserDefined), fmu("ball", SHA, &[("e", 0.7, "furlongs")], &["h"])]).unwrap();
     let issues = b.issues();
-    assert!(issues.iter().any(|i| i.code == "unit.unknown" && i.severity == Severity::Blocking && i.subject == vec!["ball.e".to_owned()]), "{issues:?}");
+    assert!(issues.iter().any(|i| i.code == "unit.unknown" && i.severity == Severity::Blocking && i.subject == vec!["ball.behavior.e".to_owned()]), "{issues:?}");
     assert!(matches!(b.commit(), Err(BuildError::BlockingIssues(_))));
 }
 
@@ -192,4 +192,23 @@ fn a_model_with_a_behaviour_commits_and_the_hash_covers_the_fmu_sha() {
     let other = "b4".repeat(32);
     assert_eq!(build(SHA), build(SHA));
     assert_ne!(build(SHA), build(&other), "a different binary is a different model revision");
+}
+
+#[test]
+fn a_parameter_needs_a_name() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("ball", Maturity::UserDefined)]).unwrap();
+    let err = b.apply(&[fmu("ball", SHA, &[("", 0.7, "one")], &["h"])]).unwrap_err();
+    assert!(matches!(err, BuildError::Op { error: OpError::InvalidBehavior(_), .. }), "{err:?}");
+}
+
+#[test]
+fn a_bad_unit_on_a_part_parameter_and_on_an_fmu_parameter_are_two_different_issues() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("ball", Maturity::UserDefined),
+              ModelOp::PartSetParam { id: "ball".into(), key: "e".into(), value: val(1.0, "furlongs") },
+              fmu("ball", SHA, &[("e", 0.7, "furlongs")], &["h"])]).unwrap();
+    let ids: Vec<String> = b.issues().into_iter().filter(|i| i.code == "unit.unknown").map(|i| i.id).collect();
+    assert_eq!(ids.len(), 2, "{ids:?}");
+    assert_ne!(ids[0], ids[1]);
 }

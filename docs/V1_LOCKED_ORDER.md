@@ -36,7 +36,7 @@ Design: a part gets a **behaviour**. The first kind is an FMU (FMI 2.0 co-simula
 
 | Step | Work | Done when |
 |---|---|---|
-| E4.1 | Schema: `part.setBehavior` op in the contracts (Rust, JSON schema, fixtures, TS), rules in the model build (hash-named FMU, named unique outputs, registered units), TS fold | DONE 2026-11-05: contracts 5, modelbuild 13, API 5 (PostgreSQL), UI 64 tests pass; 4 mutations caught |
+| E4.1 | Schema: `part.setBehavior` op in the contracts (Rust, JSON schema, fixtures, TS), rules in the model build (hash-named FMU, named unique outputs, registered units), TS fold | DONE 2026-11-05: contracts 5, modelbuild 6+15, API 5 (PostgreSQL), UI 64 tests pass; 4 mutations caught; review fixes: an FMU model is refused by the lumped run until E4.3 |
 | E4.2 | Translator in `helqix-modelbuild`: a committed model becomes an FMU run plan (fmu hash, parameters in SI, outputs, times), or the parts and reasons that block it | Pure-function tests; a model with no behaviour keeps using the lumped body |
 | E4.3 | FMU store (content-addressed, size cap, licence note) and `POST .../revisions/{n}/run` runs the plan through the FMI adapter, stores frames, links the run to the revision | API test with the Reference FMUs against PostgreSQL in CI; replay hash matches |
 | E4.4 | Studio: attach an FMU to a part (upload, parameters, outputs), see the run, Run my model uses it | Browser walkthrough with screenshots; UI tests |

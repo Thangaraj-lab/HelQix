@@ -19,7 +19,7 @@ pub struct Lumped { pub mass_kg: f64, pub area_m2: f64, pub parts: usize }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Missing { pub part: String, pub reason: String }
 
-struct P { name: String, geometry: Geometry, pos: [f64; 3], density: Option<Value> }
+struct P { name: String, geometry: Geometry, pos: [f64; 3], density: Option<Value>, fmu: bool }
 
 fn dim_m(v: Option<&Value>) -> Result<f64, String> {
     let v = v.ok_or("a dimension is missing")?;
@@ -43,9 +43,10 @@ pub fn lumped_body(ops: &[ModelOp]) -> Result<Lumped, Vec<Missing>> {
     let mut parts: BTreeMap<String, P> = BTreeMap::new();
     for op in ops {
         match op {
-            ModelOp::PartAdd { id, name, geometry, .. } => { parts.insert(id.clone(), P { name: name.clone(), geometry: geometry.clone(), pos: [0.0; 3], density: None }); }
+            ModelOp::PartAdd { id, name, geometry, .. } => { parts.insert(id.clone(), P { name: name.clone(), geometry: geometry.clone(), pos: [0.0; 3], density: None, fmu: false }); }
             ModelOp::PartPlace { id, transform } => { if let Some(p) = parts.get_mut(id) { p.pos = [0, 1, 2].map(|i| if transform.pos[i].unit == "m" { transform.pos[i].v } else { f64::NAN }); } }
             ModelOp::PartSetParam { id, key, value } if key == DENSITY_KEY => { if let Some(p) = parts.get_mut(id) { p.density = Some(value.clone()); } }
+            ModelOp::PartSetBehavior { id, .. } => { if let Some(p) = parts.get_mut(id) { p.fmu = true; } }
             ModelOp::PartRemove { id } => { parts.remove(id); }
             _ => {}
         }
@@ -55,6 +56,7 @@ pub fn lumped_body(ops: &[ModelOp]) -> Result<Lumped, Vec<Missing>> {
     let (mut min_x, mut max_x, mut min_z, mut max_z) = (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
     for (id, p) in &parts {
         let mut fail = |reason: String| missing.push(Missing { part: format!("{} ({id})", p.name), reason });
+        if p.fmu { fail("has an FMU behaviour; running FMU models is not built yet, so it is not run as a point mass".into()); continue; }
         let Geometry::Primitive { shape: s, dims } = &p.geometry else { fail("imported geometry has no known volume".into()); continue };
         let Some(d) = &p.density else { fail("no density stated".into()); continue };
         if !matches!(d.unit.as_str(), "kg/m3" | "kg/m^3") || !(d.v.is_finite() && d.v > 0.0) { fail("density must be a positive number in kg/m3".into()); continue; }
@@ -125,5 +127,14 @@ mod tests {
     fn a_removed_part_no_longer_counts() {
         let ops = [add("a", "box", &[100.0; 3]), place("a", 0.0, 0.0), add("b", "box", &[100.0; 3]), place("b", 1.0, 0.0), ModelOp::PartRemove { id: "b".into() }, density("a", 500.0)];
         assert!((lumped_body(&ops).unwrap().mass_kg - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_model_with_an_fmu_behaviour_is_not_run_as_a_point_mass() {
+        use helqix_contracts::Behavior;
+        let ops = [add("a", "box", &[100.0; 3]), place("a", 0.0, 0.0), density("a", 1000.0),
+                   ModelOp::PartSetBehavior { id: "a".into(), behavior: Behavior::Fmu { fmu_sha256: "a3".repeat(32), parameters: Default::default(), outputs: vec!["h".into()] } }];
+        let err = lumped_body(&ops).unwrap_err();
+        assert!(err[0].reason.contains("FMU"), "{err:?}");
     }
 }

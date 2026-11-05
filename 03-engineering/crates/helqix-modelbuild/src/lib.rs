@@ -57,10 +57,11 @@ impl std::fmt::Display for OpError {
 
 /// An FMU is named by the lowercase hex SHA-256 of its file (never a path), and records at least one uniquely named output.
 fn check_behavior(b: &Behavior) -> Result<(), OpError> {
-    let Behavior::Fmu { fmu_sha256, outputs, .. } = b;
+    let Behavior::Fmu { fmu_sha256, outputs, parameters } = b;
     if fmu_sha256.len() != 64 || !fmu_sha256.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
         return Err(OpError::InvalidBehavior("the FMU must be named by the lowercase hex SHA-256 of its file (64 characters), not by a path".into()));
     }
+    if parameters.keys().any(|k| k.trim().is_empty()) { return Err(OpError::InvalidBehavior("a parameter name is empty".into())); }
     if outputs.is_empty() { return Err(OpError::InvalidBehavior("name at least one FMU output to record".into())); }
     let mut seen = BTreeSet::new();
     for o in outputs {
@@ -131,7 +132,7 @@ impl Model {
             }
             if let Some(Behavior::Fmu { parameters, .. }) = &p.behavior {
                 for (k, v) in parameters {
-                    if !unit_ok(&v.unit) { push(Severity::Blocking, "unit.unknown", vec![format!("{pid}.{k}")], format!("unit '{}' of FMU parameter {}.{k} is not a registered unit", v.unit, p.name), Some("use a registered unit symbol")); }
+                    if !unit_ok(&v.unit) { push(Severity::Blocking, "unit.unknown", vec![format!("{pid}.behavior.{k}")], format!("unit '{}' of FMU parameter {}.{k} is not a registered unit", v.unit, p.name), Some("use a registered unit symbol")); }
                 }
             }
             for (port_id, port) in &p.ports {
