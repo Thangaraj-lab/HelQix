@@ -23,6 +23,10 @@ use helqix_core::determinism::DeterminismLevel;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
+/// Unit symbol that declares an output whose unit is whatever the tool reports for it (the FMU's own, normalized to SI).
+/// Used where the caller cannot know the unit in advance; the unit that came back is recorded with the output. An explicit unit is always checked.
+pub const ANY_UNIT: &str = "*";
+
 /// One named input or output with its unit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IoField { pub name: String, pub unit: String }
@@ -170,7 +174,7 @@ fn run_in(tool: &ProcessTool, contract: &SolverContract, input: &Value, input_by
     for field in &contract.outputs {
         let item = produced.iter().find(|o| o["name"] == field.name.as_str()).ok_or_else(|| SolverError::MalformedOutput(format!("missing output {}", field.name)))?;
         let unit = item["unit"].as_str().ok_or_else(|| SolverError::MalformedOutput(format!("output {} has no unit", field.name)))?;
-        if unit != field.unit { return Err(SolverError::UnitMismatch { output: field.name.clone(), expected: field.unit.clone(), found: unit.to_owned() }); }
+        if field.unit != ANY_UNIT && unit != field.unit { return Err(SolverError::UnitMismatch { output: field.name.clone(), expected: field.unit.clone(), found: unit.to_owned() }); }
         let raw = item["values"].as_array().filter(|v| !v.is_empty()).ok_or_else(|| SolverError::MalformedOutput(format!("output {} has no values", field.name)))?;
         let values: Vec<f64> = raw.iter().map(|v| v.as_f64().ok_or_else(|| SolverError::MalformedOutput(format!("output {} has a non-number", field.name)))).collect::<Result<_, _>>()?;
         if values.iter().any(|v| !v.is_finite()) { return Err(SolverError::NonFinite { output: field.name.clone() }); }
@@ -200,7 +204,7 @@ pub fn conformance(adapter: &dyn SolverAdapter, good: &Value, bad: &[Value]) -> 
     match adapter.run(good) {
         Ok(run) => {
             for field in &c.outputs {
-                if !run.outputs.iter().any(|o| o.name == field.name && o.unit == field.unit) { failures.push(format!("output {} ({}) missing from a good run", field.name, field.unit)); }
+                if !run.outputs.iter().any(|o| o.name == field.name && (field.unit == ANY_UNIT || o.unit == field.unit)) { failures.push(format!("output {} ({}) missing from a good run", field.name, field.unit)); }
             }
             if run.outputs.iter().any(|o| o.origin != "Simulated" || o.status != "Unverified") { failures.push("outputs must enter as Simulated / Unverified".into()); }
             let r = &run.record;

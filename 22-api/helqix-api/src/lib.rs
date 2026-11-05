@@ -6,6 +6,7 @@ pub mod builds;
 pub mod config;
 pub mod error;
 pub mod branching;
+pub mod fmu_run;
 pub mod frames;
 pub mod interpret;
 pub mod metrics;

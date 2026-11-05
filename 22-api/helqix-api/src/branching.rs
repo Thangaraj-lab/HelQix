@@ -23,8 +23,9 @@ pub async fn freeze_run(State(state): State<AppState>, Path(id): Path<String>, J
     let stored = state.spec_store().ok_or(ApiError::Unavailable)?.load(&id).await?;
     let out = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
         let run = FrameStore::open(&dir).and_then(|s| s.load(&id)).map_err(map)?;
-        let t = b.t.min(stored.params.end_seconds);
-        let index = ((t / stored.params.step_seconds) + 1e-9).floor() as usize;
+        let params = stored.point_mass()?;
+        let t = b.t.min(params.end_seconds);
+        let index = ((t / params.step_seconds) + 1e-9).floor() as usize;
         let frame = run.frames().get(index).ok_or_else(|| ApiError::Rejected("no such grid point".into()))?;
         let state: Map<String, Value> = ["x", "y", "z", "vx", "vy", "vz"].iter().zip(&frame.state).map(|(n, v)| ((*n).to_owned(), json!(v))).collect();
         Ok(json!({"checkpointId": format!("{id}@{index}"), "runId": id, "index": index, "t": frame.t, "hash": frame.link, "state": state}))
@@ -64,13 +65,14 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
     if let Some(m) = &state.mirror { m.ensure(&dir, &parent_id).await?; }
     let parent = specs.load(&parent_id).await?;
     if parent.parent.is_some() { return Err(ApiError::Rejected("branch from an original run, not from another branch".into())); }
+    let parent_params = parent.point_mass()?.clone();
     let parent_model = parent.model.clone();
     let parent_run = parent_id.clone();
     let frames_dir = dir.clone();
     let (entry, changed) = tokio::task::spawn_blocking(move || -> Result<(helqix_frames::RunIndex, crate::frames::StartRun), ApiError> {
-        let original = helqix_freeze::run(&to_spec(&parent.params)).map_err(|e| ApiError::Rejected(e.to_string()))?;
+        let original = helqix_freeze::run(&to_spec(&parent_params)).map_err(|e| ApiError::Rejected(e.to_string()))?;
         if index >= original.samples.len() { return Err(ApiError::Rejected("checkpoint is outside the run".into())); }
-        let mut changed = parent.params.clone();
+        let mut changed = parent_params.clone();
         if let Some(v) = o.mass_kg { changed.mass_kg = v; }
         if let Some(v) = o.drag_coefficient { changed.drag_coefficient = v; }
         if let Some(v) = o.reference_area_m2 { changed.reference_area_m2 = v; }
@@ -87,6 +89,6 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
         Ok((entry, changed))
     }).await.map_err(|_| ApiError::Internal)??;
     if let Some(m) = &state.mirror { m.push(&frames_dir, &id).await?; }
-    specs.save(&id, &StoredSpec { params: changed, parent: Some(Parent { run_id: parent_run.clone(), index }), model: parent_model }).await?;
+    specs.save(&id, &StoredSpec { params: crate::specs::StoredParams::PointMass(changed), parent: Some(Parent { run_id: parent_run.clone(), index }), model: parent_model }).await?;
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "parentRunId": parent_run, "index": index, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3}))))
 }

@@ -49,11 +49,21 @@ HELQIX_S3_ENDPOINT=http://127.0.0.1:8333 HELQIX_S3_BUCKET=helqix HELQIX_S3_ACCES
 
 Set all four or none. The local directory becomes a cache; every read re-checks the file's BLAKE3 address and the state chain, so a corrupted object is refused. `HELQIX_RUN_METADATA=files` keeps run parameters in files instead of PostgreSQL (single machine). Metrics are at `GET /metrics` (service key). User sign-in is in [AUTH.md](AUTH.md).
 
-## 5. Verify evidence independently
+## 5. Run a model through an FMU (FMI 2.0)
+
+A part can carry an FMU behaviour (`part.setBehavior`, the FMU named by the SHA-256 of its file). To run such a model the API needs the FMU library and the FMI tool, all three or none:
+
+```bash
+HELQIX_FMU_STORE=/srv/helqix/fmus HELQIX_FMI_PYTHON=/srv/helqix/venv/bin/python HELQIX_FMI_PACKAGE=$PWD/18-libraries/python   HELQIX_FRAME_STORE=/tmp/helqix-frames cargo run -p helqix-api --bin helqix-api
+```
+
+The library is a directory of files named `<sha256>.fmu` that **the operator installs**. There is no upload route: an FMU contains native code, and running one runs that code on the server, so only FMUs you trust belong there. The Python needs `fmpy==0.3.32` and `pint==0.26.2`. `GET /v1/fmus` lists what is installed. `POST /v1/projects/{id}/revisions/{n}/run {"endSeconds", "stepSeconds"}` runs the revision's FMU; parameters are stated with units and checked against the unit the FMU declares. An FMU run is Tolerance (not Bitwise) and cannot be frozen or branched (an FMU cannot restore a state). At most two FMU runs are in progress at once (429 otherwise).
+
+## 6. Verify evidence independently
 
 See [EVIDENCE.md](EVIDENCE.md): `helqix-evidence-verify <package-dir> --trusted-key <public key>` needs no HELQIX runtime.
 
-## 6. Checks you can run
+## 7. Checks you can run
 
 ```bash
 python -I scripts/secret_scan.py .        # no secrets in tracked files

@@ -18,12 +18,16 @@ pub struct AppState {
     pub run_metadata_in_postgres: bool,
     /// Durable copy of the frame files in an S3-compatible store (see `mirror.rs`); absent means the local directory is the only copy.
     pub mirror: Option<Arc<crate::mirror::ObjectMirror>>,
+    /// The FMU library and the FMI tool (`HELQIX_FMU_STORE`, `HELQIX_FMI_PYTHON`, `HELQIX_FMI_PACKAGE`); a model with an FMU behaviour cannot run (503) without it.
+    pub fmu: Option<crate::fmu_run::FmuConfig>,
+    /// FMU runs in progress are limited (each is a native-code subprocess up to its time limit); when every slot is taken the answer is 429.
+    pub(crate) fmu_gate: Arc<tokio::sync::Semaphore>,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
     }
 
     pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
@@ -48,6 +52,17 @@ impl AppState {
 
     pub fn with_ollama(mut self, host_and_model: Option<(String, String)>) -> Self {
         self.ollama = host_and_model;
+        self
+    }
+
+    pub fn with_fmu(mut self, fmu: Option<crate::fmu_run::FmuConfig>) -> Self {
+        self.fmu = fmu;
+        self
+    }
+
+    /// How many FMU runs may be in progress at once (default 2).
+    pub fn with_fmu_slots(mut self, slots: usize) -> Self {
+        self.fmu_gate = Arc::new(tokio::sync::Semaphore::new(slots));
         self
     }
 

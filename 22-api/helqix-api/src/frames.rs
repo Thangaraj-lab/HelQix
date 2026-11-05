@@ -99,7 +99,7 @@ pub(crate) async fn store_run(dir: std::path::PathBuf, specs: &crate::specs::Spe
     let id = format!("run-{}", &helqix_frames::blake3_hex(format!("{:?}", (&b.mass_kg, &b.gravity_m_s2, &b.air_density_kg_m3, &b.wind_m_s, &b.applied_force_n, &b.drag_coefficient, &b.reference_area_m2, &b.end_seconds, &b.step_seconds, &b.initial_state, &model)).as_bytes())[..16]);
     let spec = to_spec(&b);
     let rid = id.clone();
-    let saved = crate::specs::StoredSpec { params: b, parent: None, model };
+    let saved = crate::specs::StoredSpec { params: crate::specs::StoredParams::PointMass(b), parent: None, model };
     let entry = tokio::task::spawn_blocking(move || -> Result<_, String> {
         let r = helqix_freeze::run(&spec).map_err(|e| e.to_string())?;
         FrameStore::open(&dir).and_then(|s| s.put(&rid, &r, &helqix_frames::point_mass_variables(), &helqix_freeze::chain_genesis(&spec))).map_err(|e| e.to_string())

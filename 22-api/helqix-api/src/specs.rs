@@ -10,11 +10,27 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, types::Json as Jsonb};
 use uuid::Uuid;
 
-use crate::{error::ApiError, frames::StartRun};
+use crate::{error::ApiError, fmu_run::FmuRunSpec, frames::StartRun};
 
 /// What a run was made from.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct StoredSpec { pub params: StartRun, pub parent: Option<Parent>, #[serde(default)] pub model: Option<ModelLink> }
+pub struct StoredSpec { pub params: StoredParams, pub parent: Option<Parent>, #[serde(default)] pub model: Option<ModelLink> }
+
+/// The point-mass parameters of a run made by the built-in engine, or the description of a run made by an FMU. Stored as plain JSON of
+/// either shape (each refuses the other's fields), so rows written before FMU runs existed still load.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum StoredParams { PointMass(StartRun), Fmu(FmuRunSpec) }
+
+impl StoredSpec {
+    /// The point-mass parameters, for freeze and branch. An FMU cannot restore a saved state, so its runs have none.
+    pub fn point_mass(&self) -> Result<&StartRun, ApiError> {
+        match &self.params {
+            StoredParams::PointMass(p) => Ok(p),
+            StoredParams::Fmu(_) => Err(ApiError::Rejected("this run came from an FMU; an FMU cannot restore a saved state, so it cannot be frozen or branched".into())),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Parent { pub run_id: String, pub index: usize }
@@ -55,7 +71,7 @@ impl SpecStore {
     pub async fn load(&self, id: &str) -> Result<StoredSpec, ApiError> {
         if !valid_id(id) { return Err(ApiError::BadRequest("bad run id".into())); }
         if let Some(pool) = &self.pool {
-            type Row = (Option<Uuid>, Option<i32>, Option<String>, Option<i32>, Jsonb<StartRun>);
+            type Row = (Option<Uuid>, Option<i32>, Option<String>, Option<i32>, Jsonb<StoredParams>);
             let row: Option<Row> = sqlx::query_as("SELECT project_id, revision, parent_run_id, parent_index, params FROM helqix_run_specs WHERE run_id = $1").bind(id).fetch_optional(pool).await?;
             let (project, revision, parent_run, parent_index, params) = row.ok_or_else(|| ApiError::Rejected(NOT_STARTED_HERE.into()))?;
             return Ok(StoredSpec {

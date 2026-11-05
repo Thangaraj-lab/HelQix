@@ -140,3 +140,12 @@ fn malformed_or_ambiguous_si_parameters_are_refused() {
         assert!(exit2(&r), "{bad} gave {r:?}");
     }
 }
+
+#[test]
+fn an_output_declared_with_the_wildcard_unit_reports_the_unit_the_fmu_declares() {
+    let run = adapter("BouncingBall", &[("h", helqix_adapters::solver::ANY_UNIT), ("v", helqix_adapters::solver::ANY_UNIT)], Duration::from_secs(120)).run(&json!({})).unwrap();
+    assert_eq!(run.outputs.iter().map(|o| o.unit.as_str()).collect::<Vec<_>>(), ["s", "m", "m/s"], "the unit is the FMU's own, normalized to SI, never the wildcard");
+    // an explicit unit is still checked
+    let wrong = adapter("BouncingBall", &[("h", "mm")], Duration::from_secs(120)).run(&json!({}));
+    assert!(matches!(wrong, Err(SolverError::UnitMismatch { .. })), "{wrong:?}");
+}

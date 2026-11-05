@@ -4,39 +4,62 @@
 //! reads the revision's active operations, asks it for the lumped body, and stores the run linked to the project
 //! and revision. A model that cannot be translated is refused with the parts and reasons named.
 use axum::{Json, extract::{Path, State}, http::StatusCode};
-use helqix_modelbuild::lumped::lumped_body;
+use helqix_modelbuild::{fmu::fmu_plan, lumped::lumped_body};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{error::ApiError, frames::{StartRun, store_run}, specs::ModelLink, state::AppState};
+use crate::{error::ApiError, fmu_run::run_plan, frames::{StartRun, store_run}, specs::{ModelLink, StoredParams, StoredSpec}, state::AppState};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RunRevision {
-    pub drag_coefficient: f64,
+    /// Needed by the built-in point-mass body only.
+    #[serde(default)] pub drag_coefficient: Option<f64>,
     pub end_seconds: f64,
     #[serde(default = "step")] pub step_seconds: f64,
-    /// x, y, z (m) and vx, vy, vz (m/s) of the lumped body at t = 0.
-    pub initial_state: [f64; 6],
+    /// x, y, z (m) and vx, vy, vz (m/s) of the lumped body at t = 0. Needed by the built-in point-mass body only.
+    #[serde(default)] pub initial_state: Option<[f64; 6]>,
 }
 fn step() -> f64 { 0.001 }
 
+const MAX_STEPS: f64 = 200_000.0;
+
 /// `POST /v1/projects/{project_id}/revisions/{number}/run`
+///
+/// A model with a part that has an FMU behaviour runs that FMU through FMPy; any other model runs as one lumped body.
 pub async fn run_revision(State(state): State<AppState>, Path((project_id, number)): Path<(String, i32)>, Json(b): Json<RunRevision>) -> Result<(StatusCode, Json<Value>), ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     let pid = Uuid::parse_str(&project_id).map_err(|_| ApiError::BadRequest("id must be a UUID".into()))?;
+    if !(b.end_seconds.is_finite() && b.step_seconds.is_finite() && b.end_seconds > 0.0 && b.step_seconds > 0.0 && b.end_seconds / b.step_seconds <= MAX_STEPS) {
+        return Err(ApiError::BadRequest(format!("end and step must be positive finite numbers, at most {MAX_STEPS} steps")));
+    }
     let ops = crate::builds::revision_ops(&state, pid, number).await?;
-    let body = lumped_body(&ops).map_err(|missing| {
+    let link = ModelLink { project_id: pid.to_string(), revision: number as u32 };
+    let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
+    let reject = |missing: Vec<helqix_modelbuild::lumped::Missing>| {
         let list: Vec<String> = missing.iter().map(|m| if m.part.is_empty() { m.reason.clone() } else { format!("{}: {}", m.part, m.reason) }).collect();
         ApiError::Rejected(format!("this model cannot be run yet: {}", list.join("; ")))
-    })?;
+    };
+
+    if let Some(plan) = fmu_plan(&ops).map_err(reject)? {
+        let cfg = state.fmu.clone().ok_or(ApiError::Unavailable)?;
+        let sha = plan.fmu_sha256.clone();
+        let (id, entry, spec) = run_plan(&state, cfg, plan, b.end_seconds, b.step_seconds, link.clone()).await?;
+        specs.save(&id, &StoredSpec { params: StoredParams::Fmu(spec), parent: None, model: Some(link) }).await?;
+        if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
+        return Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism, "fmuSha256": sha, "parts": 1}))));
+    }
+
+    let (Some(drag_coefficient), Some(initial_state)) = (b.drag_coefficient, b.initial_state) else {
+        return Err(ApiError::BadRequest("a model without an FMU behaviour runs as a point mass: dragCoefficient and initialState are required".into()));
+    };
+    let body = lumped_body(&ops).map_err(reject)?;
     let run = StartRun {
         mass_kg: body.mass_kg, gravity_m_s2: [0.0, -9.80665, 0.0], air_density_kg_m3: 1.225, wind_m_s: [0.0; 3], applied_force_n: [0.0; 3],
-        drag_coefficient: b.drag_coefficient, reference_area_m2: body.area_m2, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state: b.initial_state,
+        drag_coefficient, reference_area_m2: body.area_m2, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state,
     };
-    let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
-    let (id, entry) = store_run(dir.clone(), &specs, run, Some(ModelLink { project_id: pid.to_string(), revision: number as u32 })).await?;
+    let (id, entry) = store_run(dir.clone(), &specs, run, Some(link)).await?;
     if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "massKg": body.mass_kg, "areaM2": body.area_m2, "parts": body.parts}))))
 }
