@@ -134,7 +134,22 @@ pub fn run_tool(tool: &ProcessTool, contract: &SolverContract, input: &Value) ->
     result
 }
 
-fn run_in(tool: &ProcessTool, contract: &SolverContract, input: &Value, input_bytes: &[u8], workdir: &std::path::Path) -> Result<ToolRun, SolverError> {
+/// What a finished tool process left: its stdout and stderr, exit code and wall time.
+struct Exec { stdout: Vec<u8>, stderr: Vec<u8>, exit_status: Option<i32>, wall_time_ms: u128 }
+
+/// Runs a tool once, sandboxed, and returns its raw (size-checked, success-checked) output as JSON, without checking it against a contract.
+/// For tools that report facts instead of series (reading an FMU's description). The same sandbox as `run_tool`: fresh directory, cleared
+/// environment, time limit, output cap.
+pub fn run_tool_json(tool: &ProcessTool, input: &Value) -> Result<Value, SolverError> {
+    let input_bytes = serde_json::to_vec(input).map_err(|e| SolverError::InvalidInput(e.to_string()))?;
+    let workdir = std::env::temp_dir().join(format!("helqix-tool-{}-{}", std::process::id(), RUN_COUNTER.fetch_add(1, Ordering::Relaxed)));
+    std::fs::create_dir_all(&workdir).map_err(|e| SolverError::Crash { exit_status: None, stderr_summary: format!("cannot create sandbox: {e}") })?;
+    let result = exec(tool, &input_bytes, &workdir).and_then(|x| serde_json::from_slice(&x.stdout).map_err(|e| SolverError::MalformedOutput(format!("not JSON: {e}"))));
+    let _ = std::fs::remove_dir_all(&workdir);
+    result
+}
+
+fn exec(tool: &ProcessTool, input_bytes: &[u8], workdir: &std::path::Path) -> Result<Exec, SolverError> {
     let mut command = Command::new(&tool.program);
     command.args(&tool.args).current_dir(workdir).env_clear().stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     for key in BASE_ENV_ALLOWLIST.iter().copied().chain(tool.env_allowlist.iter().map(String::as_str)) {
@@ -166,7 +181,11 @@ fn run_in(tool: &ProcessTool, contract: &SolverContract, input: &Value, input_by
     let stderr = err.join().unwrap_or_default();
     if stdout.len() > limit || stderr.len() > limit { return Err(SolverError::OutputTooLarge { limit }); }
     if !status.success() { return Err(SolverError::Crash { exit_status: status.code(), stderr_summary: summary(&stderr) }); }
+    Ok(Exec { stdout, stderr, exit_status: status.code(), wall_time_ms })
+}
 
+fn run_in(tool: &ProcessTool, contract: &SolverContract, input: &Value, input_bytes: &[u8], workdir: &std::path::Path) -> Result<ToolRun, SolverError> {
+    let Exec { stdout, stderr, exit_status, wall_time_ms } = exec(tool, input_bytes, workdir)?;
     let doc: Value = serde_json::from_slice(&stdout).map_err(|e| SolverError::MalformedOutput(format!("not JSON: {e}")))?;
     let tool_version = doc["tool_version"].as_str().filter(|v| !v.trim().is_empty()).ok_or_else(|| SolverError::MalformedOutput("missing tool_version".into()))?.to_owned();
     let produced = doc["outputs"].as_array().ok_or_else(|| SolverError::MalformedOutput("missing outputs".into()))?;
@@ -182,7 +201,7 @@ fn run_in(tool: &ProcessTool, contract: &SolverContract, input: &Value, input_by
     }
     let configuration = Value::Object(input.as_object().map(|m| m.iter().filter(|(_, v)| !v.is_array()).map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_else(Map::new));
     Ok(ToolRun {
-        record: InvocationRecord { tool: contract.tool.clone(), tool_version, input_sha256: sha256_hex(input_bytes), configuration, wall_time_ms, output_sha256: sha256_hex(&stdout), exit_status: status.code(), stderr_summary: summary(&stderr) },
+        record: InvocationRecord { tool: contract.tool.clone(), tool_version, input_sha256: sha256_hex(input_bytes), configuration, wall_time_ms, output_sha256: sha256_hex(&stdout), exit_status, stderr_summary: summary(&stderr) },
         outputs,
         raw_output: stdout,
     })

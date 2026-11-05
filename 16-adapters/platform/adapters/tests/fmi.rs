@@ -149,3 +149,36 @@ fn an_output_declared_with_the_wildcard_unit_reports_the_unit_the_fmu_declares()
     let wrong = adapter("BouncingBall", &[("h", "mm")], Duration::from_secs(120)).run(&json!({}));
     assert!(matches!(wrong, Err(SolverError::UnitMismatch { .. })), "{wrong:?}");
 }
+
+// E4.4a: the FMU says what it contains, so a Studio can offer its parameters and outputs instead of asking for typed names.
+fn var<'a>(d: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    d["variables"].as_array().unwrap().iter().find(|v| v["name"] == name).unwrap_or_else(|| panic!("no variable {name} in {d}"))
+}
+
+#[test]
+fn describe_lists_variables_with_causality_unit_dimension_and_start_value() {
+    let d = ball().describe().unwrap();
+    assert_eq!(d["model_name"], "BouncingBall");
+    assert_eq!(d["fmi_version"], "2.0");
+    let (g, e, h) = (var(&d, "g"), var(&d, "e"), var(&d, "h"));
+    assert_eq!((g["causality"].as_str(), g["unit"].as_str(), g["start"].as_f64()), (Some("parameter"), Some("m/s2"), Some(-9.81)));
+    assert_eq!(g["dimension"], json!(ACCEL));
+    assert_eq!(g["si_factor"].as_f64(), Some(1.0));
+    assert_eq!((e["causality"].as_str(), e["start"].as_f64()), (Some("parameter"), Some(0.7)));
+    assert_eq!(e["dimension"], json!(NONE), "no declared unit is dimensionless");
+    assert_eq!((h["causality"].as_str(), h["unit"].as_str(), h["dimension"].clone()), (Some("output"), Some("m"), json!([1, 0, 0, 0, 0, 0, 0])));
+}
+
+#[test]
+fn describe_never_runs_the_model_and_refuses_what_is_not_an_fmu() {
+    let t = std::time::Instant::now();
+    ball().describe().unwrap();
+    assert!(t.elapsed() < Duration::from_secs(20), "describe reads the model description only");
+    let missing = FmiAdapter::new(python(), &root().join("18-libraries/python"), root().join("no-such.fmu"), vec![], Duration::from_secs(30));
+    assert!(missing.describe().is_err());
+    let not_fmu = std::env::temp_dir().join(format!("helqix-not-an-fmu-{}.fmu", std::process::id()));
+    std::fs::write(&not_fmu, b"this is not a zip").unwrap();
+    let r = FmiAdapter::new(python(), &root().join("18-libraries/python"), not_fmu.clone(), vec![], Duration::from_secs(30)).describe();
+    let _ = std::fs::remove_file(&not_fmu);
+    assert!(matches!(r, Err(SolverError::Crash { exit_status: Some(2), .. })), "{r:?}");
+}

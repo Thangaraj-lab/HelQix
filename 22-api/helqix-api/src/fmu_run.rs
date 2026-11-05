@@ -12,7 +12,7 @@
 //! another platform), the run's description is saved with the project and revision, and the same request gives the same run id.
 use std::{path::PathBuf, time::Duration};
 
-use axum::{Json, extract::State};
+use axum::{Json, extract::{Path, State}};
 use helqix_adapters::{fmi::{FmiAdapter, TOLERANCE_FLOOR}, solver::{ANY_UNIT, IoField, SolverAdapter, SolverError}};
 use helqix_core::determinism::DeterminismLevel;
 use helqix_frames::{FrameStore, Variable, blake3_hex};
@@ -121,6 +121,26 @@ pub async fn list(State(state): State<AppState>) -> Result<Json<Value>, ApiError
         out.into_iter().map(|(sha256, bytes)| json!({"sha256": sha256, "bytes": bytes})).collect()
     }).await.map_err(|_| ApiError::Internal)?;
     Ok(Json(json!({"fmus": fmus})))
+}
+
+/// `GET /v1/fmus/{sha}`: what an installed FMU contains (variables with causality, unit, dimension and start value), read from its model
+/// description without running it. The file is verified against its hash first; the same run slots limit it.
+pub async fn describe(State(state): State<AppState>, Path(sha): Path<String>) -> Result<Json<Value>, ApiError> {
+    let cfg = state.fmu.clone().ok_or(ApiError::Unavailable)?;
+    let _slot = state.fmu_gate.clone().try_acquire_owned().map_err(|_| ApiError::Busy)?;
+    let d = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
+        let copy = locate(&cfg, &sha)?;
+        let bytes = std::fs::metadata(&copy.fmu).map(|m| m.len()).unwrap_or(0);
+        let d = FmiAdapter::new(cfg.python.clone(), &cfg.package_dir, copy.fmu.clone(), Vec::new(), cfg.timeout).describe().map_err(map_solver)?;
+        let variables: Vec<Value> = d["variables"].as_array().map(Vec::as_slice).unwrap_or_default().iter().map(|v| json!({
+            "name": v["name"], "causality": v["causality"], "variability": v["variability"], "type": v["type"], "unit": v["unit"], "description": v["description"],
+            "dimension": v["dimension"], "siFactor": v["si_factor"], "start": v["start"], "unitProblem": v["unit_problem"],
+        })).collect();
+        let exp = &d["default_experiment"];
+        Ok(json!({"sha256": sha, "bytes": bytes, "modelName": d["model_name"], "fmiVersion": d["fmi_version"],
+                  "defaultExperiment": {"startTime": exp["start_time"], "stopTime": exp["stop_time"], "stepSize": exp["step_size"]}, "variables": variables}))
+    }).await.map_err(|_| ApiError::Internal)??;
+    Ok(Json(d))
 }
 
 /// The FMI tool hashes the file it is about to load and records that hash. If it is not the hash the plan named, the file in the library

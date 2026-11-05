@@ -19,7 +19,7 @@ use helqix_core::determinism::DeterminismLevel;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::solver::{run_tool, IoField, ProcessTool, SolverAdapter, SolverContract, SolverError, ToolRun};
+use crate::solver::{run_tool, run_tool_json, IoField, ProcessTool, SolverAdapter, SolverContract, SolverError, ToolRun};
 
 /// Declared absolute tolerance floor across platforms (ASSUMPTION; see module docs).
 pub const TOLERANCE_FLOOR: f64 = 1e-12;
@@ -47,6 +47,16 @@ impl FmiAdapter {
         };
         let tool = ProcessTool { program: python, args: vec!["-I".into(), "-c".into(), LAUNCHER.into(), package_dir.display().to_string()], timeout, max_output_bytes: 64 << 20, env_allowlist: Vec::new() };
         Self { contract, tool, fmu }
+    }
+
+    /// What the FMU contains, read from its model description without running it: model name, FMI version, default experiment and every
+    /// variable with its causality, variability, declared unit, SI factor and dimension, and start value. The result is the tool's JSON, checked
+    /// only for shape: it describes the file, it is not a simulation result.
+    pub fn describe(&self) -> Result<Value, SolverError> {
+        let doc = serde_json::json!({"schema": "helqix.fmi-describe.v1", "fmu_path": self.fmu.display().to_string()});
+        let d = run_tool_json(&self.tool, &doc)?;
+        if !d["variables"].is_array() || !d["model_name"].is_string() { return Err(SolverError::MalformedOutput("a description needs model_name and variables".into())); }
+        Ok(d)
     }
 
     pub fn fmu_sha256(&self) -> Result<String, SolverError> {

@@ -205,3 +205,29 @@ async fn when_every_fmu_run_slot_is_taken_the_answer_is_busy_not_a_queue() {
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{r}");
     let _ = std::fs::remove_dir_all(&e.dir);
 }
+
+#[tokio::test]
+async fn an_installed_fmu_describes_itself_and_a_bad_request_is_refused() {
+    let Some(e) = env("describe") else { eprintln!("SKIPPED: needs HELQIX_TEST_DATABASE_URL, HELQIX_PYTHON and the Reference FMUs"); return };
+    let app = app(&e, true).await;
+    let (s, d) = call(&app, "GET", &format!("/v1/fmus/{}", e.sha), None).await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!((d["sha256"].as_str(), d["modelName"].as_str(), d["fmiVersion"].as_str()), (Some(e.sha.as_str()), Some("BouncingBall"), Some("2.0")));
+    let var = |n: &str| d["variables"].as_array().unwrap().iter().find(|v| v["name"] == n).unwrap().clone();
+    let g = var("g");
+    assert_eq!((g["causality"].as_str(), g["unit"].as_str(), g["start"].as_f64(), g["siFactor"].as_f64()), (Some("parameter"), Some("m/s2"), Some(-9.81), Some(1.0)));
+    assert_eq!(g["dimension"], json!([1, 0, -2, 0, 0, 0, 0]));
+    assert_eq!(var("h")["causality"], "output");
+    assert!(d["defaultExperiment"]["stopTime"].is_number(), "{d}");
+
+    // Not a hash, not installed, or changed since it was installed: refused, never run.
+    for bad in ["../etc/passwd".to_owned(), "b4".repeat(32), "XYZ".to_owned()] {
+        let (s, r) = call(&app, "GET", &format!("/v1/fmus/{bad}"), None).await;
+        assert_ne!(s, StatusCode::OK, "{bad} {r}");
+    }
+    std::fs::write(e.fmus.join(format!("{}.fmu", e.sha)), b"not the FMU any more").unwrap();
+    let (s, r) = call(&app, "GET", &format!("/v1/fmus/{}", e.sha), None).await;
+    assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY, "{r}");
+    assert!(r["error"]["message"].as_str().unwrap_or("").contains("does not match"), "{r}");
+    let _ = std::fs::remove_dir_all(&e.dir);
+}

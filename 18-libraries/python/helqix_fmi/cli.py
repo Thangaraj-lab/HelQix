@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 SCHEMA = "helqix.fmi-input.v1"
+DESCRIBE_SCHEMA = "helqix.fmi-describe.v1"
 
 
 def fail(code: int, message: str) -> None:
@@ -116,11 +117,60 @@ def si_start_values(spec, by_name, md) -> dict:
     return out
 
 
+def number(x):
+    """A finite float from the number or numeric string FMPy gives for an attribute, else None."""
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def describe(doc: dict) -> None:
+    """Prints what the FMU contains (its model description); runs nothing."""
+    path = Path(str(doc.get("fmu_path", "")))
+    if not path.is_absolute() or path.suffix != ".fmu" or not path.is_file():
+        fail(2, "fmu_path must be an absolute path to an existing .fmu file")
+    import fmpy
+    from fmpy import read_model_description
+
+    try:
+        md = read_model_description(str(path))
+    except Exception as e:
+        fail(2, f"not a readable FMU: {type(e).__name__}: {e}")
+    exp = md.defaultExperiment
+    variables = []
+    for v in md.modelVariables:
+        unit = unit_of(md, v)
+        item = {"name": v.name, "causality": v.causality, "variability": v.variability, "type": v.type, "unit": "" if unit == "1" else unit,
+                "description": v.description or ""}
+        try:
+            factor, dimension = unit_factor_and_dimension(unit, md)
+            item["si_factor"], item["dimension"] = factor, dimension
+        except ValueError as e:
+            item["si_factor"], item["dimension"] = None, None
+            item["unit_problem"] = str(e)
+        start = v.start
+        if isinstance(start, str):
+            try:
+                start = float(start)
+            except ValueError:
+                start = None
+        item["start"] = float(start) if isinstance(start, (int, float)) and not isinstance(start, bool) and math.isfinite(start) else None
+        variables.append(item)
+    sys.stdout.write(json.dumps({"tool_version": f"fmpy {fmpy.__version__}", "model_name": md.modelName, "fmi_version": md.fmiVersion,
+                                 "default_experiment": {"start_time": number(getattr(exp, "startTime", None)), "stop_time": number(getattr(exp, "stopTime", None)), "step_size": number(getattr(exp, "stepSize", None))},
+                                 "variables": variables}))
+
+
 def main() -> None:
     try:
         doc = json.loads(sys.stdin.read())
     except Exception as e:
         fail(2, f"input is not JSON: {e}")
+    if isinstance(doc, dict) and doc.get("schema") == DESCRIBE_SCHEMA:
+        describe(doc)
+        return
     if not isinstance(doc, dict) or doc.get("schema") != SCHEMA:
         fail(2, f"schema must be {SCHEMA}")
     path = Path(str(doc.get("fmu_path", "")))
