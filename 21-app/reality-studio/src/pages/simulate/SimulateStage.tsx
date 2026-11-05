@@ -121,6 +121,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
   const [frozen, setFrozen] = useState<Checkpoint | null>(null);
   const [branching, setBranching] = useState(false);
   const started = useRef<string | null>(null);
+  const [freezeError, setFreezeError] = useState<string | null>(null);
 
   const duration = run?.duration ?? 12;
   const t = playback.t;
@@ -175,7 +176,6 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
 
   const failed = !!failure && t >= failure.t;
   const realRunId = model.runChoice.runId;
-  const [freezeError, setFreezeError] = useState<string | null>(null);
   const freeze = async () => {
     playback.pause(); setFreezeError(null);
     try { setFrozen(await engine.freeze(engineMode === 'real' && realRunId ? realRunId : MOCK_RUN_ID, t)); }

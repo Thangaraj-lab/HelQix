@@ -4,6 +4,8 @@ import { Requirement, requirementsOf, violates } from '../../app/requirements';
 import { SceneConnection, ScenePart, Series } from '../../scene/types';
 import { RunData, RunSelection, useRunSelection } from '../simulate/useRun';
 import { revisionToScene } from '../model/useRevision';
+import { engineMode } from '../../engine';
+import { runForModel } from './runVisibility';
 
 // Everything the stages share about the committed model: its parts and bindings, its requirements,
 // and the stored run. One place reads the revision and the run, so every stage and the 3D canvas
@@ -42,7 +44,7 @@ export const ModelProvider: React.FC<{ projectId: string; revision: ModelRevisio
   const value = useMemo<ModelData>(() => {
     const bindings = revision ? Object.values(revision.bindings) : [];
     const requirements = requirementsOf(revision);
-    const run = bindings.length > 0 ? rawRun : null;
+    const run = runForModel(rawRun, bindings.length, engineMode);
     const series: Series = {};
     if (run) for (const key of Object.keys(run.frames[0]?.values ?? {})) series[key] = run.series(key);
 
