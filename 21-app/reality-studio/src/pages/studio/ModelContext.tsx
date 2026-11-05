@@ -28,7 +28,7 @@ export interface ModelData {
   connections: SceneConnection[];
   bindings: Binding[];
   requirements: Requirement[];
-  /** The stored run, or null when the model has no bindings (nothing in the mock engine to run) */
+  /** The stored run. Null while loading or unreadable; also null in the mock engine for a model with no bindings (see runForModel) */
   run: RunData | null;
   /** The stored runs on offer and which one is selected (the URL's run) */
   runChoice: Pick<RunSelection, 'runs' | 'runId' | 'runsError'>;

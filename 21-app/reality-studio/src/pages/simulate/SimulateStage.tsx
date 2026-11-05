@@ -174,6 +174,8 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
     );
   }
 
+  // A model with no bindings still has a run to read: show the run's own variables (first four) instead of nothing.
+  const shown = variables.length > 0 ? variables.map(b => ({ variable: b.variable, units: b.units })) : Object.keys(series).slice(0, 4).map(k => ({ variable: k, units: run.frames[0]?.values[k]?.unit ?? '' }));
   const failed = !!failure && t >= failure.t;
   const realRunId = model.runChoice.runId;
   const freeze = async () => {
@@ -308,7 +310,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
     </div>
   ) : (
     <div className="surface-glass px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-1.5 max-w-full" aria-label="Live readings">
-      {variables.slice(0, 4).map(b => {
+      {shown.slice(0, 4).map(b => {
         const v = at(b.variable);
         return (
           <div key={b.variable} className="flex items-baseline gap-2 text-xs">
@@ -322,7 +324,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
     </div>
   );
 
-  const keyVar = failure?.requirement.variable ?? variables[0]?.variable;
+  const keyVar = failure?.requirement.variable ?? shown[0]?.variable;
   const footer = (
     <section className="surface-glass px-4 py-3 space-y-1" aria-label="Graph">
       <SectionLabel aside={<span className="text-[11px] text-muted">Drag to scrub</span>}>{keyVar ? pretty(keyVar) : 'Graph'}</SectionLabel>
@@ -333,7 +335,7 @@ export const SimulateStage: React.FC<SimulateStageProps> = ({ onInvestigateFailu
           threshold={failure?.requirement.variable === keyVar ? { value: failure.requirement.limit, label: `${failure.requirement.id} limit ${limitLabel(failure.requirement)}` } : undefined}
           cursor={t}
           xUnit="s"
-          yUnit={variables.find(b => b.variable === keyVar)?.units ?? ''}
+          yUnit={shown.find(b => b.variable === keyVar)?.units ?? ''}
           onScrub={x => { playback.pause(); playback.setT(+x.toFixed(1)); }}
           height={92}
         />
