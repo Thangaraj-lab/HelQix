@@ -1,5 +1,40 @@
 {
   "$defs": {
+    "Behavior": {
+      "description": "One change to a staged model. Every path that builds a model emits these.\nWhat makes a part do something when the model runs. The only behaviour today is an FMU (FMI 2.0 co-simulation),\nnamed by the SHA-256 of its file, never by a path: the engine looks the file up by that hash, so the revision\nidentifies the exact binary. `parameters` set FMU parameters (each with a unit); `outputs` are the FMU variables\nthe run records as frames. No code is ever embedded in a model.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fmuSha256": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "fmu",
+              "type": "string"
+            },
+            "outputs": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "parameters": {
+              "additionalProperties": {
+                "$ref": "#/$defs/Value"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "fmuSha256",
+            "outputs"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Binding": {
       "additionalProperties": false,
       "description": "Motion is data: a visual channel bound to a stored state variable.",
@@ -192,7 +227,6 @@
       "type": "string"
     },
     "ModelOp": {
-      "description": "One change to a staged model. Every path that builds a model emits these.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -403,6 +437,27 @@
             "id",
             "text",
             "prov"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "behavior": {
+              "$ref": "#/$defs/Behavior"
+            },
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "part.setBehavior",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id",
+            "behavior"
           ],
           "type": "object"
         },

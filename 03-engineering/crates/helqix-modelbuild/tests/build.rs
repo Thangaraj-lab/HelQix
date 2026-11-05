@@ -1,6 +1,6 @@
 //! K2 engine-logic tests: event order equals op order, undo removes exactly one op, a stored log
 //! restores the same build, blocking issues stop a commit, and the scratch path works with no resolver.
-use helqix_contracts::{BuildEventKind, Direction, Geometry, Maturity, ModelOp, Origin, PortRef, Provenance, ProvenanceKind, Severity, Status, Value};
+use helqix_contracts::{Behavior, BuildEventKind, Direction, Geometry, Maturity, ModelOp, Origin, PortRef, Provenance, ProvenanceKind, Severity, Status, Value};
 use helqix_modelbuild::{BuildError, OpError, StagedBuild};
 
 fn val(v: f64, unit: &str) -> Value { Value { v, unit: unit.into(), origin: Origin::UserStated, status: Status::Unverified, mock: false } }
@@ -129,4 +129,67 @@ fn the_same_ops_give_the_same_model_hash() {
     ops.swap(0, 1);
     c.apply(&ops).unwrap();
     assert_ne!(c.commit().unwrap(), sha_a, "op order is part of the model history");
+}
+
+// E4.1: a part can be given an FMU behaviour, named by the SHA-256 of the file. The checks are rules, not guesses.
+const SHA: &str = "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3";
+fn fmu(id: &str, sha: &str, params: &[(&str, f64, &str)], outputs: &[&str]) -> ModelOp {
+    ModelOp::PartSetBehavior { id: id.into(), behavior: Behavior::Fmu { fmu_sha256: sha.into(), parameters: params.iter().map(|(k, v, u)| ((*k).to_owned(), val(*v, u))).collect(), outputs: outputs.iter().map(|o| (*o).to_owned()).collect() } }
+}
+
+#[test]
+fn a_behaviour_needs_an_existing_part() {
+    let mut b = StagedBuild::new();
+    assert_eq!(b.apply(&[fmu("ghost", SHA, &[], &["h"])]), Err(BuildError::Op { index: 0, error: OpError::UnknownPart("ghost".into()) }));
+}
+
+#[test]
+fn the_fmu_must_be_named_by_a_sha256_never_a_path() {
+    for bad in ["C:/models/ball.fmu", "../ball.fmu", "", "A3A3", &SHA.to_uppercase(), &SHA[..63]] {
+        let mut b = StagedBuild::new();
+        b.apply(&[part("ball", Maturity::UserDefined)]).unwrap();
+        let err = b.apply(&[fmu("ball", bad, &[], &["h"])]).unwrap_err();
+        assert!(matches!(err, BuildError::Op { error: OpError::InvalidBehavior(_), .. }), "{bad:?} gave {err:?}");
+    }
+}
+
+#[test]
+fn outputs_must_be_named_and_unique() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("ball", Maturity::UserDefined)]).unwrap();
+    for outs in [&[][..], &["h", "h"][..], &[""][..]] {
+        let err = b.apply(&[fmu("ball", SHA, &[], outs)]).unwrap_err();
+        assert!(matches!(err, BuildError::Op { error: OpError::InvalidBehavior(_), .. }), "{outs:?} gave {err:?}");
+    }
+    assert!(b.model().parts["ball"].behavior.is_none(), "a rejected op leaves nothing behind");
+}
+
+#[test]
+fn a_parameter_with_an_unknown_unit_is_a_blocking_issue_and_stops_the_commit() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("ball", Maturity::UserDefined), fmu("ball", SHA, &[("e", 0.7, "furlongs")], &["h"])]).unwrap();
+    let issues = b.issues();
+    assert!(issues.iter().any(|i| i.code == "unit.unknown" && i.severity == Severity::Blocking && i.subject == vec!["ball.e".to_owned()]), "{issues:?}");
+    assert!(matches!(b.commit(), Err(BuildError::BlockingIssues(_))));
+}
+
+#[test]
+fn the_latest_behaviour_wins_and_undo_restores_the_previous_one() {
+    let mut b = StagedBuild::new();
+    b.apply(&[part("ball", Maturity::UserDefined), fmu("ball", SHA, &[], &["h"])]).unwrap();
+    b.apply(&[fmu("ball", SHA, &[], &["h", "v"])]).unwrap();
+    let outs = |b: &StagedBuild| match b.model().parts["ball"].behavior.clone().unwrap() { Behavior::Fmu { outputs, .. } => outputs };
+    assert_eq!(outs(&b), vec!["h".to_owned(), "v".to_owned()]);
+    b.undo().unwrap();
+    assert_eq!(outs(&b), vec!["h".to_owned()]);
+    b.undo().unwrap();
+    assert!(b.model().parts["ball"].behavior.is_none());
+}
+
+#[test]
+fn a_model_with_a_behaviour_commits_and_the_hash_covers_the_fmu_sha() {
+    let build = |sha: &str| { let mut b = StagedBuild::new(); b.apply(&[part("ball", Maturity::UserDefined), fmu("ball", sha, &[("e", 0.7, "one")], &["h"])]).unwrap(); b.commit().unwrap() };
+    let other = "b4".repeat(32);
+    assert_eq!(build(SHA), build(SHA));
+    assert_ne!(build(SHA), build(&other), "a different binary is a different model revision");
 }

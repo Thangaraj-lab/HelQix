@@ -243,3 +243,33 @@ async fn a_committed_model_runs_as_one_lumped_body_and_the_run_is_linked_to_it()
     assert_eq!(branch_row["parentRunId"], run_id.as_str());
     assert_eq!(branch_row["revision"].as_u64(), Some(n));
 }
+
+// E4.1: an FMU behaviour travels through the API, is refused when it is wrong (the part is not changed), and is committed with the revision.
+#[tokio::test]
+async fn a_part_behaviour_is_validated_committed_and_read_back() {
+    let Some(app) = app().await else { eprintln!("SKIPPED: HELQIX_TEST_DATABASE_URL not set"); return };
+    let (_, project) = call(&app, "POST", "/v1/projects", Some(json!({"payload": {"name": "Untitled project"}}))).await;
+    let pid = project["data"]["id"].as_str().unwrap().to_owned();
+    let (_, build) = call(&app, "POST", &format!("/v1/projects/{pid}/builds"), None).await;
+    let bid = build["buildId"].as_str().unwrap().to_owned();
+    let (s, r) = call(&app, "POST", &format!("/v1/builds/{bid}/ops"), Some(json!({"ops": [part("ball")]}))).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+
+    let sha = "a3".repeat(32);
+    let behaviour = |fmu: &str, outputs: Value| json!({"op": "part.setBehavior", "id": "ball", "behavior": {"kind": "fmu", "fmuSha256": fmu, "parameters": {"e": v(0.7, "one")}, "outputs": outputs}});
+
+    // A path instead of a hash, and a part that does not exist, are refused.
+    let (s, r) = call(&app, "POST", &format!("/v1/builds/{bid}/ops"), Some(json!({"ops": [behaviour("C:/models/ball.fmu", json!(["h"]))]}))).await;
+    assert!(s.is_client_error(), "{s} {r}");
+    let (s, r) = call(&app, "POST", &format!("/v1/builds/{bid}/ops"), Some(json!({"ops": [json!({"op": "part.setBehavior", "id": "ghost", "behavior": {"kind": "fmu", "fmuSha256": sha, "outputs": ["h"]}})]}))).await;
+    assert!(s.is_client_error(), "{s} {r}");
+
+    let good = behaviour(&sha, json!(["h", "v"]));
+    let (s, r) = call(&app, "POST", &format!("/v1/builds/{bid}/ops"), Some(json!({"ops": [good.clone()]}))).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    let (s, committed) = call(&app, "POST", &format!("/v1/builds/{bid}/commit"), None).await;
+    assert_eq!(s, StatusCode::CREATED, "{committed}");
+    let (s, one) = call(&app, "GET", &format!("/v1/projects/{pid}/revisions/1"), None).await;
+    assert_eq!(s, StatusCode::OK, "{one}");
+    assert_eq!(one["ops"], json!([part("ball"), good]), "the committed revision carries the behaviour exactly");
+}

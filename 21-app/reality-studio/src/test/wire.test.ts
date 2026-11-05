@@ -57,3 +57,29 @@ describe('wire to UI', () => {
     expect(fromWireProject({ id: 'x', payload: {}, created_at: 'c', updated_at: 'u' }, 0).name).toBe('Untitled project');
   });
 });
+
+describe('part behaviour (E4.1)', () => {
+  const sha = 'a3'.repeat(32);
+  const prov = { kind: 'user_stated' } as never;
+  const geom = { kind: 'primitive', shape: 'box', dims: [] } as never;
+
+  it('a behaviour op goes to the wire unchanged (camelCase names are the wire names)', () => {
+    const op: ModelOp = { op: 'part.setBehavior', id: 'ball', behavior: { kind: 'fmu', fmuSha256: sha, outputs: ['h'] } };
+    expect(toWireOp(op)).toEqual(op);
+  });
+
+  it('a revision carries the behaviour of its parts, and the latest op wins', () => {
+    const ops = [
+      { op: 'part.add', id: 'ball', name: 'Ball', geometry: geom, maturity: 'user_defined', prov },
+      { op: 'part.setBehavior', id: 'ball', behavior: { kind: 'fmu', fmuSha256: sha, outputs: ['h'] } },
+      { op: 'part.setBehavior', id: 'ball', behavior: { kind: 'fmu', fmuSha256: sha, outputs: ['h', 'v'] } }
+    ];
+    const rev = foldRevision({ number: 1, projectId: 'p', committedAt: 't' }, ops);
+    expect(rev.parts.ball.behavior).toEqual({ kind: 'fmu', fmuSha256: sha, outputs: ['h', 'v'] });
+  });
+
+  it('a part without a behaviour has none', () => {
+    const rev = foldRevision({ number: 1, projectId: 'p', committedAt: 't' }, [{ op: 'part.add', id: 'a', name: 'A', geometry: geom, maturity: 'user_defined', prov }]);
+    expect(rev.parts.a.behavior).toBeUndefined();
+  });
+});

@@ -9,7 +9,7 @@
 pub mod lumped;
 use std::collections::{BTreeMap, BTreeSet};
 
-use helqix_contracts::{BuildEventKind, Direction, Issue, Maturity, ModelOp, PortRef, Severity, Value};
+use helqix_contracts::{Behavior, BuildEventKind, Direction, Issue, Maturity, ModelOp, PortRef, Severity, Value};
 use helqix_core::units::Unit;
 use sha2::{Digest, Sha256};
 
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 pub struct Port { pub kind: String, pub direction: Direction, pub unit: Option<String> }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Part { pub name: String, pub maturity: Maturity, pub params: BTreeMap<String, Value>, pub placed: bool, pub material: Option<String>, pub ports: BTreeMap<String, Port> }
+pub struct Part { pub name: String, pub maturity: Maturity, pub params: BTreeMap<String, Value>, pub placed: bool, pub material: Option<String>, pub ports: BTreeMap<String, Port>, pub behavior: Option<Behavior> }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Connection { pub from: PortRef, pub to: PortRef, pub kind: String }
@@ -39,6 +39,7 @@ pub enum OpError {
     UnknownConnection(String),
     UnknownPort(String),
     InUse { part: String, connection: String },
+    InvalidBehavior(String),
 }
 
 impl std::fmt::Display for OpError {
@@ -49,8 +50,24 @@ impl std::fmt::Display for OpError {
             Self::UnknownConnection(id) => write!(f, "no connection {id}"),
             Self::UnknownPort(p) => write!(f, "no port {p}"),
             Self::InUse { part, connection } => write!(f, "part {part} is used by connection {connection}; remove the connection first"),
+            Self::InvalidBehavior(why) => write!(f, "invalid behaviour: {why}"),
         }
     }
+}
+
+/// An FMU is named by the lowercase hex SHA-256 of its file (never a path), and records at least one uniquely named output.
+fn check_behavior(b: &Behavior) -> Result<(), OpError> {
+    let Behavior::Fmu { fmu_sha256, outputs, .. } = b;
+    if fmu_sha256.len() != 64 || !fmu_sha256.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+        return Err(OpError::InvalidBehavior("the FMU must be named by the lowercase hex SHA-256 of its file (64 characters), not by a path".into()));
+    }
+    if outputs.is_empty() { return Err(OpError::InvalidBehavior("name at least one FMU output to record".into())); }
+    let mut seen = BTreeSet::new();
+    for o in outputs {
+        if o.trim().is_empty() { return Err(OpError::InvalidBehavior("an output name is empty".into())); }
+        if !seen.insert(o.as_str()) { return Err(OpError::InvalidBehavior(format!("output {o} is listed twice"))); }
+    }
+    Ok(())
 }
 
 impl Model {
@@ -59,9 +76,13 @@ impl Model {
         match op {
             ModelOp::PartAdd { id, name, maturity, .. } => {
                 if self.parts.contains_key(id) { return Err(OpError::DuplicateId(id.clone())); }
-                self.parts.insert(id.clone(), Part { name: name.clone(), maturity: *maturity, params: BTreeMap::new(), placed: false, material: None, ports: BTreeMap::new() });
+                self.parts.insert(id.clone(), Part { name: name.clone(), maturity: *maturity, params: BTreeMap::new(), placed: false, material: None, ports: BTreeMap::new(), behavior: None });
             }
             ModelOp::PartSetParam { id, key, value } => { part_mut(self, id)?.params.insert(key.clone(), value.clone()); }
+            ModelOp::PartSetBehavior { id, behavior } => {
+                check_behavior(behavior)?;
+                part_mut(self, id)?.behavior = Some(behavior.clone());
+            }
             ModelOp::PartPlace { id, .. } => part_mut(self, id)?.placed = true,
             ModelOp::PortAdd { part, id, kind, direction, unit } => {
                 let p = part_mut(self, part)?;
@@ -107,6 +128,11 @@ impl Model {
             if p.maturity == Maturity::Placeholder { push(Severity::Warning, "part.placeholder", vec![pid.clone()], format!("{} has no model (PLACEHOLDER MODEL)", p.name), Some("import a model or define the part")); }
             for (k, v) in &p.params {
                 if !unit_ok(&v.unit) { push(Severity::Blocking, "unit.unknown", vec![format!("{pid}.{k}")], format!("unit '{}' of {}.{k} is not a registered unit", v.unit, p.name), Some("use a registered unit symbol")); }
+            }
+            if let Some(Behavior::Fmu { parameters, .. }) = &p.behavior {
+                for (k, v) in parameters {
+                    if !unit_ok(&v.unit) { push(Severity::Blocking, "unit.unknown", vec![format!("{pid}.{k}")], format!("unit '{}' of FMU parameter {}.{k} is not a registered unit", v.unit, p.name), Some("use a registered unit symbol")); }
+                }
             }
             for (port_id, port) in &p.ports {
                 if let Some(u) = &port.unit { if !unit_ok(u) { push(Severity::Blocking, "unit.unknown", vec![format!("{pid}.{port_id}")], format!("unit '{u}' of port {pid}.{port_id} is not a registered unit"), Some("use a registered unit symbol")); } }

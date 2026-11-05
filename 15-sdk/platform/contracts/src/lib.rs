@@ -112,6 +112,17 @@ pub struct Binding {
 }
 
 /// One change to a staged model. Every path that builds a model emits these.
+/// What makes a part do something when the model runs. The only behaviour today is an FMU (FMI 2.0 co-simulation),
+/// named by the SHA-256 of its file, never by a path: the engine looks the file up by that hash, so the revision
+/// identifies the exact binary. `parameters` set FMU parameters (each with a unit); `outputs` are the FMU variables
+/// the run records as frames. No code is ever embedded in a model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase", deny_unknown_fields)]
+pub enum Behavior {
+    Fmu { fmu_sha256: String, #[serde(default, skip_serializing_if = "BTreeMap::is_empty")] parameters: BTreeMap<String, Value>, outputs: Vec<String> },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 #[serde(tag = "op", deny_unknown_fields)]
@@ -132,6 +143,8 @@ pub enum ModelOp {
     BindingAdd { binding: Binding },
     #[serde(rename = "requirement.add")]
     RequirementAdd { id: String, text: String, #[serde(default, skip_serializing_if = "Option::is_none")] expr: Option<String>, prov: Provenance },
+    #[serde(rename = "part.setBehavior")]
+    PartSetBehavior { id: String, behavior: Behavior },
     #[serde(rename = "part.remove")]
     PartRemove { id: String },
     #[serde(rename = "connection.remove")]

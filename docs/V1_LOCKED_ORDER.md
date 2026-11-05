@@ -30,6 +30,20 @@ Not in v1: quantum (K9), Build Spec (gate 8), rigid-body engines, FEniCSx/MOOSE,
 
 E19 (K7 production design) waits for F2. E3 (interpretation v2) is P1 and moves into step 9 if E4 finishes early.
 
+## E4 sub-steps (locked 2026-11-05; each one finishes with tests, a built-in review and an update)
+
+Design: a part gets a **behaviour**. The first kind is an FMU (FMI 2.0 co-simulation), named by the SHA-256 of its file (never a path), with unit-carrying parameters and the output variables to record. The model stays the single source of truth; the solver adapter that already exists (FMPy through `helqix_fmi`) runs it.
+
+| Step | Work | Done when |
+|---|---|---|
+| E4.1 | Schema: `part.setBehavior` op in the contracts (Rust, JSON schema, fixtures, TS), rules in the model build (hash-named FMU, named unique outputs, registered units), TS fold | DONE 2026-11-05: contracts 5, modelbuild 13, API 5 (PostgreSQL), UI 64 tests pass; 4 mutations caught |
+| E4.2 | Translator in `helqix-modelbuild`: a committed model becomes an FMU run plan (fmu hash, parameters in SI, outputs, times), or the parts and reasons that block it | Pure-function tests; a model with no behaviour keeps using the lumped body |
+| E4.3 | FMU store (content-addressed, size cap, licence note) and `POST .../revisions/{n}/run` runs the plan through the FMI adapter, stores frames, links the run to the revision | API test with the Reference FMUs against PostgreSQL in CI; replay hash matches |
+| E4.4 | Studio: attach an FMU to a part (upload, parameters, outputs), see the run, Run my model uses it | Browser walkthrough with screenshots; UI tests |
+| E4.5 | Acceptance: a Studio-built model runs through FMPy, frames in the store, tied to its revision, in CI | One CI job, green |
+
+Unit note found in E4.1: the unit registry spells dimensionless as `one`; FMUs and the FMI adapter use `1`. E4.2 maps between them and tests it.
+
 ## Founder items, in parallel (the assistant cannot do these)
 
 | ID | Item | Needed by step |

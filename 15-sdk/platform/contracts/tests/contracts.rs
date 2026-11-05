@@ -28,7 +28,7 @@ fn check<T: DeserializeOwned + Serialize>(name: &str) {
 fn model_ops_cover_every_op_and_reject_bare_numbers() {
     check::<ModelOp>("ModelOp");
     let ops: Vec<String> = fixtures()["ModelOp"]["valid"].as_array().unwrap().iter().map(|o| o["op"].as_str().unwrap().to_owned()).collect();
-    for op in ["part.add", "part.setParam", "part.place", "port.add", "connection.add", "material.assign", "binding.add", "requirement.add", "part.remove", "connection.remove"] {
+    for op in ["part.add", "part.setParam", "part.place", "port.add", "connection.add", "material.assign", "binding.add", "requirement.add", "part.remove", "connection.remove", "part.setBehavior"] {
         assert!(ops.iter().any(|o| o == op), "no fixture for {op}");
     }
 }

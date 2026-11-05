@@ -163,6 +163,37 @@
       {
         "op": "connection.remove",
         "id": "c1"
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "ball",
+        "behavior": {
+          "kind": "fmu",
+          "fmuSha256": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+          "parameters": {
+            "e": {
+              "v": 0.7,
+              "unit": "1",
+              "origin": "user_stated",
+              "status": "unverified"
+            }
+          },
+          "outputs": [
+            "h",
+            "v"
+          ]
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "cell",
+        "behavior": {
+          "kind": "fmu",
+          "fmuSha256": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+          "outputs": [
+            "x"
+          ]
+        }
       }
     ],
     "invalid": [
@@ -203,6 +234,51 @@
         "op": "part.remove",
         "id": "x",
         "extra": true
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "ball",
+        "behavior": {
+          "kind": "fmu",
+          "fmuSha256": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "ball",
+        "behavior": {
+          "kind": "python",
+          "code": "print(1)",
+          "outputs": [
+            "h"
+          ]
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "ball",
+        "behavior": {
+          "kind": "fmu",
+          "fmuSha256": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+          "parameters": {
+            "e": 0.7
+          },
+          "outputs": [
+            "h"
+          ]
+        }
+      },
+      {
+        "op": "part.setBehavior",
+        "id": "ball",
+        "behavior": {
+          "kind": "fmu",
+          "fmuSha256": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+          "outputs": [
+            "h"
+          ],
+          "path": "C:/x.fmu"
+        }
       }
     ]
   },

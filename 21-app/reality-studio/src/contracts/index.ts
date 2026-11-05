@@ -59,6 +59,9 @@ export type GeometryKind =
   | { kind: 'primitive'; shape: 'box' | 'cylinder' | 'sphere' | 'plate'; dims: Value[] }
   | { kind: 'import'; assetId: string };
 
+/** What makes a part do something when the model runs. An FMU is named by the SHA-256 of its file, never by a path. */
+export type Behavior = { kind: 'fmu'; fmuSha256: string; parameters?: Record<string, Value>; outputs: string[] };
+
 export type ModelOp =
   | { op: 'part.add'; id: string; name: string; geometry: GeometryKind; maturity: Maturity; prov: Provenance }
   | { op: 'part.setParam'; id: string; key: string; value: Value }
@@ -68,6 +71,7 @@ export type ModelOp =
   | { op: 'material.assign'; part: string; materialId: string }
   | { op: 'binding.add'; binding: Binding }
   | { op: 'requirement.add'; id: string; text: string; expr?: string; prov: Provenance }
+  | { op: 'part.setBehavior'; id: string; behavior: Behavior }
   | { op: 'part.remove'; id: string }
   | { op: 'connection.remove'; id: string };
 
@@ -149,7 +153,7 @@ export interface ModelRevision {
   projectId: string;
   revisionNum: number;
   committedAt: string;
-  parts: Record<string, { id: string; name: string; geometry: GeometryKind; transform: Transform; maturity: Maturity; params?: Record<string, Value> }>;
+  parts: Record<string, { id: string; name: string; geometry: GeometryKind; transform: Transform; maturity: Maturity; params?: Record<string, Value>; behavior?: Behavior }>;
   ports: Record<string, { id: string; partId: string; kind: string; direction: 'in' | 'out' | 'bi'; unit?: string }>;
   connections: Record<string, { id: string; from: PortRef; to: PortRef; kind: string }>;
   requirements: Record<string, { id: string; text: string; expr?: string }>;
