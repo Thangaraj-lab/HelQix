@@ -58,7 +58,8 @@ impl FmiAdapter {
 impl SolverAdapter for FmiAdapter {
     fn contract(&self) -> &SolverContract { &self.contract }
 
-    /// `input`: `{"parameters": {...}, "start_time"?, "stop_time"?, "step_size"?}`.
+    /// `input`: `{"parameters": {...}, "parameters_si"?: {name: {"value_si", "dimension"}}, "start_time"?, "stop_time"?, "step_size"?}`.
+    /// `parameters` are in the FMU's own units; `parameters_si` are in coherent SI with their dimension and are checked and converted by the tool.
     fn run(&self, input: &Value) -> Result<ToolRun, SolverError> {
         run_tool(&self.tool, &self.contract, &self.tool_input(input)?)
     }
@@ -67,7 +68,7 @@ impl SolverAdapter for FmiAdapter {
     fn tool_input(&self, input: &Value) -> Result<Value, SolverError> {
         let Some(obj) = input.as_object() else { return Err(SolverError::InvalidInput("input must be a JSON object".into())) };
         for key in obj.keys() {
-            if !matches!(key.as_str(), "parameters" | "start_time" | "stop_time" | "step_size") { return Err(SolverError::InvalidInput(format!("unexpected field {key}"))); }
+            if !matches!(key.as_str(), "parameters" | "parameters_si" | "start_time" | "stop_time" | "step_size") { return Err(SolverError::InvalidInput(format!("unexpected field {key}"))); }
         }
         let mut doc = obj.clone();
         doc.insert("schema".into(), "helqix.fmi-input.v1".into());

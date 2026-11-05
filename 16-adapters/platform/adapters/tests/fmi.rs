@@ -99,3 +99,44 @@ fn the_conformance_kit_passes() {
     let report = conformance(&dahlquist(), &json!({}), &[json!({"parameters": {"k": "fast"}}), json!({"surprise": 1})]);
     assert!(report.pass, "{:?}", report.failures);
 }
+
+// E4.3a: parameters stated in SI with their dimension are checked against the unit the FMU declares, and converted to it.
+const ACCEL: [i32; 7] = [1, 0, -2, 0, 0, 0, 0];
+const NONE: [i32; 7] = [0; 7];
+fn ball() -> FmiAdapter { adapter("BouncingBall", &[("h", "m")], Duration::from_secs(120)) }
+fn exit2(r: &Result<helqix_adapters::solver::ToolRun, SolverError>) -> bool { matches!(r, Err(SolverError::Crash { exit_status: Some(2), .. })) }
+
+#[test]
+fn si_parameters_are_accepted_when_the_dimension_matches_the_fmu_unit() {
+    let base = ball().run(&json!({})).unwrap();
+    let same = ball().run(&json!({"parameters_si": {"g": {"value_si": -9.81, "dimension": ACCEL}, "e": {"value_si": 0.7, "dimension": NONE}}})).unwrap();
+    assert_eq!(base.outputs[1].values, same.outputs[1].values, "stating the default gravity and restitution changes nothing");
+    let moon = ball().run(&json!({"parameters_si": {"g": {"value_si": -1.62, "dimension": ACCEL}}})).unwrap();
+    assert_ne!(base.outputs[1].values, moon.outputs[1].values, "a different gravity gives a different fall");
+}
+
+#[test]
+fn si_parameters_with_the_wrong_dimension_are_refused_before_the_run() {
+    let mass = [0, 1, 0, 0, 0, 0, 0];
+    let r = ball().run(&json!({"parameters_si": {"g": {"value_si": -9.81, "dimension": mass}}}));
+    assert!(exit2(&r), "acceleration given as a mass: {r:?}");
+    let r = ball().run(&json!({"parameters_si": {"e": {"value_si": 0.7, "dimension": ACCEL}}}));
+    assert!(exit2(&r), "a dimensionless coefficient given as an acceleration: {r:?}");
+}
+
+#[test]
+fn malformed_or_ambiguous_si_parameters_are_refused() {
+    for bad in [
+        json!({"parameters_si": {"g": {"value_si": -9.81}}}),
+        json!({"parameters_si": {"g": {"value_si": -9.81, "dimension": [1, 0, -2]}}}),
+        json!({"parameters_si": {"g": {"value_si": -9.81, "dimension": [1.5, 0, -2, 0, 0, 0, 0]}}}),
+        json!({"parameters_si": {"g": {"value_si": "fast", "dimension": ACCEL}}}),
+        json!({"parameters_si": {"g": {"value_si": -9.81, "dimension": ACCEL, "extra": 1}}}),
+        json!({"parameters_si": {"no_such_variable": {"value_si": 1.0, "dimension": NONE}}}),
+        json!({"parameters_si": [1, 2]}),
+        json!({"parameters": {"g": -9.81}, "parameters_si": {"g": {"value_si": -9.81, "dimension": ACCEL}}}),
+    ] {
+        let r = ball().run(&bad);
+        assert!(exit2(&r), "{bad} gave {r:?}");
+    }
+}

@@ -6,9 +6,8 @@
 //! an unknown unit, a non-finite number, a bad time span, or more than one FMU part (no co-simulation master yet) makes the
 //! model unrunnable, and each part is named with the reason.
 //!
-//! The FMI runner passes parameters to the FMU in the FMU's own units. The plan therefore says what dimension each
-//! parameter has, so the runner can check the FMU variable's declared unit measures the same dimension and has an SI
-//! scale of 1 (or convert), and refuse otherwise. That check needs the FMU's model description and belongs to the runner (E4.3).
+//! The plan says what dimension each parameter has. The FMI tool (`parameters_si`) reads the unit the FMU declares for that
+//! variable, refuses the run when it measures another dimension, and converts the SI value to the FMU's unit (E4.3a).
 //!
 //! A model with no behaviour is not an error: [`fmu_plan`] returns `Ok(None)` and the caller uses `lumped::lumped_body`.
 use std::collections::BTreeMap;
@@ -39,14 +38,15 @@ pub struct FmuPlan {
 }
 
 impl FmuPlan {
-    /// The document for the FMI adapter's `run` (`parameters`, `start_time`, `stop_time`, `step_size`). It never names a file:
+    /// The document for the FMI adapter's `run` (`parameters_si`, `start_time`, `stop_time`, `step_size`). Each parameter carries its SI value and its
+    /// dimension, which the FMI tool checks against the unit the FMU declares and converts to it. It never names a file:
     /// the adapter fixes the FMU path itself and records the file's hash.
     pub fn adapter_input(&self, start_s: f64, stop_s: f64, step_s: f64) -> Result<Json, String> {
         if !(start_s.is_finite() && stop_s.is_finite() && step_s.is_finite()) { return Err("start, stop and step must be finite numbers".into()); }
         if !(stop_s > start_s) { return Err("the stop time must be after the start time".into()); }
         if !(step_s > 0.0) { return Err("the step must be positive".into()); }
-        let params: serde_json::Map<String, Json> = self.parameters.iter().map(|(k, p)| (k.clone(), json!(p.value_si))).collect();
-        Ok(json!({ "parameters": params, "start_time": start_s, "stop_time": stop_s, "step_size": step_s }))
+        let params: serde_json::Map<String, Json> = self.parameters.iter().map(|(k, p)| (k.clone(), json!({"value_si": p.value_si, "dimension": p.dimension}))).collect();
+        Ok(json!({ "parameters_si": params, "start_time": start_s, "stop_time": stop_s, "step_size": step_s }))
     }
 }
 
@@ -154,7 +154,7 @@ mod tests {
     fn the_adapter_input_has_si_numbers_times_and_no_file_name() {
         let plan = fmu_plan(&[add("ball"), fmu("ball", &[("radius", 250.0, "mm")], &["h"])]).unwrap().unwrap();
         let doc = plan.adapter_input(0.0, 3.0, 0.1).unwrap();
-        assert_eq!(doc, json!({"parameters": {"radius": 0.25}, "start_time": 0.0, "stop_time": 3.0, "step_size": 0.1}));
+        assert_eq!(doc, json!({"parameters_si": {"radius": {"value_si": 0.25, "dimension": [1, 0, 0, 0, 0, 0, 0]}}, "start_time": 0.0, "stop_time": 3.0, "step_size": 0.1}));
         for bad in [(0.0, 0.0, 0.1), (1.0, 0.5, 0.1), (0.0, 1.0, 0.0), (0.0, 1.0, -1.0), (0.0, f64::NAN, 0.1), (f64::NEG_INFINITY, 1.0, 0.1)] {
             assert!(plan.adapter_input(bad.0, bad.1, bad.2).is_err(), "{bad:?}");
         }
