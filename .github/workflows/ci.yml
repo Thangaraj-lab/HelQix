@@ -210,6 +210,42 @@ jobs:
       - name: FMI adapter tests (benchmark, units, timeout, invalid input, conformance)
         run: HELQIX_PYTHON="$(which python)" cargo test --locked -p helqix-adapters --features fmi-tests --test fmi
 
+  fmu-model-run:
+    name: A Studio-built model runs through FMPy (E4)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-trixie
+        env:
+          POSTGRES_USER: helqix
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: helqix
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helqix" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HELQIX_TEST_DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install FMPy and Pint (pinned) and pytest
+        run: python -m pip install "fmpy==0.3.32" "pint==0.26.2" pytest
+      - name: Fetch Reference FMUs v0.0.42 (SHA-256 pinned, BSD-2-Clause, Example data)
+        run: python -I tools/fixtures/fetch_reference_fmus.py .
+      - name: FMI tool unit checks (the FMU's own units, offsets refused; with Pint installed)
+        run: |
+          cd 18-libraries/python
+          python -m pytest -q tests/test_fmi_units.py
+      - name: Model to FMU plan, run through the API, frames and replay (must not be skipped)
+        run: |
+          HELQIX_PYTHON="$(which python)" cargo test --locked -p helqix-api --test fmu_run_api -- --nocapture 2>&1 | tee fmu-api.log
+          ! grep -q SKIPPED fmu-api.log || { echo "::error title=E4::the FMU API tests were skipped"; exit 1; }
+          grep -Eq "test result: ok\. [1-9][0-9]* passed" fmu-api.log
+      - name: The FMU library and its routes are known to the ownership guard
+        run: cargo test --locked -p helqix-api --lib
+
   signing:
     name: Evidence signing, in-toto and cosign (K5)
     runs-on: ubuntu-latest
