@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FastForward, Pause, Play, Plus, Redo2, SkipForward, Undo2 } from 'lucide-react';
-import { Binding, BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
+import { Behavior, Binding, BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
 import { DENSITY_KEY, partsMissingDensity } from './density';
+import { FmuBehaviorPanel } from './FmuBehaviorPanel';
 import { engine, engineMode } from '../../engine';
 import type { SceneConnection, ScenePart } from '../../scene/types';
 import { useStudio } from '../../stores';
@@ -35,6 +36,7 @@ interface StagedPart {
   transform?: Transform;
   ports: { id: string; kind: string; direction: 'in' | 'out' | 'bi'; unit?: string }[];
   params: Record<string, Value>;
+  behavior?: Behavior;
   connected: boolean;
 }
 interface StagedConnection { id: string; from: string; to: string; kind: string }
@@ -49,6 +51,7 @@ function reduceOps(ops: ModelOp[]): { parts: Map<string, StagedPart>; connection
     else if (op.op === 'part.place') { const p = parts.get(op.id); if (p) p.transform = op.transform; }
     else if (op.op === 'port.add') parts.get(op.part)?.ports.push({ id: op.id, kind: op.kind, direction: op.direction, unit: op.unit });
     else if (op.op === 'part.setParam') { const p = parts.get(op.id); if (p) p.params[op.key] = op.value; }
+    else if (op.op === 'part.setBehavior') { const p = parts.get(op.id); if (p) p.behavior = op.behavior; }
     else if (op.op === 'part.remove') parts.delete(op.id);
     else if (op.op === 'binding.add') bindings.push(op.binding);
     else if (op.op === 'requirement.add') requirements.push({ id: op.id, text: op.text, expr: op.expr });
@@ -478,6 +481,9 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
               )}
               {engineMode === 'real' && !isCommitted && sel.geometry.kind === 'primitive' && (
                 <DensityField current={sel.params[DENSITY_KEY]?.v} onSet={d => apply([{ op: 'part.setParam', id: sel.id, key: DENSITY_KEY, value: { v: d, unit: 'kg/m3', origin: 'user_stated', status: 'unverified' } }])} />
+              )}
+              {engineMode === 'real' && engine.listFmus && (
+                <FmuBehaviorPanel key={sel.id} partId={sel.id} locked={isCommitted} current={sel.behavior} onApply={op => void apply([op])} />
               )}
               {Object.keys(sel.params).length > 0 && (
                 <div className="space-y-2">{Object.entries(sel.params).map(([k, v]) => <ValueView key={k} label={k} value={v} />)}</div>

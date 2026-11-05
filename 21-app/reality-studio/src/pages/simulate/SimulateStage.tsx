@@ -11,6 +11,8 @@ import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { LineChart } from '../../components/charts/LineChart';
 import { useModelData } from '../studio/ModelContext';
 import { runsChanged } from './useRun';
+import { FmuRunForm } from './FmuRunForm';
+import { fmuPartOf } from './fmuRun';
 import { valueAtTime } from '../../scene/bindings';
 
 export interface SimulateStageProps {
@@ -92,22 +94,25 @@ const NewRunForm: React.FC<{ revision?: ModelRevision | null }> = ({ revision })
     } catch (e) { setError(e instanceof Error ? e.message.replace(/^[^:]*:\s*\d+:\s*/, '') : 'The run could not be started.'); }
     setBusy(false);
   };
+  const fmuModel = !!fmuPartOf(revision);
   const field = (k: keyof typeof v, label: string) => (
     <label key={k} className="block space-y-1"><span className="text-[11px] text-muted">{label}</span>
       <input value={v[k]} inputMode="decimal" onChange={e => setV({ ...v, [k]: e.target.value })} aria-label={label} className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60" /></label>
   );
   return (
     <div className="space-y-2.5">
+      {revision && fmuModel && <FmuRunForm revision={revision} onRan={runId => { runsChanged.dispatchEvent(new Event('change')); setQuery({ run: runId }); }} />}
+      {revision && fmuModel && <p className="text-[11px] text-muted pt-1 border-t border-line">Or run a free falling body with the numbers below:</p>}
       <div className="grid grid-cols-2 gap-2">
         {field('mass', 'Mass (kg)')}{field('drag', 'Drag coefficient')}{field('area', 'Reference area (m²)')}{field('end', 'Duration (s)')}{field('height', 'Start height (m)')}{field('vx', 'Sideways speed (m/s)')}
       </div>
       {error && <p role="alert" className="text-xs text-bad">{error}</p>}
       {note && <p className="text-[11px] text-trace">{note}</p>}
       <div className="flex flex-wrap gap-2">
-        {revision && engine.runRevision && <Button size="sm" variant="primary" disabled={!validRest || busy} onClick={() => void goModel()}>Run my model</Button>}
-        <Button size="sm" variant={revision && engine.runRevision ? 'secondary' : 'primary'} disabled={!valid || busy} onClick={() => void go()}>Run a free body</Button>
+        {revision && engine.runRevision && !fmuModel && <Button size="sm" variant="primary" disabled={!validRest || busy} onClick={() => void goModel()}>Run my model</Button>}
+        <Button size="sm" variant={revision && engine.runRevision && !fmuModel ? 'secondary' : 'primary'} disabled={!valid || busy} onClick={() => void go()}>Run a free body</Button>
       </div>
-      {revision && engine.runRevision && <p className="text-[11px] text-muted">Run my model uses the mass and footprint the engine works out from your parts and their stated densities; the mass and area above apply to a free body only.</p>}
+      {revision && engine.runRevision && !fmuModel && <p className="text-[11px] text-muted">Run my model uses the mass and footprint the engine works out from your parts and their stated densities; the mass and area above apply to a free body only.</p>}
       <p className="text-[11px] text-muted">A falling body with air drag, run by the engine and stored. The same numbers always give the same run.</p>
     </div>
   );

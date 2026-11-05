@@ -4,7 +4,7 @@ import { partsMissingDensity } from '../pages/define/density';
 // E1 finding: a model committed without a density cannot be run ("Run my model" names the part and refuses) and a
 // committed revision never changes. The Define step warns before the commit, so the user sets the density first.
 
-const part = (id: string, name: string, density?: number) => ({ id, name, params: density === undefined ? {} : { density_kg_m3: { v: density } } });
+const part = (id: string, name: string, density?: number, behavior?: object) => ({ id, name, params: density === undefined ? {} : { density_kg_m3: { v: density } }, behavior });
 
 describe('partsMissingDensity', () => {
   it('lists parts that state no density, by name', () => {
@@ -18,5 +18,8 @@ describe('partsMissingDensity', () => {
   });
   it('no parts, nothing missing', () => {
     expect(partsMissingDensity([])).toEqual([]);
+  });
+  it('a part with an FMU behaviour needs no density: the FMU, not a lumped body, is what runs', () => {
+    expect(partsMissingDensity([part('a', 'Ball', undefined, { kind: 'fmu' }), part('b', 'Box')])).toEqual(['Box']);
   });
 });
