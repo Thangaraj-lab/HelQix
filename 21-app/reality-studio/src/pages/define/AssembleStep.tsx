@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FastForward, Pause, Play, Plus, Redo2, SkipForward, Undo2 } from 'lucide-react';
 import { Binding, BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
+import { DENSITY_KEY, partsMissingDensity } from './density';
 import { engine, engineMode } from '../../engine';
 import type { SceneConnection, ScenePart } from '../../scene/types';
 import { useStudio } from '../../stores';
@@ -8,7 +9,6 @@ import { createMockValue } from '../../mock/examplePack';
 import { checkGltf, getAsset, LICENCES, Licence, putAsset } from '../../app/assets';
 import { useRun } from '../simulate/useRun';
 import { SUPPORTED_CHANNELS } from '../../scene/bindings';
-const DENSITY_KEY = 'density_kg_m3'; // the part parameter the engine reads to find mass (volume x density)
 import { Button, Chip, Drawer, IconButton, MockTag, PlaceholderTag, SectionLabel, StatusDot, Tabs, ValueView } from '../../components/ui/UiKit';
 
 export interface AssembleStepProps {
@@ -249,6 +249,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
     check: `${issues.length} open ${issues.length === 1 ? 'issue' : 'issues'}`
   };
 
+  const noDensity = partsMissingDensity(parts.values());
   const status = commitError
     ? { tone: 'warn' as const, text: `Not committed. ${commitError}` }
     : isCommitted
@@ -257,6 +258,8 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
     ? { tone: 'muted' as const, text: playing ? 'The build is running.' : 'Waiting for the build.' }
     : blocking.length > 0
     ? { tone: 'warn' as const, text: `Resolve ${blocking.length} blocking ${blocking.length === 1 ? 'issue' : 'issues'} to create the model.` }
+    : engineMode === 'real' && noDensity.length > 0
+    ? { tone: 'warn' as const, text: `Ready, but ${noDensity.join(', ')} ${noDensity.length === 1 ? 'has' : 'have'} no density, so Run my model cannot run it. Select the part and set its density before you commit: a committed model does not change.` }
     : { tone: 'accent' as const, text: 'Ready. Use Create model to commit this draft.' };
 
   const setPosition = (axis: 0 | 1 | 2, value: number) => {
