@@ -4,6 +4,8 @@ import {
   BuildEvent,
   Checkpoint,
   EngineClient,
+  FmuDescription,
+  FmuInfo,
   Intervention,
   ModelOp,
   ModelRevision,
@@ -79,6 +81,21 @@ export class RealEngineClient implements EngineClient {
   async runRevision(pid: string, revisionNum: number, p: Omit<PointMassRunParams, 'massKg' | 'referenceAreaM2'>): Promise<{ runId: string; massKg: number; areaM2: number; parts: number }> {
     const { data } = await this.call<{ runId: string; massKg: number; areaM2: number; parts: number }>('POST', `/v1/projects/${pid}/revisions/${revisionNum}/run`, p);
     return data;
+  }
+
+  async listFmus(): Promise<FmuInfo[]> {
+    const { data } = await this.call<{ fmus: FmuInfo[] }>('GET', '/v1/fmus');
+    return data.fmus;
+  }
+
+  async describeFmu(sha256: string): Promise<FmuDescription> {
+    const { data } = await this.call<FmuDescription>('GET', `/v1/fmus/${encodeURIComponent(sha256)}`);
+    return data;
+  }
+
+  async runFmuRevision(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<{ runId: string; rows: number; fmuSha256: string; determinism: string }> {
+    const { data } = await this.call<{ runId: string; rows: number; fmuSha256: string; determinism: string }>('POST', `/v1/projects/${pid}/revisions/${revisionNum}/run`, { endSeconds: p.endSeconds, stepSeconds: p.stepSeconds });
+    return { runId: data.runId, rows: data.rows, fmuSha256: data.fmuSha256, determinism: data.determinism };
   }
 
   async listRuns(pid: string): Promise<RunSummary[]> {

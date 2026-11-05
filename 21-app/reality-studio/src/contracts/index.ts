@@ -197,6 +197,34 @@ export interface Intervention {
   paramOverrides: Record<string, Value>;
 }
 
+/** An FMU installed in the operator's library, named by the SHA-256 of its file. */
+export interface FmuInfo { sha256: string; bytes: number }
+
+export interface FmuVariable {
+  name: string;
+  causality: string;
+  variability: string;
+  type: string;
+  /** The unit the FMU declares ('' when it declares none). */
+  unit: string;
+  description: string;
+  /** Exponents of the unit's dimension (length, mass, time, current, temperature, substance, luminous intensity); null when the unit could not be read. */
+  dimension: number[] | null;
+  siFactor: number | null;
+  start: number | null;
+  unitProblem: string | null;
+}
+
+/** What an FMU contains, read from its model description without running it. */
+export interface FmuDescription {
+  sha256: string;
+  bytes: number;
+  modelName: string;
+  fmiVersion: string;
+  defaultExperiment: { startTime: number | null; stopTime: number | null; stepSize: number | null };
+  variables: FmuVariable[];
+}
+
 export interface EngineClient {
   createProject(): Promise<Project>;
   /** Home's project list (GET /v1/projects). Not in file 35 section 8; added for the Home screen. */
@@ -211,6 +239,12 @@ export interface EngineClient {
   startPointMassRun?(p: PointMassRunParams): Promise<{ runId: string }>;
   /** Real engine only: run a committed revision as one lumped body (the engine computes mass and area from the parts). */
   runRevision?(pid: string, revisionNum: number, p: Omit<PointMassRunParams, 'massKg' | 'referenceAreaM2'>): Promise<{ runId: string; massKg: number; areaM2: number; parts: number }>;
+  /** Real engine only: the FMUs the operator installed. */
+  listFmus?(): Promise<FmuInfo[]>;
+  /** Real engine only: what one installed FMU contains. */
+  describeFmu?(sha256: string): Promise<FmuDescription>;
+  /** Real engine only: run a committed revision whose part has an FMU behaviour, through FMPy. */
+  runFmuRevision?(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<{ runId: string; rows: number; fmuSha256: string; determinism: string }>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
   getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(
