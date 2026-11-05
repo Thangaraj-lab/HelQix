@@ -2,7 +2,8 @@
 //!
 //! The FMU files live in an **operator-installed library**: a directory (`HELQIX_FMU_STORE`) of files named `<sha256>.fmu`.
 //! There is deliberately no upload route. An FMU contains native code, so running one runs that code on the server: only
-//! files an operator put there are ever run, and a file is re-hashed on every use, so a swapped or edited file is refused.
+//! files an operator put there are ever run, and a file is re-hashed on every use, so a swapped or edited file is refused. The bytes that
+//! were hashed are copied to a private directory and that copy is what runs, so the file cannot be swapped between the check and the run.
 //! A model names its FMU by hash (`part.setBehavior`), never by path.
 //!
 //! The run is the plan from `helqix_modelbuild::fmu::fmu_plan` handed to the FMI adapter (a sandboxed Python subprocess with a
@@ -74,8 +75,21 @@ fn is_sha256(s: &str) -> bool { s.len() == 64 && s.bytes().all(|c| c.is_ascii_di
 
 fn sha256_hex(bytes: &[u8]) -> String { format!("{:x}", Sha256::digest(bytes)) }
 
-/// The path of a library file after checking that its content still has the hash in its name.
-fn locate(cfg: &FmuConfig, sha: &str) -> Result<PathBuf, ApiError> {
+/// A private copy of one FMU for one run. The bytes that were hashed are the bytes written here and the tool runs this copy, so the
+/// library file cannot be swapped between the check and the run. The directory is removed when the guard is dropped.
+struct RunCopy { dir: PathBuf, fmu: PathBuf }
+
+impl Drop for RunCopy { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.dir); } }
+
+fn private_dir(path: &std::path::Path) -> std::io::Result<()> {
+    let mut b = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut b, 0o700);
+    b.create(path)
+}
+
+/// The FMU after checking that its content still has the hash in its name, as a private copy to run.
+fn locate(cfg: &FmuConfig, sha: &str) -> Result<RunCopy, ApiError> {
     if !is_sha256(sha) { return Err(ApiError::Rejected(format!("'{sha}' is not an FMU hash (64 lowercase hex characters)"))); }
     let path = cfg.store.join(format!("{sha}.fmu"));
     let bytes = std::fs::read(&path).map_err(|_| ApiError::Rejected(format!("the FMU {sha} is not in the FMU library; ask the operator to install it")))?;
@@ -83,8 +97,11 @@ fn locate(cfg: &FmuConfig, sha: &str) -> Result<PathBuf, ApiError> {
         tracing::error!(%sha, "an FMU library file does not match its name");
         return Err(ApiError::Rejected(format!("the file in the FMU library named {sha} does not match its name (it was changed or replaced), so it is not run")));
     }
-    let absolute = std::fs::canonicalize(&path).map_err(|_| ApiError::Internal)?;
-    Ok(PathBuf::from(absolute.display().to_string().trim_start_matches(r"\\?\")))
+    let dir = std::env::temp_dir().join(format!("helqix-fmu-{}", uuid::Uuid::new_v4()));
+    private_dir(&dir).map_err(|e| { tracing::error!(error = %e, "could not create the FMU run directory"); ApiError::Internal })?;
+    let copy = RunCopy { fmu: dir.join(format!("{sha}.fmu")), dir };
+    std::fs::write(&copy.fmu, &bytes).map_err(|e| { tracing::error!(error = %e, "could not write the FMU run copy"); ApiError::Internal })?;
+    Ok(copy)
 }
 
 /// `GET /v1/fmus`: the FMUs installed in the library (hash and size). A file whose content does not match its name is not listed.
@@ -139,9 +156,9 @@ pub(crate) async fn run_plan(state: &AppState, cfg: FmuConfig, plan: FmuPlan, en
     let genesis = blake3_hex(format!("helqix.fmu-run.v1|{description}").as_bytes());
     let rid = id.clone();
     let (entry, spec) = tokio::task::spawn_blocking(move || -> Result<_, ApiError> {
-        let path = locate(&cfg, &plan.fmu_sha256)?;
+        let copy = locate(&cfg, &plan.fmu_sha256)?;
         let fields: Vec<IoField> = plan.outputs.iter().map(|name| IoField { name: name.clone(), unit: ANY_UNIT.into() }).collect();
-        let run = FmiAdapter::new(cfg.python.clone(), &cfg.package_dir, path, fields, cfg.timeout).run(&input).map_err(map_solver)?;
+        let run = FmiAdapter::new(cfg.python.clone(), &cfg.package_dir, copy.fmu.clone(), fields, cfg.timeout).run(&input).map_err(map_solver)?;
         check_provenance(&plan.fmu_sha256, &run.record)?;
         let (time, series) = run.outputs.split_first().ok_or(ApiError::Internal)?;
         let rows = time.values.len();
