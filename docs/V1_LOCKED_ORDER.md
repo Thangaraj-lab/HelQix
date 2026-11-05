@@ -44,6 +44,17 @@ Design: a part gets a **behaviour**. The first kind is an FMU (FMI 2.0 co-simula
 
 Unit note found in E4.1: the unit registry spells dimensionless as `one`; FMUs and the FMI adapter use `1`. E4.2 maps between them and tests it.
 
+## E5 sub-steps (locked 2026-11-05)
+
+Design: a second kind of part behaviour, the **battery cell** of the domain pack (`18-libraries/python/helqix_battery`, PyBaMM SPM with the Chen2020 parameters, library entry `18-libraries/battery/lgm50_spm_chen2020.library-entry.json`). The user states the cell's open-circuit voltage, its contact resistance and a constant discharge current, with units; the engine runs the pack through the existing PyBaMM adapter and stores terminal voltage, discharge capacity and current as frames, tied to the revision. The pack's own label travels with every run: **NotVerified**, with the published held-out error (71.1 to 77.3 mV against the 46 mV target). The Studio must never show it as verified.
+
+| Step | Work | Done when |
+|---|---|---|
+| E5.1 | `battery_cell` behaviour in the schema (Rust, JSON schema, fixtures, TS), rules in the model build (known pack, voltage / resistance / current dimensions, ranges), one behaviour per model across kinds, translator to a battery run plan | Tests first; mutation checks; plan dispatch (`run_plan`) covers point mass, FMU, battery cell |
+| E5.2 | API: run the plan through the PyBaMM adapter, frames and the pack's label and published error in the answer; config from the environment, all or none | API test against PostgreSQL with PyBaMM: the Studio-built model equals a direct run of the pack; charge conservation checked; refusals named |
+| E5.3 | Studio: Battery cell panel in Define, run form and the NotVerified banner in Simulate, published error shown in Verify | Browser walkthrough; UI tests |
+| E5.4 | CI: extend the battery job with the API test (no skip) | Green on GitHub |
+
 ## Founder items, in parallel (the assistant cannot do these)
 
 | ID | Item | Needed by step |
