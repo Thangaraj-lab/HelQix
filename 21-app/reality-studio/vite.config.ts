@@ -21,7 +21,8 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
           configure: proxy => {
-            proxy.on('proxyReq', req => { if (key) req.setHeader('authorization', `Bearer ${key}`); });
+            // A signed-in user's own token passes through untouched; the service key is added only to requests that carry none.
+            proxy.on('proxyReq', (req, incoming) => { if (key && !incoming.headers.authorization) req.setHeader('authorization', `Bearer ${key}`); });
           }
         }
       }

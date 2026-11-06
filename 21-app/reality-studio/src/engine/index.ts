@@ -3,9 +3,10 @@
 import type { EngineClient } from '../contracts';
 import { MockEngineClient } from '../mock/MockEngineClient';
 import { RealEngineClient } from './RealEngineClient';
+import { appSession } from '../auth/appSession';
 
 export type EngineMode = 'mock' | 'real';
 
 export const engineMode: EngineMode = import.meta.env.VITE_ENGINE === 'real' ? 'real' : 'mock';
 
-export const engine: EngineClient = engineMode === 'real' ? new RealEngineClient('/api') : MockEngineClient;
+export const engine: EngineClient = engineMode === 'real' ? new RealEngineClient('/api', appSession ? () => appSession.accessToken() : undefined, appSession ? () => { void appSession.signOut(); } : undefined) : MockEngineClient;

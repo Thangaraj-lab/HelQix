@@ -8,10 +8,14 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/sora/200.css';
 import '@fontsource/sora/300.css';
 import App from './App';
+import { AuthGate } from './auth/AuthGate';
+import { appSession } from './auth/appSession';
 import './styles/system.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AuthGate session={appSession}>
+      <App />
+    </AuthGate>
   </React.StrictMode>
 );

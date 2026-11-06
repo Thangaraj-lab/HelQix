@@ -28,16 +28,19 @@ export class EngineUnavailable extends Error {
 
 /** The HELQIX API (22-api) through the dev proxy, which adds the API key on the server side. */
 export class RealEngineClient implements EngineClient {
-  constructor(private base: string = '/api') {}
+  /** `tokens` gives the signed-in user's access token (null: no session, the proxy's service key is used); `onUnauthorized` is told when the API refuses a token. */
+  constructor(private base: string = '/api', private tokens?: () => Promise<string | null>, private onUnauthorized?: () => void) {}
 
   private async call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ data: T; etag: string | null }> {
+    const token = this.tokens ? await this.tokens() : null;
     const res = await fetch(`${this.base}${path}`, {
       method,
-      headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...headers },
+      headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
       body: body !== undefined ? JSON.stringify(body) : undefined
     });
     const text = await res.text();
     if (!res.ok) {
+      if (res.status === 401 && token) this.onUnauthorized?.();
       let detail = text;
       try { const j = JSON.parse(text); detail = typeof j.error === 'string' ? j.error : (j.error?.message ?? j.message ?? text); } catch { /* plain text */ }
       throw new Error(`The engine answered ${res.status}: ${String(detail).slice(0, 300) || res.statusText}`);
