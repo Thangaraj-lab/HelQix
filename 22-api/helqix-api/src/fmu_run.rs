@@ -15,14 +15,13 @@ use std::{path::PathBuf, time::Duration};
 use axum::{Json, extract::{Path, State}};
 use helqix_adapters::{fmi::{FmiAdapter, TOLERANCE_FLOOR}, solver::{ANY_UNIT, IoField, SolverAdapter, SolverError}};
 use helqix_core::determinism::DeterminismLevel;
-use helqix_frames::{FrameStore, Variable, blake3_hex};
-use helqix_freeze::{RecordedRun, Sample, chain_link};
+use helqix_frames::blake3_hex;
 use helqix_modelbuild::fmu::FmuPlan;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{error::ApiError, specs::ModelLink, state::AppState};
+use crate::{error::ApiError, recorded::{Series, store}, specs::ModelLink, state::AppState};
 
 /// Where the FMU library is and how to run the FMI tool.
 #[derive(Debug, Clone)]
@@ -154,7 +153,7 @@ fn check_provenance(planned: &str, record: &helqix_adapters::solver::InvocationR
 
 /// A tool failure as the API's answer. The tool's own words are kept for a refusal the user can act on (bad input); everything else is
 /// logged and answered without detail.
-fn map_solver(e: SolverError) -> ApiError {
+pub(crate) fn map_solver(e: SolverError) -> ApiError {
     match e {
         SolverError::Crash { exit_status: Some(2), stderr_summary } => ApiError::Rejected(stderr_summary),
         SolverError::Crash { exit_status: Some(3), stderr_summary } => ApiError::Rejected(format!("the FMU run failed: {stderr_summary}")),
@@ -181,21 +180,9 @@ pub(crate) async fn run_plan(state: &AppState, cfg: FmuConfig, plan: FmuPlan, en
         let run = FmiAdapter::new(cfg.python.clone(), &cfg.package_dir, copy.fmu.clone(), fields, cfg.timeout).run(&input).map_err(map_solver)?;
         check_provenance(&plan.fmu_sha256, &run.record)?;
         let (time, series) = run.outputs.split_first().ok_or(ApiError::Internal)?;
-        let rows = time.values.len();
-        if rows == 0 { return Err(ApiError::Rejected("the FMU run returned no samples".into())); }
-        let mut samples = Vec::with_capacity(rows);
-        let mut chain: Vec<String> = Vec::with_capacity(rows);
-        for i in 0..rows {
-            let state: Vec<f64> = series.iter().map(|s| s.values[i]).collect();
-            let prev = chain.last().map_or(genesis.as_str(), String::as_str);
-            let link = chain_link(prev, i, time.values[i], &state);
-            samples.push(Sample { index: i, time_seconds: time.values[i], state });
-            chain.push(link);
-        }
         let determinism = DeterminismLevel::tolerance(TOLERANCE_FLOOR).map_err(|_| ApiError::Internal)?;
-        let recorded = RecordedRun { genesis: genesis.clone(), samples, chain, determinism };
-        let variables: Vec<Variable> = series.iter().map(|s| Variable { name: s.name.clone(), unit: s.unit.clone() }).collect();
-        let entry = FrameStore::open(&dir).and_then(|s| s.put(&rid, &recorded, &variables, &genesis)).map_err(crate::frames::map)?;
+        let recorded: Vec<Series> = series.iter().map(|s| Series { name: s.name.clone(), unit: s.unit.clone(), values: s.values.clone() }).collect();
+        let entry = store(&dir, &rid, &genesis, &time.values, &recorded, determinism)?;
         let spec = FmuRunSpec {
             fmu_sha256: plan.fmu_sha256.clone(), part_id: plan.part_id.clone(), parameters_si: input["parameters_si"].clone(), outputs: plan.outputs.clone(),
             end_seconds: end_s, step_seconds: step_s, tool_version: run.record.tool_version.clone(), input_sha256: run.record.input_sha256.clone(), output_sha256: run.record.output_sha256.clone(),

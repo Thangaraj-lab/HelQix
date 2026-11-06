@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, types::Json as Jsonb};
 use uuid::Uuid;
 
-use crate::{error::ApiError, fmu_run::FmuRunSpec, frames::StartRun};
+use crate::{battery_run::BatteryRunSpec, error::ApiError, fmu_run::FmuRunSpec, frames::StartRun};
 
 /// What a run was made from.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -20,14 +20,14 @@ pub struct StoredSpec { pub params: StoredParams, pub parent: Option<Parent>, #[
 /// either shape (each refuses the other's fields), so rows written before FMU runs existed still load.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum StoredParams { PointMass(StartRun), Fmu(FmuRunSpec) }
+pub enum StoredParams { PointMass(StartRun), Fmu(FmuRunSpec), Battery(BatteryRunSpec) }
 
 impl StoredSpec {
     /// The point-mass parameters, for freeze and branch. An FMU cannot restore a saved state, so its runs have none.
     pub fn point_mass(&self) -> Result<&StartRun, ApiError> {
         match &self.params {
             StoredParams::PointMass(p) => Ok(p),
-            StoredParams::Fmu(_) => Err(ApiError::Rejected("this run came from an FMU; an FMU cannot restore a saved state, so it cannot be frozen or branched".into())),
+            StoredParams::Fmu(_) | StoredParams::Battery(_) => Err(ApiError::Rejected("this run came from an FMU or a domain pack; they cannot restore a saved state, so it cannot be frozen or branched".into())),
         }
     }
 }

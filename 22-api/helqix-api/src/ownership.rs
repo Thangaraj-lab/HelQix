@@ -42,6 +42,7 @@ pub fn need(method: &str, path: &str) -> Need {
         ["v1", "runs"] | ["v1", "branches"] | ["v1", "interpret"] | ["v1", "sources"] => Need::Nothing,
         ["v1", "fmus"] if method == "GET" => Need::Nothing,
         ["v1", "fmus", _] if method == "GET" => Need::Nothing,
+        ["v1", "battery", "packs"] if method == "GET" => Need::Nothing,
         ["v1", "runs", _, "freeze" | "frames" | "frame"] => Need::Nothing,
         ["v1", kind] if KINDS.contains(kind) => Need::Nothing,
         ["v1", kind, "query"] if KINDS.contains(kind) => Need::Nothing,
@@ -91,6 +92,8 @@ mod tests {
         assert_eq!(need("POST", "/v1/fmus"), Need::Unknown, "there is no upload: an operator installs FMUs");
         assert_eq!(need("GET", "/v1/fmus/H"), Need::Nothing, "describing a library FMU");
         assert_eq!(need("DELETE", "/v1/fmus/H"), Need::Unknown);
+        assert_eq!(need("GET", "/v1/battery/packs"), Need::Nothing, "the packs list their label and published error");
+        assert_eq!(need("POST", "/v1/battery/packs"), Need::Unknown);
         assert_eq!(need("PUT", "/v1/fmus/H"), Need::Unknown);
     }
 

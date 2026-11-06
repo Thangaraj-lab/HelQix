@@ -20,6 +20,8 @@ pub struct AppState {
     pub mirror: Option<Arc<crate::mirror::ObjectMirror>>,
     /// The FMU library and the FMI tool (`HELQIX_FMU_STORE`, `HELQIX_FMI_PYTHON`, `HELQIX_FMI_PACKAGE`); a model with an FMU behaviour cannot run (503) without it.
     pub fmu: Option<crate::fmu_run::FmuConfig>,
+    /// The battery domain pack (`HELQIX_BATTERY_PYTHON`, `HELQIX_BATTERY_PACKAGE`, `HELQIX_BATTERY_LIBRARY`); a model with a battery cell cannot run (503) without it.
+    pub battery: Option<crate::battery_run::BatteryConfig>,
     /// FMU runs in progress are limited (each is a native-code subprocess up to its time limit); when every slot is taken the answer is 429.
     pub(crate) fmu_gate: Arc<tokio::sync::Semaphore>,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
@@ -27,7 +29,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, battery: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
     }
 
     pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
@@ -60,7 +62,12 @@ impl AppState {
         self
     }
 
-    /// How many FMU runs may be in progress at once (default 2).
+    pub fn with_battery(mut self, battery: Option<crate::battery_run::BatteryConfig>) -> Self {
+        self.battery = battery;
+        self
+    }
+
+    /// How many external-tool runs (FMU or battery pack) may be in progress at once (default 2).
     pub fn with_fmu_slots(mut self, slots: usize) -> Self {
         self.fmu_gate = Arc::new(tokio::sync::Semaphore::new(slots));
         self

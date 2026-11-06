@@ -4,12 +4,12 @@
 //! reads the revision's active operations, asks it for the lumped body, and stores the run linked to the project
 //! and revision. A model that cannot be translated is refused with the parts and reasons named.
 use axum::{Json, extract::{Path, State}, http::StatusCode};
-use helqix_modelbuild::{fmu::fmu_plan, lumped::lumped_body};
+use helqix_modelbuild::{lumped::lumped_body, plan::{RunPlan, run_plan as plan_for}};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{error::ApiError, fmu_run::run_plan, frames::{StartRun, store_run}, specs::{ModelLink, StoredParams, StoredSpec}, state::AppState};
+use crate::{battery_run::run_plan as run_battery, error::ApiError, fmu_run::run_plan as run_fmu, frames::{StartRun, store_run}, specs::{ModelLink, StoredParams, StoredSpec}, state::AppState};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -42,17 +42,28 @@ pub async fn run_revision(State(state): State<AppState>, Path((project_id, numbe
         ApiError::Rejected(format!("this model cannot be run yet: {}", list.join("; ")))
     };
 
-    if let Some(plan) = fmu_plan(&ops).map_err(reject)? {
-        let cfg = state.fmu.clone().ok_or(ApiError::Unavailable)?;
-        let sha = plan.fmu_sha256.clone();
-        let (id, entry, spec) = run_plan(&state, cfg, plan, b.end_seconds, b.step_seconds, link.clone()).await?;
-        specs.save(&id, &StoredSpec { params: StoredParams::Fmu(spec), parent: None, model: Some(link) }).await?;
-        if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
-        return Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism, "fmuSha256": sha, "parts": 1}))));
+    match plan_for(&ops).map_err(reject)? {
+        RunPlan::Fmu(plan) => {
+            let cfg = state.fmu.clone().ok_or(ApiError::Unavailable)?;
+            let sha = plan.fmu_sha256.clone();
+            let (id, entry, spec) = run_fmu(&state, cfg, plan, b.end_seconds, b.step_seconds, link.clone()).await?;
+            specs.save(&id, &StoredSpec { params: StoredParams::Fmu(spec), parent: None, model: Some(link) }).await?;
+            if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
+            return Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism, "fmuSha256": sha, "parts": 1}))));
+        }
+        RunPlan::Battery(plan) => {
+            let cfg = state.battery.clone().ok_or(ApiError::Unavailable)?;
+            let (id, entry, spec, pack) = run_battery(&state, cfg, plan, b.end_seconds, b.step_seconds, link.clone()).await?;
+            let identity = spec.model_identity_sha256.clone();
+            specs.save(&id, &StoredSpec { params: StoredParams::Battery(spec), parent: None, model: Some(link) }).await?;
+            if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
+            return Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism, "pack": pack, "modelIdentitySha256": identity, "parts": 1}))));
+        }
+        RunPlan::PointMass => {}
     }
 
     let (Some(drag_coefficient), Some(initial_state)) = (b.drag_coefficient, b.initial_state) else {
-        return Err(ApiError::BadRequest("a model without an FMU behaviour runs as a point mass: dragCoefficient and initialState are required".into()));
+        return Err(ApiError::BadRequest("a model without a behaviour (an FMU or a battery cell) runs as a point mass: dragCoefficient and initialState are required".into()));
     };
     let body = lumped_body(&ops).map_err(reject)?;
     let run = StartRun {
