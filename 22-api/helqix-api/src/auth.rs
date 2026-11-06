@@ -25,7 +25,7 @@ impl Identity {
 /// set replaces the old one, so a key the provider stopped publishing stops working. A failed fetch keeps the keys that worked.
 pub struct Oidc { issuer: String, audience: String, keys: RwLock<HashMap<String, DecodingKey>>, source: Option<Source> }
 
-struct Source { url: String, client: reqwest::Client, min_interval: Duration, last: Mutex<Option<Instant>> }
+struct Source { url: String, client: reqwest::Client, min_interval: Duration, last: Mutex<Option<Instant>>, /** One fetch at a time: a request that arrives while another fetches waits for it. */ gate: tokio::sync::Mutex<()> }
 
 fn keys_from_jwks(jwks: &str) -> Result<HashMap<String, DecodingKey>, String> {
     let set: JwkSet = serde_json::from_str(jwks).map_err(|e| format!("the JWKS is not valid: {e}"))?;
@@ -62,7 +62,7 @@ impl Oidc {
         check_key_url(url)?;
         let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
         let keys = fetch_keys(&client, url).await?;
-        Ok(Self { issuer: issuer.to_owned(), audience: audience.to_owned(), keys: RwLock::new(keys), source: Some(Source { url: url.to_owned(), client, min_interval, last: Mutex::new(Some(Instant::now())) }) })
+        Ok(Self { issuer: issuer.to_owned(), audience: audience.to_owned(), keys: RwLock::new(keys), source: Some(Source { url: url.to_owned(), client, min_interval, last: Mutex::new(None), gate: tokio::sync::Mutex::new(()) }) })
     }
 
     /// True when the keys come from a URL and this token names a key id the API does not know: the provider may have rotated its keys.
@@ -72,11 +72,20 @@ impl Oidc {
         header.alg == Algorithm::RS256 && header.kid.as_deref().is_some_and(|kid| !self.keys.read().expect("keys lock").contains_key(kid))
     }
 
-    /// Fetches the provider's keys again (at most once per interval, so unknown key ids cannot be used to hammer the provider). True when the
-    /// key set was replaced; false when it was too soon, the fetch failed, or the answer had no usable key (the old keys stay).
-    pub async fn refresh(&self) -> bool {
+    /// Fetches the provider's keys again for a token with an unknown key id: at most once per interval, so such tokens cannot be used to hammer
+    /// the provider. A caller that arrives while another fetch is running waits for it and then finds the new keys (it gets false: it did not
+    /// fetch, but `verify` now sees them). True when this call replaced the key set; false when it was too soon, the fetch failed, or the answer
+    /// had no usable key (the old keys stay).
+    pub async fn refresh(&self) -> bool { self.fetch(true).await }
+
+    /// The same fetch for the periodic task: not limited by the interval and not counted against it, so a routine fetch never delays the
+    /// refresh a rotation needs.
+    pub async fn refresh_now(&self) -> bool { self.fetch(false).await }
+
+    async fn fetch(&self, limited: bool) -> bool {
         let Some(src) = &self.source else { return false };
-        {
+        let _one_at_a_time = src.gate.lock().await;
+        if limited {
             let mut last = src.last.lock().expect("refresh lock");
             if last.is_some_and(|t| t.elapsed() < src.min_interval) { return false; }
             *last = Some(Instant::now());

@@ -51,18 +51,19 @@ fn token(k: &Key, sub: &str) -> String {
 }
 
 /// A JWKS endpoint whose document and status the test controls, counting the requests it gets.
-struct Provider { url: String, doc: Arc<Mutex<(StatusCode, Value)>>, hits: Arc<AtomicUsize> }
+struct Provider { url: String, doc: Arc<Mutex<(StatusCode, Value)>>, hits: Arc<AtomicUsize>, delay_ms: Arc<AtomicUsize> }
 
 async fn provider(keys: &[&Key]) -> Provider {
     #[derive(Clone)]
-    struct S { doc: Arc<Mutex<(StatusCode, Value)>>, hits: Arc<AtomicUsize> }
+    struct S { doc: Arc<Mutex<(StatusCode, Value)>>, hits: Arc<AtomicUsize>, delay_ms: Arc<AtomicUsize> }
     let doc = Arc::new(Mutex::new((StatusCode::OK, json!({"keys": keys.iter().map(|k| k.jwk.clone()).collect::<Vec<_>>()}))));
     let hits = Arc::new(AtomicUsize::new(0));
-    let app = Router::new().route("/certs", get(|State(s): State<S>| async move { s.hits.fetch_add(1, Ordering::SeqCst); let d = s.doc.lock().unwrap().clone(); (d.0, axum::Json(d.1)) })).with_state(S { doc: doc.clone(), hits: hits.clone() });
+    let delay_ms = Arc::new(AtomicUsize::new(0));
+    let app = Router::new().route("/certs", get(|State(s): State<S>| async move { s.hits.fetch_add(1, Ordering::SeqCst); tokio::time::sleep(Duration::from_millis(s.delay_ms.load(Ordering::SeqCst) as u64)).await; let d = s.doc.lock().unwrap().clone(); (d.0, axum::Json(d.1)) })).with_state(S { doc: doc.clone(), hits: hits.clone(), delay_ms: delay_ms.clone() });
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/certs", listener.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap(); });
-    Provider { url, doc, hits }
+    Provider { url, doc, hits, delay_ms }
 }
 
 fn publish(p: &Provider, keys: &[&Key]) { *p.doc.lock().unwrap() = (StatusCode::OK, json!({"keys": keys.iter().map(|k| k.jwk.clone()).collect::<Vec<_>>()})); }
@@ -142,4 +143,34 @@ async fn the_router_follows_a_rotation_on_the_first_request_that_needs_it() {
     publish(&p, &[&k1, &k2]);
     assert_eq!(get(token(&k2, "bob")).await, StatusCode::OK, "the provider rotated; the API followed on this request");
     assert_eq!(get(token(&k1, "alice")).await, StatusCode::OK);
+}
+
+// Two requests carry the rotated key at the same moment while the provider is slow: both must be accepted (the second waits for the fetch the first started).
+#[tokio::test]
+async fn two_requests_at_the_moment_of_a_rotation_are_both_accepted() {
+    let (k1, k2) = (key("k1"), key("k2"));
+    let p = provider(&[&k1]).await;
+    let oidc = Arc::new(Oidc::from_url(ISS, AUD, &p.url, Duration::from_secs(60)).await.unwrap());
+    publish(&p, &[&k2]);
+    p.delay_ms.store(300, Ordering::SeqCst);
+    let t = token(&k2, "bob");
+    let one = |oidc: Arc<Oidc>, t: String| tokio::spawn(async move { if oidc.needs_refresh_for(&t) { oidc.refresh().await; } oidc.verify(&t) });
+    let (a, b) = (one(oidc.clone(), t.clone()), one(oidc.clone(), t.clone()));
+    assert_eq!(a.await.unwrap().as_deref(), Some("bob"));
+    assert_eq!(b.await.unwrap().as_deref(), Some("bob"), "the second request must wait for the fetch, not be refused");
+    assert_eq!(p.hits.load(Ordering::SeqCst), 2, "one fetch at start, one for the rotation");
+}
+
+// A routine (periodic) fetch must not use up the interval a rotation needs, and a rotation just after start-up is followed.
+#[tokio::test]
+async fn a_routine_fetch_does_not_delay_the_refresh_for_a_rotation() {
+    let (k1, k2) = (key("k1"), key("k2"));
+    let p = provider(&[&k1]).await;
+    let oidc = Oidc::from_url(ISS, AUD, &p.url, Duration::from_secs(60)).await.unwrap();
+    assert!(oidc.refresh_now().await);
+    publish(&p, &[&k2]);
+    let t = token(&k2, "bob");
+    assert!(oidc.needs_refresh_for(&t));
+    assert!(oidc.refresh().await, "the rotation is fetched at once, right after start-up and a routine fetch");
+    assert_eq!(oidc.verify(&t).as_deref(), Some("bob"));
 }

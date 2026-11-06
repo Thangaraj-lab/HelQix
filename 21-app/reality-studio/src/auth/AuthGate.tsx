@@ -5,6 +5,10 @@ import type { Session } from './session';
 export const AuthGate: React.FC<{ session: Session | null; children: React.ReactNode }> = ({ session, children }) => {
   const [ready, setReady] = useState(session === null);
   const [error, setError] = useState<string | null>(null);
+  const [, follow] = useState(0);
+
+  // The tokens can be lost later (a refresh the provider refuses, a 401): show the sign-in screen then, not only after a reload.
+  useEffect(() => session?.subscribe(() => follow(n => n + 1)), [session]);
 
   useEffect(() => {
     if (!session) return;

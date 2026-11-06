@@ -145,6 +145,44 @@ describe('keeping the session', () => {
     expect(s.session.user()).toBeNull();
   });
 
+  it('a network error or a 5xx while refreshing keeps the session and the next call tries again', async () => {
+    const now = { t: 1_000_000 };
+    const s = await signedIn(now);
+    const first = await s.session.accessToken();
+    now.t += 280_000; // inside the 30 s before expiry: a refresh is due, the token still works
+    s.setTokenResponse(() => new Response('{}', { status: 503 }));
+    expect(await s.session.accessToken()).toBe(first);
+    expect(s.session.user()).toBe('alice');
+    s.setTokenResponse(() => { throw new TypeError('network down'); });
+    expect(await s.session.accessToken()).toBe(first);
+    expect(s.session.user()).toBe('alice');
+    s.setTokenResponse(() => new Response(JSON.stringify({ access_token: jwt({ preferred_username: 'alice', n: 3 }), refresh_token: 'refresh-3', expires_in: 300 }), { status: 200 }));
+    expect(await s.session.accessToken()).not.toBe(first);
+  });
+
+  it('a transient failure after the token has expired gives no token but still keeps the refresh token', async () => {
+    const now = { t: 1_000_000 };
+    const s = await signedIn(now);
+    now.t += 400_000;
+    s.setTokenResponse(() => new Response('{}', { status: 502 }));
+    expect(await s.session.accessToken()).toBeNull();
+    expect(s.session.user()).toBe('alice');
+  });
+
+  it('tells a listener when the tokens are lost', async () => {
+    const now = { t: 1_000_000 };
+    const s = await signedIn(now);
+    const heard = vi.fn();
+    const stop = s.session.subscribe(heard);
+    s.setTokenResponse(() => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }));
+    now.t += 400_000;
+    await s.session.accessToken();
+    expect(heard).toHaveBeenCalledTimes(1);
+    stop();
+    await s.session.signOut();
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
   it('signing out forgets the tokens and goes to the provider to end its session', async () => {
     const now = { t: 1_000_000 };
     const s = await signedIn(now);
@@ -190,7 +228,7 @@ describe('the engine client with a session', () => {
 describe('AuthGate', () => {
   afterEach(cleanup);
   function fake(state: { user: string | null; result?: 'none' | 'signed-in' | 'error'; error?: string | null }): Session {
-    return { handleRedirect: vi.fn(async () => state.result ?? 'none'), user: () => state.user, signIn: vi.fn(async () => undefined), signOut: vi.fn(async () => undefined), accessToken: async () => 'x', lastError: () => state.error ?? null } as unknown as Session;
+    return { handleRedirect: vi.fn(async () => state.result ?? 'none'), user: () => state.user, signIn: vi.fn(async () => undefined), signOut: vi.fn(async () => undefined), accessToken: async () => 'x', lastError: () => state.error ?? null, subscribe: () => () => undefined } as unknown as Session;
   }
   it('shows a sign-in screen, not the app, until the user is signed in', async () => {
     const s = fake({ user: null });
@@ -214,5 +252,20 @@ describe('AuthGate', () => {
   it('without a session configured the app is shown as before', async () => {
     render(<AuthGate session={null}><p>the app</p></AuthGate>);
     await waitFor(() => expect(screen.getByText('the app')).toBeTruthy());
+  });
+});
+
+describe('AuthGate follows the session', () => {
+  afterEach(cleanup);
+  it('goes back to the sign-in screen when the tokens are lost while the app is open', async () => {
+    let user: string | null = 'alice';
+    const listeners = new Set<() => void>();
+    const s = { handleRedirect: async () => 'none', user: () => user, signIn: async () => undefined, signOut: async () => undefined, accessToken: async () => 'x', lastError: () => null, subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; } } as unknown as Session;
+    render(<AuthGate session={s}><p>the app</p></AuthGate>);
+    expect(await screen.findByText('the app')).toBeTruthy();
+    user = null;
+    React.act(() => { listeners.forEach(l => l()); });
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(screen.queryByText('the app')).toBeNull();
   });
 });

@@ -30,7 +30,12 @@ export interface Session {
   accessToken(): Promise<string | null>;
   user(): string | null;
   lastError(): string | null;
+  /** Told whenever the tokens change (signed in, refreshed, lost), so the screen can follow. Returns the way to stop listening. */
+  subscribe(listener: () => void): () => void;
 }
+
+/** The identity provider answered the token request with a status; a 4xx means it refused (the refresh token is no good), anything else may pass. */
+class TokenError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
 const K = { tokens: 'helqix.tokens', verifier: 'helqix.pkce.verifier', state: 'helqix.pkce.state' };
 const REFRESH_BEFORE_MS = 30_000;
@@ -55,7 +60,12 @@ export function createSession(deps: SessionDeps): Session {
 
   try { const raw = storage.getItem(K.tokens); if (raw) tokens = JSON.parse(raw) as Tokens; } catch { tokens = null; }
 
-  const save = (t: Tokens | null) => { tokens = t; if (t) storage.setItem(K.tokens, JSON.stringify(t)); else storage.removeItem(K.tokens); };
+  const listeners = new Set<() => void>();
+  const save = (t: Tokens | null) => {
+    tokens = t;
+    if (t) storage.setItem(K.tokens, JSON.stringify(t)); else storage.removeItem(K.tokens);
+    listeners.forEach(l => l());
+  };
   const redirectUri = () => deps.location().origin + '/';
 
   async function endpoints() {
@@ -70,7 +80,7 @@ export function createSession(deps: SessionDeps): Session {
     const e = await endpoints();
     const res = await f(e.token_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: config.clientId, ...params }).toString() });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok || typeof body.access_token !== 'string') throw new Error(String(body.error_description ?? body.error ?? `The identity provider answered ${res.status}.`));
+    if (!res.ok || typeof body.access_token !== 'string') throw new TokenError(String(body.error_description ?? body.error ?? `The identity provider answered ${res.status}.`), res.status);
     return { accessToken: body.access_token, refreshToken: typeof body.refresh_token === 'string' ? body.refresh_token : null, expiresAt: now() + Number(body.expires_in ?? 60) * 1000 };
   }
 
@@ -117,7 +127,11 @@ export function createSession(deps: SessionDeps): Session {
       const refreshToken = tokens.refreshToken;
       refreshing ??= tokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken })
         .then(t => { save({ ...t, refreshToken: t.refreshToken ?? refreshToken }); return t.accessToken; })
-        .catch(() => { save(null); return null; })
+        .catch(e => {
+          // Only a refusal ends the session. A network error or a 5xx may pass: keep the tokens and try again on the next call.
+          if (e instanceof TokenError && e.status >= 400 && e.status < 500) { save(null); return null; }
+          return tokens && tokens.expiresAt > now() ? tokens.accessToken : null;
+        })
         .finally(() => { refreshing = null; });
       return refreshing;
     },
@@ -130,7 +144,8 @@ export function createSession(deps: SessionDeps): Session {
     },
 
     user: () => (tokens ? nameOf(tokens.accessToken) ?? 'signed in' : null),
-    lastError: () => error
+    lastError: () => error,
+    subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; }
   };
   return session;
 }

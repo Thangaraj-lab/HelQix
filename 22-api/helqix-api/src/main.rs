@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             let mut every = tokio::time::interval(Duration::from_secs(15 * 60));
             every.tick().await;
-            loop { every.tick().await; oidc.refresh().await; }
+            loop { every.tick().await; oidc.refresh_now().await; }
         });
     }
     let app = routes::router(state, &config.allowed_origins, config.request_timeout)
