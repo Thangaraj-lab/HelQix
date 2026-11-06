@@ -1,0 +1,73 @@
+{
+  "realm": "helqix",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "clients": [
+    {
+      "clientId": "helqix-studio",
+      "name": "HELQIX Studio",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*", "http://127.0.0.1:5173/*", "http://localhost:5182/*"],
+      "webOrigins": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5182"],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "+" },
+      "protocolMappers": [
+        {
+          "name": "helqix-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "helqix-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "helqix-test",
+      "name": "Tests only: password grant, never for the Studio",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "helqix-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "helqix-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "helqix-other",
+      "name": "Tests only: a client whose tokens are meant for another API (audience other-api)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "other-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "other-api", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice", "enabled": true, "email": "alice@example.test", "emailVerified": true, "firstName": "Alice", "lastName": "Example",
+      "credentials": [{ "type": "password", "value": "alice-ci-only-password", "temporary": false }]
+    },
+    {
+      "username": "bob", "enabled": true, "email": "bob@example.test", "emailVerified": true, "firstName": "Bob", "lastName": "Example",
+      "credentials": [{ "type": "password", "value": "bob-ci-only-password", "temporary": false }]
+    }
+  ]
+}

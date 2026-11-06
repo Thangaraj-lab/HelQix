@@ -246,6 +246,38 @@ jobs:
       - name: The FMU library and its routes are known to the ownership guard
         run: cargo test --locked -p helqix-api --lib
 
+  keycloak-accounts:
+    name: Two real users on a real Keycloak (E10)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-trixie
+        env:
+          POSTGRES_USER: helqix
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: helqix
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helqix" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HELQIX_TEST_DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix
+      HELQIX_TEST_KEYCLOAK_URL: http://127.0.0.1:8081
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Keycloak 26.8.2 (Apache-2.0) with the HELQIX realm (alice and bob, test passwords)
+        run: |
+          docker run -d --name keycloak -p 8081:8080 -v "$PWD/deploy/keycloak:/opt/keycloak/data/import:ro" quay.io/keycloak/keycloak:26.8.2 start-dev --import-realm --hostname-strict=false
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:8081/realms/helqix/.well-known/openid-configuration > /dev/null && break; sleep 2; done
+          curl -sf http://127.0.0.1:8081/realms/helqix/.well-known/openid-configuration | head -c 200
+      - name: Real tokens through the real router; key refresh against a local provider (must not be skipped)
+        run: |
+          cargo test --locked -p helqix-api --test keycloak_api --test oidc_refresh -- --nocapture 2>&1 | tee keycloak-api.log
+          ! grep -q SKIPPED keycloak-api.log || { echo "::error title=E10::the Keycloak tests were skipped"; exit 1; }
+          grep -Eq "test result: ok\. [1-9][0-9]* passed" keycloak-api.log
+      - name: Keycloak logs on failure
+        if: failure()
+        run: docker logs keycloak || true
+
   signing:
     name: Evidence signing, in-toto and cosign (K5)
     runs-on: ubuntu-latest
