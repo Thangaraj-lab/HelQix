@@ -178,7 +178,7 @@ async fn without_the_pack_or_its_label_the_run_is_unavailable_never_served_unlab
     let (pid, n) = committed(&app_none, vec![cell_part("cell"), cell_behaviour("cell", 2.0)]).await;
     let (s, r) = call(&app_none, "POST", &format!("/v1/projects/{pid}/revisions/{n}/run"), Some(req.clone())).await;
     assert_eq!(s, StatusCode::SERVICE_UNAVAILABLE, "{r}");
-    let (s, _) = call(&app_none, "GET", "/v1/battery/packs", None).await;
+    let (s, _) = call(&app_none, "GET", "/v1/packs", None).await;
     assert_eq!(s, StatusCode::SERVICE_UNAVAILABLE);
     // A library directory without the pack's entry: the label is missing, so nothing is run.
     let empty = e.dir.join("empty-library");
@@ -204,7 +204,7 @@ async fn without_the_pack_or_its_label_the_run_is_unavailable_never_served_unlab
 async fn the_pack_list_says_what_is_installed_and_how_far_to_trust_it() {
     let Some(e) = env("packs") else { eprintln!("{SKIP}"); return };
     let app = app(&e).await;
-    let (s, r) = call(&app, "GET", "/v1/battery/packs", None).await;
+    let (s, r) = call(&app, "GET", "/v1/packs", None).await;
     assert_eq!(s, StatusCode::OK, "{r}");
     let packs = r["packs"].as_array().unwrap();
     assert_eq!(packs.len(), 1);

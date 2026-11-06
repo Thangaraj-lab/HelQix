@@ -13,6 +13,7 @@ import { useModelData } from '../studio/ModelContext';
 import { runsChanged } from './useRun';
 import { FmuRunForm } from './FmuRunForm';
 import { fmuPartOf } from './fmuRun';
+import { PackRunForm, hasPackModel } from '../../domainpacks';
 import { valueAtTime } from '../../scene/bindings';
 
 export interface SimulateStageProps {
@@ -94,14 +95,16 @@ const NewRunForm: React.FC<{ revision?: ModelRevision | null }> = ({ revision })
     } catch (e) { setError(e instanceof Error ? e.message.replace(/^[^:]*:\s*\d+:\s*/, '') : 'The run could not be started.'); }
     setBusy(false);
   };
-  const fmuModel = !!fmuPartOf(revision);
+  const packModel = hasPackModel(revision);
+  const fmuModel = !!fmuPartOf(revision) || packModel;
   const field = (k: keyof typeof v, label: string) => (
     <label key={k} className="block space-y-1"><span className="text-[11px] text-muted">{label}</span>
       <input value={v[k]} inputMode="decimal" onChange={e => setV({ ...v, [k]: e.target.value })} aria-label={label} className="h-8 w-full rounded-[8px] bg-void/70 border border-line px-2 text-xs focus:outline-none focus:border-accent/60" /></label>
   );
   return (
     <div className="space-y-2.5">
-      {revision && fmuModel && <FmuRunForm revision={revision} onRan={runId => { runsChanged.dispatchEvent(new Event('change')); setQuery({ run: runId }); }} />}
+      {revision && packModel && <PackRunForm revision={revision} onRan={runId => { runsChanged.dispatchEvent(new Event('change')); setQuery({ run: runId }); }} />}
+      {revision && fmuModel && !packModel && <FmuRunForm revision={revision} onRan={runId => { runsChanged.dispatchEvent(new Event('change')); setQuery({ run: runId }); }} />}
       {revision && fmuModel && <p className="text-[11px] text-muted pt-1 border-t border-line">Or run a free falling body with the numbers below:</p>}
       <div className="grid grid-cols-2 gap-2">
         {field('mass', 'Mass (kg)')}{field('drag', 'Drag coefficient')}{field('area', 'Reference area (m²)')}{field('end', 'Duration (s)')}{field('height', 'Start height (m)')}{field('vx', 'Sideways speed (m/s)')}

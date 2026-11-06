@@ -15,6 +15,7 @@ import {
   Source,
   StoredRunInfo
 } from '../contracts';
+import type { PackInfo, PackRunResult } from '../domainpacks';
 import { foldRevision, fromWireEvent, fromWireFrame, fromWireProject, fromWireSource, toWireOp } from './wire';
 
 /** Something the real engine does not offer yet. The UI shows this as a plain statement, never a fake result. */
@@ -96,6 +97,16 @@ export class RealEngineClient implements EngineClient {
   async runFmuRevision(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<{ runId: string; rows: number; fmuSha256: string; determinism: string }> {
     const { data } = await this.call<{ runId: string; rows: number; fmuSha256: string; determinism: string }>('POST', `/v1/projects/${pid}/revisions/${revisionNum}/run`, { endSeconds: p.endSeconds, stepSeconds: p.stepSeconds });
     return { runId: data.runId, rows: data.rows, fmuSha256: data.fmuSha256, determinism: data.determinism };
+  }
+
+  async listPacks(): Promise<PackInfo[]> {
+    const { data } = await this.call<{ packs: PackInfo[] }>('GET', '/v1/packs');
+    return data.packs;
+  }
+
+  async runPackRevision(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<PackRunResult> {
+    const { data } = await this.call<PackRunResult>('POST', `/v1/projects/${pid}/revisions/${revisionNum}/run`, { endSeconds: p.endSeconds, stepSeconds: p.stepSeconds });
+    return { runId: data.runId, rows: data.rows, determinism: data.determinism, pack: data.pack, modelIdentitySha256: data.modelIdentitySha256 };
   }
 
   async listRuns(pid: string): Promise<RunSummary[]> {

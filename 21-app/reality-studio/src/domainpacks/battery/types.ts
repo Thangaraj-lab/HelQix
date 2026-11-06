@@ -9,3 +9,20 @@ export type BatteryCellBehavior = {
   contactResistance?: Value;
   load: { kind: 'constant_current'; current: Value };
 };
+
+/** What the server says about an installed pack: its label and how far to trust it (from the pack's library entry). */
+export interface PackInfo {
+  id: string;
+  /** `NotVerified` or `Verified`, as the trust layer decided. */
+  label: string;
+  contextOfUse: string;
+  /** Held-out RMSE of the terminal voltage in millivolts, one per held-out case. */
+  heldOutRmseMv: number[];
+  thresholdMv: number;
+  /** The contact resistance the pack was calibrated to: offered to the user, never applied for them. */
+  calibratedContactResistanceOhm: number | null;
+  validatedModelIdentitySha256: string;
+  reportDate: string;
+}
+
+export interface PackRunResult { runId: string; rows: number; determinism: string; pack: PackInfo; modelIdentitySha256: string }

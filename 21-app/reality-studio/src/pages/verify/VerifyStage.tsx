@@ -6,6 +6,7 @@ import { Button, Chip, ExampleIfMock, MockTag, PreviewTag, SectionLabel } from '
 import { PanelCard, StageGrid } from '../../components/ui/StageGrid';
 import { useEvidencePackage } from '../evidence/usePackage';
 import { useModelData } from '../studio/ModelContext';
+import { PackVerifyNote } from '../../domainpacks';
 
 export interface VerifyStageProps {
   onOpenEvidenceSheet: () => void;
@@ -17,7 +18,7 @@ type CheckState = 'done' | 'missing' | 'failed';
 // and the evidence package as it would be assembled. There is no blanket verified state: the page
 // says "Not yet verified for this use" until every checklist item has evidence behind it.
 export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet }) => {
-  const { run, requirements, series } = useModelData();
+  const { run, requirements, series, revision } = useModelData();
   const pkg = useEvidencePackage();
 
   const checklist: { title: string; state: CheckState; note: string }[] = [
@@ -57,6 +58,7 @@ export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet })
   const right = (
     <>
       <PanelCard title="Credibility checklist" aside={<PreviewTag />}>
+        <PackVerifyNote revision={revision} />
         <ul className="space-y-3">
           {checklist.map(c => (
             <li key={c.title} className="flex gap-2.5">

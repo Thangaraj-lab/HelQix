@@ -388,6 +388,18 @@ jobs:
   battery-pybamm:
     name: Battery domain pack and benchmarks (PyBaMM)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-trixie
+        env:
+          POSTGRES_USER: helqix
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: helqix
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helqix" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HELQIX_TEST_DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -404,5 +416,10 @@ jobs:
         run: python -m pytest -q 23-validation/benchmarks/battery
       - name: PyBaMM solver adapter tests (Phase 6)
         run: HELQIX_PYTHON="$(which python)" cargo test -p helqix-adapters --locked --features pybamm-tests --test pybamm
+      - name: A Studio-built battery cell runs through PyBaMM via the API, with its NotVerified label (E5; must not be skipped)
+        run: |
+          HELQIX_BATTERY_PYTHON="$(which python)" cargo test --locked -p helqix-api --test battery_run_api -- --nocapture 2>&1 | tee battery-api.log
+          ! grep -q SKIPPED battery-api.log || { echo "::error title=E5::the battery API tests were skipped"; exit 1; }
+          grep -Eq "test result: ok\. [1-9][0-9]* passed" battery-api.log
       - name: Verify the PyBaMM adapter evidence package on Linux (Phase 6)
         run: cargo run -q -p helqix-evidence-verify --locked -- docs/evidence/pybamm-adapter-package --trusted-key-file docs/evidence/sample-package.public-key.txt

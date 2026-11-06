@@ -1,4 +1,4 @@
-import type { PackBehavior } from '../domainpacks';
+import type { PackBehavior, PackInfo, PackRunResult } from '../domainpacks';
 // HELQIX Engineering Protocol Contracts (Section 9)
 // Shared interface contract between Engine and Frontend Studio
 
@@ -248,6 +248,10 @@ export interface EngineClient {
   describeFmu?(sha256: string): Promise<FmuDescription>;
   /** Real engine only: run a committed revision whose part has an FMU behaviour, through FMPy. */
   runFmuRevision?(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<{ runId: string; rows: number; fmuSha256: string; determinism: string }>;
+  /** Real engine only: the domain packs installed on the server, with their label and published error. */
+  listPacks?(): Promise<PackInfo[]>;
+  /** Real engine only: run a committed revision whose part comes from a domain pack. */
+  runPackRevision?(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<PackRunResult>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
   getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(

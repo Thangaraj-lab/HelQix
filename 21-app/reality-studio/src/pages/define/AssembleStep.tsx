@@ -3,6 +3,7 @@ import { Check, FastForward, Pause, Play, Plus, Redo2, SkipForward, Undo2 } from
 import { Behavior, Binding, BuildEvent, GeometryKind, Issue, Maturity, ModelOp, ModelRevision, Source, Transform, Value } from '../../contracts';
 import { DENSITY_KEY, partsMissingDensity } from './density';
 import { FmuBehaviorPanel } from './FmuBehaviorPanel';
+import { PackPanels } from '../../domainpacks';
 import { engine, engineMode } from '../../engine';
 import type { SceneConnection, ScenePart } from '../../scene/types';
 import { useStudio } from '../../stores';
@@ -482,6 +483,7 @@ export const AssembleStep: React.FC<AssembleStepProps> = ({ projectId, prompt, c
               {engineMode === 'real' && !isCommitted && sel.geometry.kind === 'primitive' && (
                 <DensityField current={sel.params[DENSITY_KEY]?.v} onSet={d => apply([{ op: 'part.setParam', id: sel.id, key: DENSITY_KEY, value: { v: d, unit: 'kg/m3', origin: 'user_stated', status: 'unverified' } }])} />
               )}
+              {engineMode === 'real' && <PackPanels key={`pack-${sel.id}`} partId={sel.id} locked={isCommitted} onApply={op => void apply([op])} />}
               {engineMode === 'real' && engine.listFmus && (
                 <FmuBehaviorPanel key={sel.id} partId={sel.id} locked={isCommitted} current={sel.behavior} onApply={op => void apply([op])} />
               )}

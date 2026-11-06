@@ -103,7 +103,7 @@ fn pack_info(cfg: &BatteryConfig, id: &str) -> Result<PackInfo, ApiError> {
     })
 }
 
-/// `GET /v1/battery/packs`: the installed packs with their label and published error.
+/// `GET /v1/packs`: the installed packs with their label and published error.
 pub async fn packs(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
     let cfg = state.battery.clone().ok_or(ApiError::Unavailable)?;
     let packs = tokio::task::spawn_blocking(move || BATTERY_PACKS.iter().map(|id| pack_info(&cfg, id)).collect::<Result<Vec<_>, _>>()).await.map_err(|_| ApiError::Internal)??;
