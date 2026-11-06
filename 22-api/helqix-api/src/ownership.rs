@@ -37,7 +37,6 @@ pub fn need(method: &str, path: &str) -> Need {
     match seg.as_slice() {
         ["v1", "projects", pid, "builds" | "revisions" | "runs", ..] => Need::Owner((*pid).to_owned()),
         ["v1", "builds", bid, ..] => Need::BuildOwner((*bid).to_owned()),
-        ["v1", "runs"] if method == "GET" => Need::ServiceOnly,
         ["metrics"] => Need::ServiceOnly,
         ["v1", "runs"] | ["v1", "branches"] | ["v1", "interpret"] | ["v1", "sources"] => Need::Nothing,
         ["v1", "fmus"] if method == "GET" => Need::Nothing,
@@ -84,7 +83,7 @@ mod tests {
         assert_eq!(need("POST", "/v1/builds/X/ops"), Need::BuildOwner("X".into()));
         assert_eq!(need("GET", "/v1/projects"), Need::Nothing);
         assert_eq!(need("POST", "/v1/projects/query"), Need::Nothing);
-        assert_eq!(need("GET", "/v1/runs"), Need::ServiceOnly);
+        assert_eq!(need("GET", "/v1/runs"), Need::Nothing, "the list is filtered to the caller's own runs in the handler");
         assert_eq!(need("POST", "/v1/runs"), Need::Nothing);
         assert_eq!(need("POST", "/v1/runs/R/freeze"), Need::Nothing);
         assert_eq!(need("POST", "/v1/interpret"), Need::Nothing);

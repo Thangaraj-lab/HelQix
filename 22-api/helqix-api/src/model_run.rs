@@ -3,13 +3,13 @@
 //! The translation from model to solver lives in `helqix_modelbuild::lumped` (the engine layer); this module only
 //! reads the revision's active operations, asks it for the lumped body, and stores the run linked to the project
 //! and revision. A model that cannot be translated is refused with the parts and reasons named.
-use axum::{Json, extract::{Path, State}, http::StatusCode};
+use axum::{Json, extract::{Extension, Path, State}, http::StatusCode};
 use helqix_modelbuild::{lumped::lumped_body, plan::{RunPlan, run_plan as plan_for}};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{battery_run::run_plan as run_battery, error::ApiError, fmu_run::run_plan as run_fmu, frames::{StartRun, store_run}, specs::{ModelLink, StoredParams, StoredSpec}, state::AppState};
+use crate::{auth::Identity, battery_run::run_plan as run_battery, error::ApiError, fmu_run::run_plan as run_fmu, frames::{StartRun, store_run}, specs::{ModelLink, StoredParams, StoredSpec}, state::AppState};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -28,7 +28,7 @@ const MAX_STEPS: f64 = 200_000.0;
 /// `POST /v1/projects/{project_id}/revisions/{number}/run`
 ///
 /// A model with a part that has an FMU behaviour runs that FMU through FMPy; any other model runs as one lumped body.
-pub async fn run_revision(State(state): State<AppState>, Path((project_id, number)): Path<(String, i32)>, Json(b): Json<RunRevision>) -> Result<(StatusCode, Json<Value>), ApiError> {
+pub async fn run_revision(State(state): State<AppState>, Extension(who): Extension<Identity>, Path((project_id, number)): Path<(String, i32)>, Json(b): Json<RunRevision>) -> Result<(StatusCode, Json<Value>), ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     let pid = Uuid::parse_str(&project_id).map_err(|_| ApiError::BadRequest("id must be a UUID".into()))?;
     if !(b.end_seconds.is_finite() && b.step_seconds.is_finite() && b.end_seconds > 0.0 && b.step_seconds > 0.0 && b.end_seconds / b.step_seconds <= MAX_STEPS) {
@@ -47,7 +47,7 @@ pub async fn run_revision(State(state): State<AppState>, Path((project_id, numbe
             let cfg = state.fmu.clone().ok_or(ApiError::Unavailable)?;
             let sha = plan.fmu_sha256.clone();
             let (id, entry, spec) = run_fmu(&state, cfg, plan, b.end_seconds, b.step_seconds, link.clone()).await?;
-            specs.save(&id, &StoredSpec { params: StoredParams::Fmu(spec), parent: None, model: Some(link) }).await?;
+            specs.save(&id, &StoredSpec { params: StoredParams::Fmu(spec), parent: None, model: Some(link), owner: Some(who.owner().to_owned()) }).await?;
             if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
             return Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism, "fmuSha256": sha, "parts": 1}))));
         }
@@ -55,7 +55,7 @@ pub async fn run_revision(State(state): State<AppState>, Path((project_id, numbe
             let cfg = state.battery.clone().ok_or(ApiError::Unavailable)?;
             let (id, entry, spec, pack) = run_battery(&state, cfg, plan, b.end_seconds, b.step_seconds, link.clone()).await?;
             let identity = spec.model_identity_sha256.clone();
-            specs.save(&id, &StoredSpec { params: StoredParams::Battery(spec), parent: None, model: Some(link) }).await?;
+            specs.save(&id, &StoredSpec { params: StoredParams::Battery(spec), parent: None, model: Some(link), owner: Some(who.owner().to_owned()) }).await?;
             if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
             return Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism, "pack": pack, "modelIdentitySha256": identity, "parts": 1}))));
         }
@@ -70,7 +70,7 @@ pub async fn run_revision(State(state): State<AppState>, Path((project_id, numbe
         mass_kg: body.mass_kg, gravity_m_s2: [0.0, -9.80665, 0.0], air_density_kg_m3: 1.225, wind_m_s: [0.0; 3], applied_force_n: [0.0; 3],
         drag_coefficient, reference_area_m2: body.area_m2, end_seconds: b.end_seconds, step_seconds: b.step_seconds, initial_state,
     };
-    let (id, entry) = store_run(dir.clone(), &specs, run, Some(link)).await?;
+    let (id, entry) = store_run(dir.clone(), &specs, run, Some(link), Some(who.owner().to_owned())).await?;
     if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "massKg": body.mass_kg, "areaM2": body.area_m2, "parts": body.parts}))))
 }

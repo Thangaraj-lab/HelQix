@@ -91,7 +91,8 @@ async fn users_see_only_their_own_projects_builds_and_runs() {
     assert_eq!(call(&e.app, Some(&alice), "GET", &format!("/v1/builds/{bid}"), None).await.0, StatusCode::OK);
 
     // Routes users may not use, and routes nobody told the guard about.
-    assert_eq!(call(&e.app, Some(&bob), "GET", "/v1/runs", None).await.0, StatusCode::FORBIDDEN);
+    // The run list is open to users and filtered to their own runs (tests/runs_owner_api.rs); without a frame store it is unavailable.
+    assert_eq!(call(&e.app, Some(&bob), "GET", "/v1/runs", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(call(&e.app, Some(&bob), "GET", "/v1/unknown-thing", None).await.0, StatusCode::FORBIDDEN);
 
     // The service key sees it all; no token and a bad token get nothing.

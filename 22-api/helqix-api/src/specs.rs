@@ -14,7 +14,7 @@ use crate::{battery_run::BatteryRunSpec, error::ApiError, fmu_run::FmuRunSpec, f
 
 /// What a run was made from.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct StoredSpec { pub params: StoredParams, pub parent: Option<Parent>, #[serde(default)] pub model: Option<ModelLink> }
+pub struct StoredSpec { pub params: StoredParams, pub parent: Option<Parent>, #[serde(default)] pub model: Option<ModelLink>, /** Who started the run (the user's subject, or `service`). */ #[serde(default)] pub owner: Option<String> }
 
 /// The point-mass parameters of a run made by the built-in engine, or the description of a run made by an FMU. Stored as plain JSON of
 /// either shape (each refuses the other's fields), so rows written before FMU runs existed still load.
@@ -61,6 +61,9 @@ impl SpecStore {
                 .bind(id).bind(project).bind(spec.model.as_ref().map(|m| m.revision as i32))
                 .bind(spec.parent.as_ref().map(|p| p.run_id.clone())).bind(spec.parent.as_ref().map(|p| p.index as i32))
                 .bind(Jsonb(&spec.params)).execute(pool).await?;
+            if let Some(owner) = &spec.owner {
+                sqlx::query("INSERT INTO helqix_run_owners (run_id, owner) VALUES ($1, $2) ON CONFLICT DO NOTHING").bind(id).bind(owner).execute(pool).await?;
+            }
             return Ok(());
         }
         let (files, id, bytes) = (self.files.clone(), id.to_owned(), serde_json::to_vec(spec).map_err(|_| ApiError::Internal)?);
@@ -78,12 +81,22 @@ impl SpecStore {
                 params: params.0,
                 parent: parent_run.zip(parent_index).map(|(run_id, i)| Parent { run_id, index: i as usize }),
                 model: project.zip(revision).map(|(p, r)| ModelLink { project_id: p.to_string(), revision: r as u32 }),
+                owner: None,
             });
         }
         let (files, id) = (self.files.clone(), id.to_owned());
         let bytes = tokio::task::spawn_blocking(move || std::fs::read(files.join(format!("{id}.json")))).await.map_err(|_| ApiError::Internal)?
             .map_err(|_| ApiError::Rejected(NOT_STARTED_HERE.into()))?;
         serde_json::from_slice(&bytes).map_err(|_| ApiError::Internal)
+    }
+
+    /// The ids of the runs a user may list: the ones they started and the ones made from a project they own. Without PostgreSQL (run metadata in
+    /// files, one machine) a user has none: the files hold no owner.
+    pub async fn visible_to(&self, owner: &str) -> Result<std::collections::HashSet<String>, ApiError> {
+        let Some(pool) = &self.pool else { return Ok(Default::default()) };
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT run_id FROM helqix_run_owners WHERE owner = $1 UNION SELECT s.run_id FROM helqix_run_specs s JOIN helqix_owners o ON o.resource_id = s.project_id WHERE o.owner = $1").bind(owner).fetch_all(pool).await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 
     /// The runs made from a project's revisions, newest first.

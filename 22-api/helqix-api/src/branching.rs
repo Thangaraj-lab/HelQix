@@ -5,12 +5,12 @@
 //! A run started through `POST /v1/runs` has its parameters saved (see `specs.rs`), so the
 //! engine can reproduce any point of it exactly. A checkpoint is therefore just `run@index` plus the state hash;
 //! nothing else is stored. Runs recorded some other way have no saved parameters and are refused.
-use axum::{Json, extract::{Path, State}, http::StatusCode};
+use axum::{Json, extract::{Extension, Path, State}, http::StatusCode};
 use helqix_frames::{FrameStore, point_mass_variables};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use crate::{error::ApiError, frames::{map, to_spec}, specs::{Parent, StoredSpec}, state::AppState};
+use crate::{auth::Identity, error::ApiError, frames::{map, to_spec}, specs::{Parent, StoredSpec}, state::AppState};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,7 +47,7 @@ pub struct Overrides {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct BranchBody { pub checkpoint_id: String, pub overrides: Overrides }
 
-pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>) -> Result<(StatusCode, Json<Value>), ApiError> {
+pub async fn branch_run(State(state): State<AppState>, Extension(who): Extension<Identity>, Json(b): Json<BranchBody>) -> Result<(StatusCode, Json<Value>), ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     let (parent_id, index) = b.checkpoint_id.rsplit_once('@').and_then(|(r, i)| i.parse::<usize>().ok().map(|i| (r.to_owned(), i)))
         .ok_or_else(|| ApiError::BadRequest("checkpointId must look like run@index".into()))?;
@@ -89,6 +89,6 @@ pub async fn branch_run(State(state): State<AppState>, Json(b): Json<BranchBody>
         Ok((entry, changed))
     }).await.map_err(|_| ApiError::Internal)??;
     if let Some(m) = &state.mirror { m.push(&frames_dir, &id).await?; }
-    specs.save(&id, &StoredSpec { params: crate::specs::StoredParams::PointMass(changed), parent: Some(Parent { run_id: parent_run.clone(), index }), model: parent_model }).await?;
+    specs.save(&id, &StoredSpec { params: crate::specs::StoredParams::PointMass(changed), parent: Some(Parent { run_id: parent_run.clone(), index }), model: parent_model, owner: Some(who.owner().to_owned()) }).await?;
     Ok((StatusCode::CREATED, Json(json!({"runId": id, "parentRunId": parent_run, "index": index, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3}))))
 }

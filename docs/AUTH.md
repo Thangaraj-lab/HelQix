@@ -27,7 +27,7 @@ A token is accepted only if: signed with RS256 by a key in the file (matching `k
 - A resource that is not yours answers **404**, so its existence is not revealed.
 - Listing returns only your resources. Attaching a resource to someone else's project is refused.
 - Builds, revisions, model runs and the run list of a project follow the project's owner.
-- `GET /v1/runs` (every stored run) is service-only for users (**403**). Runs fetched by id (`/v1/runs/{id}/...`) are not owner-checked: run ids are hashes of the request, so someone who does not already know a model's project id and parameters cannot guess one. Treat run ids as capability links.
+- `GET /v1/runs` lists, for a user, only their runs: the ones they started (a branch counts) and the ones made from a project they own, even by the operator's key. A run id is a hash of the request, so two users who make the same request get the same run and are both recorded as its owner. The service key lists every run. Without PostgreSQL run metadata (files on one machine) a user lists none. Runs fetched by id (`/v1/runs/{id}/...`) are not owner-checked: run ids are hashes of the request, so someone who does not already know a model's project id and parameters cannot guess one. Treat run ids as capability links.
 - A route the ownership guard does not know is **403** for users by default (`src/ownership.rs`, `need`).
 
 ## Sign in from the Studio

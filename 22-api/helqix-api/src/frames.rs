@@ -3,12 +3,12 @@
 //! - `GET /v1/runs/{id}/frames?from=&limit=`: stored frames in order (`runFrames`), default limit 1000, max 10000.
 //! - `GET /v1/runs/{id}/frame?t=`: the frame at time t (`getFrame`): exact on the grid (Origin simulated),
 //!   linear between frames (Origin derived), 422 outside the run.
-use axum::{Json, extract::{Path, Query, State}};
+use axum::{Json, extract::{Extension, Path, Query, State}};
 use helqix_frames::{FrameError, FrameStore, StoredRun};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::{error::ApiError, state::AppState};
+use crate::{auth::Identity, error::ApiError, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct FramesQuery { #[serde(default)] pub from: Option<u64>, #[serde(default)] pub limit: Option<usize> }
@@ -34,11 +34,12 @@ async fn load(state: &AppState, id: String) -> Result<StoredRun, ApiError> {
 
 /// `GET /v1/runs`: the stored runs (id, rows, determinism, variables with units). The frames are
 /// read with `/v1/runs/{id}/frames`; nothing here computes a run.
-pub async fn list_runs(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+pub async fn list_runs(State(state): State<AppState>, Extension(who): Extension<Identity>) -> Result<Json<Value>, ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
+    let visible = if who.is_service() { None } else { Some(state.spec_store().ok_or(ApiError::Unavailable)?.visible_to(who.owner()).await?) };
     if let Some(m) = &state.mirror { m.sync_indexes(&dir).await?; }
     let runs = tokio::task::spawn_blocking(move || FrameStore::open(dir).and_then(|s| s.list())).await.map_err(|_| ApiError::Internal)?.map_err(map)?;
-    let runs: Vec<Value> = runs.into_iter().map(|r| json!({"runId": r.meta.run_id, "rows": r.meta.rows, "determinism": r.meta.determinism, "variables": r.meta.variables, "framesBlake3": r.frames_blake3})).collect();
+    let runs: Vec<Value> = runs.into_iter().filter(|r| visible.as_ref().is_none_or(|v| v.contains(&r.meta.run_id))).map(|r| json!({"runId": r.meta.run_id, "rows": r.meta.rows, "determinism": r.meta.determinism, "variables": r.meta.variables, "framesBlake3": r.frames_blake3})).collect();
     Ok(Json(json!({"runs": runs})))
 }
 
@@ -82,16 +83,16 @@ const MAX_STEPS: f64 = 200_000.0;
 
 /// `POST /v1/runs`: runs the engine and stores the frames. The run id is derived from the request, so the
 /// same request gives the same id and the same frames (the engine is deterministic); repeating it is harmless.
-pub async fn start_run(State(state): State<AppState>, Json(b): Json<StartRun>) -> Result<(axum::http::StatusCode, Json<Value>), ApiError> {
+pub async fn start_run(State(state): State<AppState>, Extension(who): Extension<Identity>, Json(b): Json<StartRun>) -> Result<(axum::http::StatusCode, Json<Value>), ApiError> {
     let dir = state.frame_store.clone().ok_or(ApiError::Unavailable)?;
     let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
-    let (id, entry) = store_run(dir.clone(), &specs, b, None).await?;
+    let (id, entry) = store_run(dir.clone(), &specs, b, None, Some(who.owner().to_owned())).await?;
     if let Some(m) = &state.mirror { m.push(&dir, &id).await?; }
     Ok((axum::http::StatusCode::CREATED, Json(json!({"runId": id, "rows": entry.meta.rows, "framesBlake3": entry.frames_blake3, "determinism": entry.meta.determinism}))))
 }
 
 /// Validates, runs and stores one run; `model` records which committed model revision it came from.
-pub(crate) async fn store_run(dir: std::path::PathBuf, specs: &crate::specs::SpecStore, b: StartRun, model: Option<crate::specs::ModelLink>) -> Result<(String, helqix_frames::RunIndex), ApiError> {
+pub(crate) async fn store_run(dir: std::path::PathBuf, specs: &crate::specs::SpecStore, b: StartRun, model: Option<crate::specs::ModelLink>, owner: Option<String>) -> Result<(String, helqix_frames::RunIndex), ApiError> {
     let all = [b.mass_kg, b.air_density_kg_m3, b.drag_coefficient, b.reference_area_m2, b.end_seconds, b.step_seconds];
     if !all.iter().chain(&b.gravity_m_s2).chain(&b.wind_m_s).chain(&b.applied_force_n).chain(&b.initial_state).all(|v| v.is_finite()) { return Err(ApiError::BadRequest("every number must be finite".into())); }
     if b.mass_kg <= 0.0 || b.reference_area_m2 < 0.0 || b.drag_coefficient < 0.0 || b.air_density_kg_m3 < 0.0 { return Err(ApiError::BadRequest("mass must be positive; drag coefficient, area and density must not be negative".into())); }
@@ -99,7 +100,7 @@ pub(crate) async fn store_run(dir: std::path::PathBuf, specs: &crate::specs::Spe
     let id = format!("run-{}", &helqix_frames::blake3_hex(format!("{:?}", (&b.mass_kg, &b.gravity_m_s2, &b.air_density_kg_m3, &b.wind_m_s, &b.applied_force_n, &b.drag_coefficient, &b.reference_area_m2, &b.end_seconds, &b.step_seconds, &b.initial_state, &model)).as_bytes())[..16]);
     let spec = to_spec(&b);
     let rid = id.clone();
-    let saved = crate::specs::StoredSpec { params: crate::specs::StoredParams::PointMass(b), parent: None, model };
+    let saved = crate::specs::StoredSpec { params: crate::specs::StoredParams::PointMass(b), parent: None, model, owner };
     let entry = tokio::task::spawn_blocking(move || -> Result<_, String> {
         let r = helqix_freeze::run(&spec).map_err(|e| e.to_string())?;
         FrameStore::open(&dir).and_then(|s| s.put(&rid, &r, &helqix_frames::point_mass_variables(), &helqix_freeze::chain_genesis(&spec))).map_err(|e| e.to_string())

@@ -85,6 +85,18 @@ describe('signing in', () => {
     expect(await none.session.handleRedirect()).toBe('error');
   });
 
+  it('asking twice at once (React runs an effect twice in development) trades the code once and both callers see the sign-in', async () => {
+    const first = setup();
+    await first.session.signIn();
+    const state = first.storage.getItem('helqix.pkce.state')!;
+    const { session, calls, storage } = setup({ href: `https://studio.example.test/?code=abc&state=${state}` });
+    storage.setItem('helqix.pkce.state', state); storage.setItem('helqix.pkce.verifier', first.storage.getItem('helqix.pkce.verifier')!);
+    const [a, b] = await Promise.all([session.handleRedirect(), session.handleRedirect()]);
+    expect([a, b]).toEqual(['signed-in', 'signed-in']);
+    expect(calls.token.filter(p => p.get('grant_type') === 'authorization_code')).toHaveLength(1);
+    expect(session.user()).toBe('alice');
+  });
+
   it('a provider error on return is reported, not hidden', async () => {
     const { session } = setup({ href: 'https://studio.example.test/?error=access_denied&error_description=No' });
     expect(await session.handleRedirect()).toBe('error');

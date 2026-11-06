@@ -51,6 +51,7 @@ export function createSession(deps: SessionDeps): Session {
   let error: string | null = null;
   let discovered: { authorization_endpoint: string; token_endpoint: string; end_session_endpoint?: string } | null = null;
   let refreshing: Promise<string | null> | null = null;
+  let redirect: Promise<'none' | 'signed-in' | 'error'> | null = null;
 
   try { const raw = storage.getItem(K.tokens); if (raw) tokens = JSON.parse(raw) as Tokens; } catch { tokens = null; }
 
@@ -73,6 +74,26 @@ export function createSession(deps: SessionDeps): Session {
     return { accessToken: body.access_token, refreshToken: typeof body.refresh_token === 'string' ? body.refresh_token : null, expiresAt: now() + Number(body.expires_in ?? 60) * 1000 };
   }
 
+  /** A return from the provider is handled once, whoever asks and however often (React runs effects twice in development). */
+  async function handleReturn(): Promise<'none' | 'signed-in' | 'error'> {
+    const url = new URL(deps.location().href);
+    const code = url.searchParams.get('code');
+    const providerError = url.searchParams.get('error');
+    if (providerError) { error = `The identity provider refused the sign-in: ${url.searchParams.get('error_description') ?? providerError} (${providerError}).`; deps.replaceUrl(deps.location().pathname); return 'error'; }
+    if (!code) return 'none';
+    const verifier = storage.getItem(K.verifier);
+    const state = storage.getItem(K.state);
+    storage.removeItem(K.verifier);
+    storage.removeItem(K.state);
+    deps.replaceUrl(deps.location().pathname);
+    if (!verifier || !state || url.searchParams.get('state') !== state) { error = 'The sign-in answer did not match this browser tab, so it was ignored. Start the sign-in again.'; return 'error'; }
+    try {
+      save(await tokenRequest({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri() }));
+      error = null;
+      return 'signed-in';
+    } catch (e) { error = e instanceof Error ? e.message : 'The sign-in could not be completed.'; return 'error'; }
+  }
+
   const session: Session = {
     async signIn() {
       const e = await endpoints();
@@ -84,23 +105,9 @@ export function createSession(deps: SessionDeps): Session {
       deps.navigate(`${e.authorization_endpoint}?${q.toString()}`);
     },
 
-    async handleRedirect() {
-      const url = new URL(deps.location().href);
-      const code = url.searchParams.get('code');
-      const providerError = url.searchParams.get('error');
-      if (providerError) { error = `The identity provider refused the sign-in: ${url.searchParams.get('error_description') ?? providerError} (${providerError}).`; deps.replaceUrl(deps.location().pathname); return 'error'; }
-      if (!code) return 'none';
-      const verifier = storage.getItem(K.verifier);
-      const state = storage.getItem(K.state);
-      storage.removeItem(K.verifier);
-      storage.removeItem(K.state);
-      deps.replaceUrl(deps.location().pathname);
-      if (!verifier || !state || url.searchParams.get('state') !== state) { error = 'The sign-in answer did not match this browser tab, so it was ignored. Start the sign-in again.'; return 'error'; }
-      try {
-        save(await tokenRequest({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri() }));
-        error = null;
-        return 'signed-in';
-      } catch (e) { error = e instanceof Error ? e.message : 'The sign-in could not be completed.'; return 'error'; }
+    handleRedirect() {
+      redirect ??= handleReturn();
+      return redirect;
     },
 
     async accessToken() {
