@@ -31,10 +31,18 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(database, config.api_key).with_frame_store(std::env::var_os("HELQIX_FRAME_STORE").map(Into::into))
         .with_run_metadata_in_postgres(std::env::var("HELQIX_RUN_METADATA").map_or(true, |v| v != "files"))
         .with_mirror(helqix_api::mirror::ObjectMirror::from_env()?)
-        .with_oidc(oidc_from_env()?)
+        .with_oidc(oidc_from_env().await?)
         .with_battery(helqix_api::battery_run::BatteryConfig::from_vars(|k| std::env::var(k).ok()).map_err(anyhow::Error::msg)?)
         .with_fmu(helqix_api::fmu_run::FmuConfig::from_vars(|k| std::env::var(k).ok()).map_err(anyhow::Error::msg)?)
         .with_ollama(std::env::var("HELQIX_OLLAMA_MODEL").ok().map(|m| (std::env::var("HELQIX_OLLAMA_HOST").unwrap_or_else(|_| "127.0.0.1:11434".into()), m)));
+    if let (Some(oidc), true) = (state.oidc.clone(), std::env::var_os("HELQIX_OIDC_JWKS_URL").is_some()) {
+        // Drop keys the provider has retired even when no token names an unknown key.
+        tokio::spawn(async move {
+            let mut every = tokio::time::interval(Duration::from_secs(15 * 60));
+            every.tick().await;
+            loop { every.tick().await; oidc.refresh().await; }
+        });
+    }
     let app = routes::router(state, &config.allowed_origins, config.request_timeout)
         .context("could not configure API routes")?;
     let listener = tokio::net::TcpListener::bind(config.listen_addr)
@@ -90,14 +98,17 @@ async fn shutdown_signal() {
 
 /// `HELQIX_OIDC_ISSUER`, `HELQIX_OIDC_AUDIENCE` and `HELQIX_OIDC_JWKS_FILE` together turn on user sign-in; none turns it off;
 /// a partial setting is an error so a typo cannot silently leave sign-in off.
-fn oidc_from_env() -> anyhow::Result<Option<helqix_api::auth::Oidc>> {
+async fn oidc_from_env() -> anyhow::Result<Option<helqix_api::auth::Oidc>> {
     let get = |name: &str| std::env::var(name).ok();
-    match (get("HELQIX_OIDC_ISSUER"), get("HELQIX_OIDC_AUDIENCE"), get("HELQIX_OIDC_JWKS_FILE")) {
-        (None, None, None) => Ok(None),
-        (Some(issuer), Some(audience), Some(file)) => {
+    match (get("HELQIX_OIDC_ISSUER"), get("HELQIX_OIDC_AUDIENCE"), get("HELQIX_OIDC_JWKS_FILE"), get("HELQIX_OIDC_JWKS_URL")) {
+        (None, None, None, None) => Ok(None),
+        (Some(issuer), Some(audience), Some(file), None) => {
             let jwks = std::fs::read_to_string(&file).with_context(|| format!("could not read {file}"))?;
             helqix_api::auth::Oidc::from_jwks_json(&issuer, &audience, &jwks).map(Some).map_err(anyhow::Error::msg)
         }
-        _ => anyhow::bail!("set all of HELQIX_OIDC_ISSUER, HELQIX_OIDC_AUDIENCE and HELQIX_OIDC_JWKS_FILE, or none"),
+        (Some(issuer), Some(audience), None, Some(url)) => {
+            helqix_api::auth::Oidc::from_url(&issuer, &audience, &url, Duration::from_secs(30)).await.map(Some).map_err(anyhow::Error::msg)
+        }
+        _ => anyhow::bail!("set HELQIX_OIDC_ISSUER, HELQIX_OIDC_AUDIENCE and exactly one of HELQIX_OIDC_JWKS_FILE or HELQIX_OIDC_JWKS_URL, or none of them"),
     }
 }
