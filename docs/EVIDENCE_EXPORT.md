@@ -8,7 +8,7 @@
 { "requirement": { "name": "stay above ground", "variable": "y", "comparator": "atLeast", "threshold": 0 }, "subject": "optional one line" }
 ```
 
-`variable` is one of the run's variables (`x y z vx vy vz` for the built-in engine); `comparator` is `atLeast` or `atMost`. An unknown variable answers 422 and names the known ones.
+`variable` is one of the run's variables (`x y z vx vy vz` for the built-in engine); `comparator` is `atLeast` (>=), `atMost` (<=), `above` (>) or `below` (<): a strict limit is broken by a value that only equals it. A value that is not a number breaks any requirement. An unknown variable answers 422 and names the known ones.
 
 ## What a run must be
 

@@ -15,9 +15,8 @@ use std::path::PathBuf;
 
 use axum::{Json, extract::{Extension, Path, State}, http::{HeaderValue, header}, response::{IntoResponse, Response}};
 use ed25519_dalek::SigningKey;
-use helqix_evidence_pack::{Declared, PackError, attest, public_key_hex, run_files, write_package};
+use helqix_evidence_pack::{Bound, Declared, PackError, attest, public_key_hex, run_files, write_package};
 use helqix_frames::FrameStore;
-use helqix_freeze::Comparator;
 use serde::Deserialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -72,7 +71,7 @@ pub async fn key(State(state): State<AppState>) -> Result<Json<serde_json::Value
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-enum Cmp { AtLeast, AtMost }
+enum Cmp { AtLeast, AtMost, Above, Below }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -125,8 +124,8 @@ pub async fn export(State(state): State<AppState>, Extension(who): Extension<Ide
     };
     if let Some(m) = &state.mirror { m.ensure(&dir, &id).await?; }
 
-    let (run_id, comparator, req) = (id.clone(), match r.comparator { Cmp::AtLeast => Comparator::AtLeast, Cmp::AtMost => Comparator::AtMost }, (r.name.clone(), r.variable.clone(), r.threshold));
-    let zip = tokio::task::spawn_blocking(move || build(&cfg, &dir, &run_id, &to_spec(&params), comparator, req, &subject)).await.map_err(|_| ApiError::Internal)??;
+    let (run_id, bound, req) = (id.clone(), match r.comparator { Cmp::AtLeast => Bound::AtLeast, Cmp::AtMost => Bound::AtMost, Cmp::Above => Bound::Above, Cmp::Below => Bound::Below }, (r.name.clone(), r.variable.clone(), r.threshold));
+    let zip = tokio::task::spawn_blocking(move || build(&cfg, &dir, &run_id, &to_spec(&params), bound, req, &subject)).await.map_err(|_| ApiError::Internal)??;
 
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"evidence-{id}.zip\"")).map_err(|_| ApiError::Internal)?;
     Ok(([(header::CONTENT_TYPE, HeaderValue::from_static("application/zip")), (header::CONTENT_DISPOSITION, disposition)], zip).into_response())
@@ -135,7 +134,7 @@ pub async fn export(State(state): State<AppState>, Extension(who): Extension<Ide
 struct TempDir(PathBuf);
 impl Drop for TempDir { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); } }
 
-fn build(cfg: &EvidenceConfig, frames_dir: &std::path::Path, run_id: &str, spec: &helqix_freeze::RunSpec, comparator: Comparator, req: (String, String, f64), subject: &str) -> Result<Vec<u8>, ApiError> {
+fn build(cfg: &EvidenceConfig, frames_dir: &std::path::Path, run_id: &str, spec: &helqix_freeze::RunSpec, bound: Bound, req: (String, String, f64), subject: &str) -> Result<Vec<u8>, ApiError> {
     let store = FrameStore::open(frames_dir).map_err(map)?;
     let run = store.load(run_id).map_err(map)?;
     let (name, variable, threshold) = req;
@@ -144,7 +143,7 @@ fn build(cfg: &EvidenceConfig, frames_dir: &std::path::Path, run_id: &str, spec:
         return Err(ApiError::Rejected(format!("this run has no variable {variable:?}; its variables are {}", known.join(", "))));
     };
     let frames = std::fs::read(store.frames_path(&run.frames_blake3)).map_err(|e| { tracing::error!(error = %e, "stored frames could not be read"); ApiError::Internal })?;
-    let declared = Declared { name, variable: index, variable_name: variable, unit: run.meta.variables[index].unit.clone(), comparator, threshold };
+    let declared = Declared { name, variable: index, variable_name: variable, unit: run.meta.variables[index].unit.clone(), bound, threshold };
     let (files, statement) = run_files(spec, &declared, &run.meta.final_link, frames, subject).map_err(pack_error)?;
 
     let temp = TempDir(std::env::temp_dir().join(format!("helqix-evidence-{}", uuid::Uuid::new_v4())));

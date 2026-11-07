@@ -2,9 +2,9 @@
 use std::{fs, path::PathBuf};
 
 use ed25519_dalek::SigningKey;
-use helqix_evidence_pack::{public_key_hex, run_files, write_package, Declared};
+use helqix_evidence_pack::{public_key_hex, run_files, write_package, Bound, Declared};
 use helqix_evidence_verify::verify_package;
-use helqix_freeze::{chain_genesis, run, Comparator, PointMassSpec, RunSpec};
+use helqix_freeze::{chain_genesis, run, PointMassSpec, RunSpec};
 
 fn tmp(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("helqix-runpack-{}-{name}", std::process::id()));
@@ -19,7 +19,7 @@ fn spec() -> RunSpec {
         start_seconds: 0.0, end_seconds: 4.0, step_seconds: 0.001, initial_state: vec![0.0, 20.0, 0.0, 3.0, 0.0, 0.0], seeds: vec![],
     }
 }
-fn declared(threshold: f64) -> Declared { Declared { name: "stay above ground".into(), variable: 1, variable_name: "y".into(), unit: "m".into(), comparator: Comparator::AtLeast, threshold } }
+fn declared(threshold: f64) -> Declared { Declared { name: "stay above ground".into(), variable: 1, variable_name: "y".into(), unit: "m".into(), bound: Bound::AtLeast, threshold } }
 fn final_link() -> String { let _ = chain_genesis(&spec()); run(&spec()).unwrap().chain.last().cloned().unwrap() }
 
 fn build(name: &str, threshold: f64) -> (PathBuf, serde_json::Value) {
@@ -103,4 +103,37 @@ fn an_outcome_that_lists_a_failure_while_the_statement_says_none_is_refused() {
     f.bytes = serde_json::to_vec_pretty(&v).unwrap();
     write_package(&dir, files, &statement, "dev-test", "2026-11-07T00:00:00Z", &key()).unwrap();
     assert!(!verify_package(&dir, &public_key_hex(&key())).pass);
+}
+
+fn with_bound(variable: usize, name: &str, bound: Bound, threshold: f64) -> Declared { Declared { name: "r".into(), variable, variable_name: name.into(), unit: "".into(), bound, threshold } }
+fn failure_index(d: &Declared) -> Option<u64> {
+    let (files, _) = run_files(&spec(), d, &final_link(), b"p".to_vec(), "s").unwrap();
+    let f = files.iter().find(|f| f.path == "requirement_outcome.json").unwrap();
+    serde_json::from_slice::<serde_json::Value>(&f.bytes).unwrap()["failure"]["index"].as_u64()
+}
+
+#[test]
+fn a_strict_limit_is_broken_by_a_value_that_only_equals_it() {
+    // y starts at exactly 20 m: "y > 20" is broken at the first sample, "y >= 20" is not (it falls later).
+    assert_eq!(failure_index(&with_bound(1, "y", Bound::Above, 20.0)), Some(0));
+    assert!(failure_index(&with_bound(1, "y", Bound::AtLeast, 20.0)).unwrap() > 0);
+    // vx starts at exactly 3 m/s and only falls: "vx < 3" is broken at the first sample, "vx <= 3" holds throughout.
+    assert_eq!(failure_index(&with_bound(3, "vx", Bound::Below, 3.0)), Some(0));
+    assert_eq!(failure_index(&with_bound(3, "vx", Bound::AtMost, 3.0)), None);
+}
+
+#[test]
+fn strict_requirements_give_packages_the_verifier_passes() {
+    for (variable, bound, threshold) in [(1usize, Bound::Above, 20.0), (3, Bound::Below, 3.0), (3, Bound::AtMost, 3.0)] {
+        let dir = tmp(&format!("strict-{variable}-{threshold}-{bound:?}"));
+        let (files, statement) = run_files(&spec(), &with_bound(variable, "v", bound, threshold), &final_link(), b"p".to_vec(), "s").unwrap();
+        write_package(&dir, files, &statement, "dev-test", "2026-11-07T00:00:00Z", &key()).unwrap();
+        let report = verify_package(&dir, &public_key_hex(&key()));
+        assert!(report.pass, "{bound:?}: {:?}", report.reasons);
+    }
+}
+
+#[test]
+fn a_variable_the_run_does_not_have_is_refused() {
+    assert!(run_files(&spec(), &with_bound(9, "nope", Bound::AtLeast, 0.0), &final_link(), b"p".to_vec(), "s").is_err());
 }

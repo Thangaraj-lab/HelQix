@@ -189,9 +189,20 @@ pub fn reference_files() -> Result<(Vec<PackageFile>, Statement), PackError> {
     Ok((files, statement))
 }
 
-/// A requirement the user declared on one variable of a run (a limit the variable must stay within).
+/// What a declared requirement says the variable must do at every recorded sample.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bound { AtLeast, AtMost, Above, Below }
+
+impl Bound {
+    fn holds(self, value: f64, threshold: f64) -> bool {
+        match self { Self::AtLeast => value >= threshold, Self::AtMost => value <= threshold, Self::Above => value > threshold, Self::Below => value < threshold }
+    }
+    fn label(self) -> &'static str { match self { Self::AtLeast => "at_least", Self::AtMost => "at_most", Self::Above => "above", Self::Below => "below" } }
+}
+
+/// A requirement the user declared on one variable of a run (a limit the variable must stay within). A value that is not a number breaks it.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Declared { pub name: String, pub variable: usize, pub variable_name: String, pub unit: String, pub comparator: Comparator, pub threshold: f64 }
+pub struct Declared { pub name: String, pub variable: usize, pub variable_name: String, pub unit: String, pub bound: Bound, pub threshold: f64 }
 
 /// The files and statement for a stored run of the built-in engine (Bitwise). The run is executed again from its parameters and must end on
 /// the stored final link: a stored run that a re-run does not reproduce gets no evidence. The freeze is taken at the first failure of the declared
@@ -200,20 +211,20 @@ pub fn run_files(spec: &RunSpec, declared: &Declared, stored_final_link: &str, f
     let parent = run(spec).map_err(build)?;
     let final_hash = parent.chain.last().cloned().ok_or_else(|| build("empty run"))?;
     if final_hash != stored_final_link { return Err(build("a re-run of the stored parameters does not end on the stored final state hash, so no evidence is issued")); }
-    let limit = StateLimit { name: declared.name.clone(), variable: declared.variable, comparator: declared.comparator, threshold: declared.threshold };
-    let failure = detect_failure(&parent, &limit);
+    if declared.variable >= parent.samples.first().map_or(0, |s| s.state.len()) { return Err(build("the declared variable is not a state variable of this run")); }
+    // The first recorded sample that breaks the requirement (strict or not, as declared).
+    let failure = parent.samples.iter().find(|s| !declared.bound.holds(s.state[declared.variable], declared.threshold)).map(|s| (s.index, s.time_seconds, s.state[declared.variable]));
     let (index, trigger) = match &failure {
-        Some(f) => (f.index, FreezeTrigger::Failure(f.clone())),
+        Some((i, _, _)) => (*i, FreezeTrigger::RequirementViolation(format!("{}: first sample that is not {} {}", declared.name, declared.bound.label().replace('_', " "), declared.threshold))),
         None => { let last = parent.samples.len() - 1; (last, FreezeTrigger::TimeMarker(parent.samples[last].time_seconds)) }
     };
     let frozen = freeze(spec, &parent, index, trigger).map_err(build)?;
     let to_bytes = |v: &Value| serde_json::to_vec_pretty(v).map_err(build);
-    let comparator = match declared.comparator { Comparator::AtLeast => "at_least", Comparator::AtMost => "at_most" };
-    let outcome = json!({"requirement": declared.name, "variable": declared.variable_name, "unit": declared.unit, "comparator": comparator, "threshold": declared.threshold,
+    let outcome = json!({"requirement": declared.name, "variable": declared.variable_name, "unit": declared.unit, "comparator": declared.bound.label(), "threshold": declared.threshold,
         "satisfied": failure.is_none(),
-        "failure": failure.as_ref().map(|f| json!({"index": f.index, "time_seconds": f.time_seconds, "value": f.value}))});
+        "failure": failure.map(|(i, t, v)| json!({"index": i, "time_seconds": t, "value": v}))});
     let (verdict_text, reason) = match &failure {
-        Some(f) => (format!("Requirement '{}' is violated at t = {} s in the model.", declared.name, f.time_seconds),
+        Some((_, t, _)) => (format!("Requirement '{}' is violated at t = {} s in the model.", declared.name, t),
                     "The declared requirement is violated in the model. The model and the requirement are the user's; no measured data was compared, so nothing here is validated. No cause is claimed."),
         None => (format!("Requirement '{}' holds on every recorded sample of the model.", declared.name),
                  "The declared requirement holds on every recorded sample of the model. The model and the requirement are the user's; no measured data was compared, so nothing here is validated."),
@@ -228,7 +239,7 @@ pub fn run_files(spec: &RunSpec, declared: &Declared, stored_final_link: &str, f
     let statement = Statement {
         subject: subject.to_owned(),
         context_of_use: "A recorded run of the built-in point-mass engine against a requirement the user declared; not a validated physical prediction.".into(),
-        determinism: "Bitwise".into(), verdict: verdict_text, label: "NotValidated".into(), final_state_hash: final_hash, failure_index: failure.map(|f| f.index),
+        determinism: "Bitwise".into(), verdict: verdict_text, label: "NotValidated".into(), final_state_hash: final_hash, failure_index: failure.map(|(i, _, _)| i),
     };
     Ok((files, statement))
 }
