@@ -55,7 +55,7 @@ fn main() -> ExitCode {
         let statement = Statement { subject: "PyBaMM SPM / Chen2020 adapter reference run: 5 A for 1800 s from 4.18 V".into(),
             context_of_use: "Adapter conformance and provenance demonstration; not a validated physical prediction.".into(), determinism: "Tolerance".into(),
             verdict: format!("Conformance {}; charge-conservation cross-check max error {cross:e} A.h; declared tolerance {:e} V", if conf.pass { "PASS" } else { "FAIL" }, variation.declared_tolerance_v),
-            label: "NotValidated".into(), final_state_hash: r.output_sha256.clone(), failure_index: 0 };
+            label: "NotValidated".into(), final_state_hash: r.output_sha256.clone(), failure_index: Some(0) };
         let s = write_package(Path::new(out), files, &statement, "helqix-dev-windows", at, &load_key(key)?).map_err(|e| e.to_string())?;
         println!("package {out}: merkle root {}, public key {}", s.merkle_root, s.public_key);
         Ok(conf.pass && cross < 1e-6)

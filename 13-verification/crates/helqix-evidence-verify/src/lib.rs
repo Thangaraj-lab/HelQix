@@ -149,8 +149,15 @@ pub fn verify_package(dir: &Path, trusted_public_key_hex: &str) -> VerifyReport 
     check("final state hash consistent", final_ok, "final state hash in the state chain does not match the chain end or the statement".into(), &mut reasons);
     let outcome = load("requirement_outcome").unwrap_or(Value::Null);
     let freeze = load("freeze").unwrap_or(Value::Null);
-    let index_ok = outcome["failure"]["index"].is_u64() && outcome["failure"]["index"] == statement["failure_index"] && freeze["index"] == statement["failure_index"];
-    check("failure index consistent", index_ok, "failure index differs between requirement outcome, freeze and statement".into(), &mut reasons);
+    // A requirement that failed: the failure index is the same in the outcome, the freeze and the statement. A requirement that holds
+    // (`satisfied` true): no failure anywhere, and the freeze is the last recorded sample.
+    let index_ok = if outcome["satisfied"] == true {
+        let last = chain["samples"].as_u64().and_then(|n| n.checked_sub(1));
+        outcome["failure"].is_null() && statement["failure_index"].is_null() && freeze["index"].is_u64() && freeze["index"].as_u64() == last
+    } else {
+        outcome["failure"]["index"].is_u64() && outcome["failure"]["index"] == statement["failure_index"] && freeze["index"] == statement["failure_index"]
+    };
+    check("failure index consistent", index_ok, "failure index differs between requirement outcome, freeze and statement (or a holding requirement does not end at the last sample)".into(), &mut reasons);
 
     VerifyReport { pass: reasons.is_empty(), checks, reasons }
 }

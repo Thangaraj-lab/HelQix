@@ -26,7 +26,7 @@ pub struct PackageFile { pub path: String, pub role: String, pub bytes: Vec<u8> 
 
 /// What the package claims (written into the manifest and therefore signed).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Statement { pub subject: String, pub context_of_use: String, pub determinism: String, pub verdict: String, pub label: String, pub final_state_hash: String, pub failure_index: usize }
+pub struct Statement { pub subject: String, pub context_of_use: String, pub determinism: String, pub verdict: String, pub label: String, pub final_state_hash: String, /** `None`: the declared requirement holds, nothing failed. */ pub failure_index: Option<usize> }
 
 /// Result of writing a package.
 #[derive(Debug, Clone, PartialEq)]
@@ -184,7 +184,51 @@ pub fn reference_files() -> Result<(Vec<PackageFile>, Statement), PackError> {
         verdict: format!("Requirement 'stay above ground' violated at t = {} s in the model; candidate cause velocity_y -> height supported by intervention (model-causal).", failure.time_seconds),
         label: "NotValidated".into(),
         final_state_hash: final_hash,
-        failure_index: failure.index,
+        failure_index: Some(failure.index),
+    };
+    Ok((files, statement))
+}
+
+/// A requirement the user declared on one variable of a run (a limit the variable must stay within).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Declared { pub name: String, pub variable: usize, pub variable_name: String, pub unit: String, pub comparator: Comparator, pub threshold: f64 }
+
+/// The files and statement for a stored run of the built-in engine (Bitwise). The run is executed again from its parameters and must end on
+/// the stored final link: a stored run that a re-run does not reproduce gets no evidence. The freeze is taken at the first failure of the declared
+/// requirement, or at the last sample when it holds. `frames` are the stored frame file's bytes, included as they are. No causal claim is made.
+pub fn run_files(spec: &RunSpec, declared: &Declared, stored_final_link: &str, frames: Vec<u8>, subject: &str) -> Result<(Vec<PackageFile>, Statement), PackError> {
+    let parent = run(spec).map_err(build)?;
+    let final_hash = parent.chain.last().cloned().ok_or_else(|| build("empty run"))?;
+    if final_hash != stored_final_link { return Err(build("a re-run of the stored parameters does not end on the stored final state hash, so no evidence is issued")); }
+    let limit = StateLimit { name: declared.name.clone(), variable: declared.variable, comparator: declared.comparator, threshold: declared.threshold };
+    let failure = detect_failure(&parent, &limit);
+    let (index, trigger) = match &failure {
+        Some(f) => (f.index, FreezeTrigger::Failure(f.clone())),
+        None => { let last = parent.samples.len() - 1; (last, FreezeTrigger::TimeMarker(parent.samples[last].time_seconds)) }
+    };
+    let frozen = freeze(spec, &parent, index, trigger).map_err(build)?;
+    let to_bytes = |v: &Value| serde_json::to_vec_pretty(v).map_err(build);
+    let comparator = match declared.comparator { Comparator::AtLeast => "at_least", Comparator::AtMost => "at_most" };
+    let outcome = json!({"requirement": declared.name, "variable": declared.variable_name, "unit": declared.unit, "comparator": comparator, "threshold": declared.threshold,
+        "satisfied": failure.is_none(),
+        "failure": failure.as_ref().map(|f| json!({"index": f.index, "time_seconds": f.time_seconds, "value": f.value}))});
+    let (verdict_text, reason) = match &failure {
+        Some(f) => (format!("Requirement '{}' is violated at t = {} s in the model.", declared.name, f.time_seconds),
+                    "The declared requirement is violated in the model. The model and the requirement are the user's; no measured data was compared, so nothing here is validated. No cause is claimed."),
+        None => (format!("Requirement '{}' holds on every recorded sample of the model.", declared.name),
+                 "The declared requirement holds on every recorded sample of the model. The model and the requirement are the user's; no measured data was compared, so nothing here is validated."),
+    };
+    let files = vec![
+        PackageFile { path: "freeze.json".into(), role: "freeze".into(), bytes: freeze_bytes(&frozen)? },
+        PackageFile { path: "state_chain.json".into(), role: "state_chain".into(), bytes: to_bytes(&json!({"genesis": parent.genesis, "samples": parent.samples.len(), "determinism": parent.determinism.label(), "links": parent.chain, "final": final_hash}))? },
+        PackageFile { path: "requirement_outcome.json".into(), role: "requirement_outcome".into(), bytes: to_bytes(&outcome)? },
+        PackageFile { path: "verdict.json".into(), role: "verdict".into(), bytes: to_bytes(&json!({"label": "NotValidated", "causal_grade": null, "reason": reason, "validation_evidence": null}))? },
+        PackageFile { path: "frames.parquet".into(), role: "frames".into(), bytes: frames },
+    ];
+    let statement = Statement {
+        subject: subject.to_owned(),
+        context_of_use: "A recorded run of the built-in point-mass engine against a requirement the user declared; not a validated physical prediction.".into(),
+        determinism: "Bitwise".into(), verdict: verdict_text, label: "NotValidated".into(), final_state_hash: final_hash, failure_index: failure.map(|f| f.index),
     };
     Ok((files, statement))
 }
