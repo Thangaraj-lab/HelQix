@@ -246,7 +246,10 @@ export interface EvidenceKeyInfo {
   note: string;
 }
 
-export interface EvidenceDownload { blob: Blob; filename: string }
+/** The key that signed a package, as the server sent it beside the file (the key the package names, not whatever key the service holds later). */
+export type EvidenceSigner = Pick<EvidenceKeyInfo, 'publicKey' | 'keyId' | 'signer' | 'keyKind'>;
+
+export interface EvidenceDownload { blob: Blob; filename: string; signedBy: EvidenceSigner | null }
 
 export interface EngineClient {
   createProject(): Promise<Project>;

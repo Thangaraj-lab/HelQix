@@ -1,4 +1,4 @@
-import type { EngineClient, EvidenceKeyInfo, EvidenceRequirement } from '../contracts';
+import type { EngineClient, EvidenceRequirement, EvidenceSigner } from '../contracts';
 import type { Requirement } from './requirements';
 
 // Signed evidence is built and signed on the server (helqix-evidence-pack); the browser asks for it and saves the ZIP it gets back.
@@ -11,22 +11,20 @@ export function toEvidenceRequirement(r: Requirement): EvidenceRequirement {
   return { name, variable: r.variable, comparator, threshold: r.limit };
 }
 
-export interface ExportedEvidence { filename: string; bytes: number; key: EvidenceKeyInfo | null; keyError: string | null }
+/** `signedBy` is the key the server sent beside this very file (null when it sent none: then the key to trust is the one inside the ZIP). */
+export interface ExportedEvidence { filename: string; bytes: number; signedBy: EvidenceSigner | null }
 
-/** Asks the server for the package, hands the file to `save`, and reads which key signed it. The file is saved even when the key cannot be read. */
+/** Asks the server for the package and hands the file to `save`. Which key signed it comes with the file, never from a second request. */
 export async function exportEvidence(
-  client: Pick<EngineClient, 'exportEvidence' | 'evidenceKey'>,
+  client: Pick<EngineClient, 'exportEvidence'>,
   runId: string,
   requirement: Requirement,
   save: (blob: Blob, filename: string) => void
 ): Promise<ExportedEvidence> {
   if (!client.exportEvidence) throw new Error('This engine cannot export signed evidence.');
-  const { blob, filename } = await client.exportEvidence(runId, toEvidenceRequirement(requirement));
+  const { blob, filename, signedBy } = await client.exportEvidence(runId, toEvidenceRequirement(requirement));
   save(blob, filename);
-  let key: EvidenceKeyInfo | null = null;
-  let keyError: string | null = null;
-  try { key = client.evidenceKey ? await client.evidenceKey() : null; } catch (e) { keyError = e instanceof Error ? e.message : String(e); }
-  return { filename, bytes: blob.size, key, keyError };
+  return { filename, bytes: blob.size, signedBy };
 }
 
 /** Saves a file through the browser's download. */

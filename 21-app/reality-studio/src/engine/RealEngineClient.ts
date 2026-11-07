@@ -117,7 +117,11 @@ export class RealEngineClient implements EngineClient {
     });
     if (!res.ok) this.refuse(res, await res.text(), token);
     const filename = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? `evidence-${runId}.zip`;
-    return { blob: await res.blob(), filename };
+    const h = (n: string) => res.headers.get(n);
+    const [keyId, publicKey, keyKind, signer] = [h('x-helqix-key-id'), h('x-helqix-public-key'), h('x-helqix-key-kind'), h('x-helqix-signer')];
+    const kind: 'test' | 'production' | null = keyKind === 'test' ? 'test' : keyKind === 'production' ? 'production' : null;
+    const signedBy = keyId && publicKey && signer && kind ? { keyId, publicKey, keyKind: kind, signer } : null;
+    return { blob: await res.blob(), filename, signedBy };
   }
 
   async evidenceKey(): Promise<EvidenceKeyInfo> {

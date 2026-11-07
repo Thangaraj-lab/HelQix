@@ -51,7 +51,8 @@ impl EvidenceConfig {
         let seed = unhex32(&text).ok_or("the evidence key file must hold exactly 64 hex characters (a 32-byte Ed25519 seed)")?;
         let signer = get("HELQIX_EVIDENCE_SIGNER").unwrap_or_else(|| "helqix-evidence-service".into());
         let kind = get("HELQIX_EVIDENCE_KEY_KIND").unwrap_or_else(|| "test".into());
-        if signer.is_empty() || signer.len() > 120 || signer.contains(['\n', '\r']) { return Err("HELQIX_EVIDENCE_SIGNER must be 1 to 120 characters on one line".into()); }
+        // The name travels in a response header, so it is plain printable ASCII.
+        if signer.is_empty() || signer.len() > 120 || !signer.chars().all(|c| c.is_ascii_graphic() || c == ' ') { return Err("HELQIX_EVIDENCE_SIGNER must be 1 to 120 printable ASCII characters on one line".into()); }
         if !matches!(kind.as_str(), "test" | "production") { return Err("HELQIX_EVIDENCE_KEY_KIND must be test or production".into()); }
         Ok(Some(Self::new(seed, &signer, &kind)))
     }
@@ -104,6 +105,8 @@ pub async fn export(State(state): State<AppState>, Extension(who): Extension<Ide
     let specs = state.spec_store().ok_or(ApiError::Unavailable)?;
     if !who.is_service() && !specs.visible_to(who.owner()).await?.contains(&id) { return Err(ApiError::NotFound); }
 
+    // One export at a time per slot: each re-runs the simulation, reads the frames and signs.
+    let _slot = state.evidence_gate.clone().try_acquire_owned().map_err(|_| ApiError::Busy)?;
     let r = &body.requirement;
     if !one_line(&r.name, 120) || !one_line(&r.variable, 80) { return Err(ApiError::BadRequest("the requirement needs a name (at most 120 characters) and a variable, each on one line".into())); }
     if !r.threshold.is_finite() { return Err(ApiError::BadRequest("the threshold must be a finite number".into())); }
@@ -125,11 +128,25 @@ pub async fn export(State(state): State<AppState>, Extension(who): Extension<Ide
     if let Some(m) = &state.mirror { m.ensure(&dir, &id).await?; }
 
     let (run_id, bound, req) = (id.clone(), match r.comparator { Cmp::AtLeast => Bound::AtLeast, Cmp::AtMost => Bound::AtMost, Cmp::Above => Bound::Above, Cmp::Below => Bound::Below }, (r.name.clone(), r.variable.clone(), r.threshold));
+    let signed_by = SignedBy { key_id: cfg.key_id(), public_key: public_key_hex(&cfg.key), kind: cfg.kind.clone(), signer: cfg.signer.clone() };
     let zip = tokio::task::spawn_blocking(move || build(&cfg, &dir, &run_id, &to_spec(&params), bound, req, &subject)).await.map_err(|_| ApiError::Internal)??;
 
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"evidence-{id}.zip\"")).map_err(|_| ApiError::Internal)?;
-    Ok(([(header::CONTENT_TYPE, HeaderValue::from_static("application/zip")), (header::CONTENT_DISPOSITION, disposition)], zip).into_response())
+    // The key that signed this very file travels with it, so a reader never has to ask the service afterwards (the service's key could have changed).
+    let h = |s: &str| HeaderValue::from_str(s).map_err(|_| ApiError::Internal);
+    let headers = [
+        (header::CONTENT_TYPE, HeaderValue::from_static("application/zip")),
+        (header::CONTENT_DISPOSITION, disposition),
+        (axum::http::HeaderName::from_static("x-helqix-key-id"), h(&signed_by.key_id)?),
+        (axum::http::HeaderName::from_static("x-helqix-public-key"), h(&signed_by.public_key)?),
+        (axum::http::HeaderName::from_static("x-helqix-key-kind"), h(&signed_by.kind)?),
+        (axum::http::HeaderName::from_static("x-helqix-signer"), h(&signed_by.signer)?),
+    ];
+    Ok((headers, zip).into_response())
 }
+
+/// Who signed, as it is sent beside the file.
+struct SignedBy { key_id: String, public_key: String, kind: String, signer: String }
 
 struct TempDir(PathBuf);
 impl Drop for TempDir { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); } }
@@ -183,6 +200,9 @@ mod tests {
             assert!(EvidenceConfig::from_vars(get(f.display().to_string())).is_err(), "{bad:?}");
         }
         assert!(EvidenceConfig::from_vars(|_| None).unwrap().is_none(), "no variable: export is off");
+        let get_signer = |signer: &'static str, p: String| move |k: &str| match k { "HELQIX_EVIDENCE_KEY_FILE" => Some(p.clone()), "HELQIX_EVIDENCE_SIGNER" => Some(signer.to_owned()), _ => None };
+        assert!(EvidenceConfig::from_vars(get_signer("Acme Signing 1", good.display().to_string())).is_ok());
+        for bad in ["naïve", "two\nlines", "", "tab\there"] { assert!(EvidenceConfig::from_vars(get_signer(bad, good.display().to_string())).is_err(), "{bad:?}"); }
         assert!(EvidenceConfig::from_vars(get(dir.join("missing.txt").display().to_string())).is_err());
     }
 }

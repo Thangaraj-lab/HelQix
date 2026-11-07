@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import type { EngineClient } from '../../contracts';
 import type { Requirement } from '../../app/requirements';
@@ -6,10 +6,12 @@ import { exportEvidence, ExportedEvidence, saveBlob, verifierCommand } from '../
 import { Button, SectionLabel } from '../../components/ui/UiKit';
 
 export interface EvidenceExportPanelProps {
-  client: Pick<EngineClient, 'exportEvidence' | 'evidenceKey'>;
+  client: Pick<EngineClient, 'exportEvidence'>;
   /** Null: there is no stored run to package. */
   runId: string | null;
   requirements: Requirement[];
+  /** The variables the run recorded; when given, a requirement on any other variable is reported here instead of being sent to fail. */
+  variables?: string[];
   /** The mock engine has no signing service. */
   engineIsReal: boolean;
   save?: (blob: Blob, filename: string) => void;
@@ -18,22 +20,26 @@ export interface EvidenceExportPanelProps {
 const opWord = { '<': 'below', '<=': 'at most', '>': 'above', '>=': 'at least' } as const;
 
 /** Why export is not possible now, in words; null when it is. */
-export function whyNotExportable(p: Pick<EvidenceExportPanelProps, 'client' | 'runId' | 'requirements' | 'engineIsReal'>): string | null {
+export function whyNotExportable(p: Pick<EvidenceExportPanelProps, 'client' | 'runId' | 'requirements' | 'engineIsReal'> & { variables?: string[]; requirement?: Requirement | null }): string | null {
   if (!p.engineIsReal || !p.client.exportEvidence) return 'Signed export needs the real engine. This build is running the mock engine, which has no signing service.';
   if (!p.runId) return 'There is no stored run to package. Run a simulation first.';
   if (p.requirements.length === 0) return 'Define a requirement first: the package states whether it held in the run.';
+  if (p.requirement && p.variables && p.variables.length > 0 && !p.variables.includes(p.requirement.variable)) return `This run did not record ${p.requirement.variable}, so it cannot state whether ${p.requirement.id} held. It recorded ${p.variables.join(', ')}.`;
   return null;
 }
 
-export const EvidenceExportPanel: React.FC<EvidenceExportPanelProps> = ({ client, runId, requirements, engineIsReal, save = saveBlob }) => {
+export const EvidenceExportPanel: React.FC<EvidenceExportPanelProps> = ({ client, runId, requirements, variables, engineIsReal, save = saveBlob }) => {
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<(ExportedEvidence & { runId: string }) | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const blocked = whyNotExportable({ client, runId, requirements, engineIsReal });
   const requirement = requirements.find(r => r.id === chosen) ?? requirements[0] ?? null;
+  const blocked = whyNotExportable({ client, runId, requirements, engineIsReal, variables, requirement });
+
+  // A result belongs to the run and requirement it was made for; changing either clears it, so the sheet never says a different selection is signed.
+  useEffect(() => { setDone(null); setError(null); }, [runId, requirement?.id]);
 
   const run = async () => {
     if (!runId || !requirement) return;
@@ -54,10 +60,10 @@ export const EvidenceExportPanel: React.FC<EvidenceExportPanelProps> = ({ client
         <SectionLabel>Signature</SectionLabel>
         {done ? (
           <>
-            <p className="text-[13px] text-strong">Signed by {done.key?.signer ?? 'the evidence service'}{done.key ? `, key ${done.key.keyId}` : ''}.</p>
-            {done.key?.keyKind === 'test' && <p role="note" className="text-xs text-warn">This is a test key held by the operator. It shows origin and integrity for testing; it is not a production signature.</p>}
-            {done.keyError && <p role="alert" className="text-xs text-bad">The package was saved, but the signing key could not be read: {done.keyError}</p>}
-            {done.key && <p className="num text-[11px] text-ink break-all">Public key {done.key.publicKey}</p>}
+            {done.signedBy ? <p className="text-[13px] text-strong">Signed by {done.signedBy.signer}, key {done.signedBy.keyId}.</p> : <p className="text-[13px] text-strong">Signed by the evidence service.</p>}
+            {done.signedBy?.keyKind === 'test' && <p role="note" className="text-xs text-warn">This is a test key held by the operator. It shows origin and integrity for testing; it is not a production signature.</p>}
+            {!done.signedBy && <p role="note" className="text-xs text-warn">The server did not say which key signed this package. The key to trust is the one in trusted-public-key.txt inside the ZIP.</p>}
+            {done.signedBy && <p className="num text-[11px] text-ink break-all">Public key {done.signedBy.publicKey}</p>}
             <p className="text-xs text-muted">Saved {done.filename} ({done.bytes.toLocaleString()} bytes). Signing proves origin and integrity, not correct physics. The verdict inside says what was not validated.</p>
           </>
         ) : (

@@ -33,6 +33,10 @@ To check it, with no network and no HELQIX service:
 helqix-evidence-verify evidence-<run> --trusted-key-file trusted-public-key.txt --attestation evidence-<run>.intoto.dsse.json
 ```
 
+The response also carries the key that signed this very file in headers (`x-helqix-key-id`, `x-helqix-public-key`, `x-helqix-key-kind`, `x-helqix-signer`), so a reader never has to ask the service afterwards; the key in `trusted-public-key.txt` is the same one.
+
+At most two exports run at once; another answers **429**. Each one re-runs the simulation, reads the frames and signs.
+
 PASS means the files are exactly what the holder of that key signed. It does not mean the physics is right. `signed_at` is the server's clock, a claim by the signer.
 
 ## Who may export
@@ -44,7 +48,7 @@ The operator's service key may export any run. A user may export only a run they
 | Variable | Meaning |
 |---|---|
 | `HELQIX_EVIDENCE_KEY_FILE` | A file with 64 hex characters: an Ed25519 seed. Without it export answers 503. A malformed file stops the start. |
-| `HELQIX_EVIDENCE_SIGNER` | Name written into the signature (default `helqix-evidence-service`). |
+| `HELQIX_EVIDENCE_SIGNER` | Name written into the signature (default `helqix-evidence-service`); plain printable ASCII, one line, at most 120 characters (it is sent in a header). |
 | `HELQIX_EVIDENCE_KEY_KIND` | `test` (default) or `production`. Reported by `GET /v1/evidence/key`. |
 
 `GET /v1/evidence/key` returns the public key, key id and kind. The private key never appears in a response, a log or a package. **Until the founder decides key custody (F4) the key is a test key.**

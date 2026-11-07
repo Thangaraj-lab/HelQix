@@ -207,3 +207,38 @@ async fn a_user_exports_only_a_run_they_own_and_the_private_key_is_never_served(
     assert!(!zip.windows(seed_hex.len()).any(|w| w == seed_hex.as_bytes()), "the archive must not contain the seed");
     let _ = std::fs::remove_dir_all(&e.dir);
 }
+
+#[tokio::test]
+async fn the_key_that_signed_comes_with_the_file_and_is_the_key_the_archive_names() {
+    let Some(e) = env("headers", true).await else { eprintln!("SKIPPED: HELQIX_TEST_DATABASE_URL not set"); return };
+    let (_, run) = call(&e.app, KEY, "POST", "/v1/runs", Some(falling())).await;
+    let id = run["runId"].as_str().unwrap().to_owned();
+    let (s, headers, zip) = raw(&e.app, KEY, "POST", &format!("/v1/runs/{id}/evidence"), Some(above_ground())).await;
+    assert_eq!(s, StatusCode::OK);
+    let (out, _) = extract(&e, &zip, "headers");
+    let in_archive = std::fs::read_to_string(out.join("trusted-public-key.txt")).unwrap();
+    assert_eq!(headers["x-helqix-public-key"].to_str().unwrap(), in_archive.trim(), "the header names the key that signed this archive");
+    assert_eq!(headers["x-helqix-key-kind"], "test");
+    assert_eq!(headers["x-helqix-signer"], "helqix-test-signer");
+    let (_, k) = call(&e.app, KEY, "GET", "/v1/evidence/key", None).await;
+    assert_eq!(headers["x-helqix-key-id"].to_str().unwrap(), k["keyId"].as_str().unwrap());
+    let _ = std::fs::remove_dir_all(&e.dir);
+}
+
+#[tokio::test]
+async fn when_every_export_slot_is_taken_the_answer_is_429_not_more_work() {
+    let Some(e) = env("busy", true).await else { eprintln!("SKIPPED: HELQIX_TEST_DATABASE_URL not set"); return };
+    let (_, run) = call(&e.app, KEY, "POST", "/v1/runs", Some(falling())).await;
+    let id = run["runId"].as_str().unwrap().to_owned();
+    // A second app over the same store with no export slots at all.
+    let url = std::env::var("HELQIX_TEST_DATABASE_URL").unwrap();
+    let pool = sqlx::postgres::PgPoolOptions::new().max_connections(2).connect(&url).await.unwrap();
+    let state = AppState::new(pool, KEY).with_frame_store(Some(e.dir.clone())).with_run_metadata_in_postgres(true)
+        .with_evidence(Some(EvidenceConfig::new(SEED, "helqix-test-signer", "test"))).with_evidence_slots(0);
+    let app = routes::router(state, &["http://localhost:5173".to_owned()], std::time::Duration::from_secs(60)).unwrap();
+    let (s, _, body) = raw(&app, KEY, "POST", &format!("/v1/runs/{id}/evidence"), Some(above_ground())).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{}", String::from_utf8_lossy(&body));
+    // The slot is given back: the ordinary app still exports after a refused one.
+    assert_eq!(raw(&e.app, KEY, "POST", &format!("/v1/runs/{id}/evidence"), Some(above_ground())).await.0, StatusCode::OK);
+    let _ = std::fs::remove_dir_all(&e.dir);
+}

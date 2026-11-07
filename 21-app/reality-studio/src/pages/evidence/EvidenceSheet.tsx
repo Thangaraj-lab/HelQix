@@ -43,7 +43,7 @@ export const EvidenceSheet: React.FC<EvidenceSheetProps> = ({ isOpen, onClose })
           <p className="text-[11px] text-muted">SHA-256 over the item hashes above: a preview. The signed package has its own manifest and Merkle root, made on the server.</p>
         </section>
 
-        <EvidenceExportPanel client={engine} runId={run?.id ?? null} requirements={requirements} engineIsReal={engineMode === 'real'} />
+        <EvidenceExportPanel client={engine} runId={run?.id ?? null} requirements={requirements} variables={Object.keys(run?.frames[0]?.values ?? {})} engineIsReal={engineMode === 'real'} />
 
         <div className="flex items-center gap-2">
           <Button variant="secondary" disabled>Generate report <PreviewTag /></Button>

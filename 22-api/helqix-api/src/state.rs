@@ -27,11 +27,13 @@ pub struct AppState {
     /// FMU runs in progress are limited (each is a native-code subprocess up to its time limit); when every slot is taken the answer is 429.
     pub(crate) fmu_gate: Arc<tokio::sync::Semaphore>,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
+    /// Evidence exports in progress are limited (each re-runs the simulation and signs); when every slot is taken the answer is 429.
+    pub(crate) evidence_gate: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, battery: None, evidence: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, battery: None, evidence: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)), evidence_gate: Arc::new(tokio::sync::Semaphore::new(2)) }
     }
 
     pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
@@ -66,6 +68,12 @@ impl AppState {
 
     pub fn with_evidence(mut self, evidence: Option<crate::evidence_export::EvidenceConfig>) -> Self {
         self.evidence = evidence;
+        self
+    }
+
+    /// How many evidence exports may be in progress at once (default 2).
+    pub fn with_evidence_slots(mut self, slots: usize) -> Self {
+        self.evidence_gate = Arc::new(tokio::sync::Semaphore::new(slots));
         self
     }
 

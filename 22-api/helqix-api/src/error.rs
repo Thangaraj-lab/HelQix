@@ -54,7 +54,7 @@ impl IntoResponse for ApiError {
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", "Valid API credentials are required.".into()),
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "unavailable", "The service is temporarily unavailable.".into()),
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden", "This action is not available to your account.".into()),
-            Self::Busy => (StatusCode::TOO_MANY_REQUESTS, "busy", "The service is busy with another request of this kind (a language-model call or an FMU run). Try again in a moment.".into()),
+            Self::Busy => (StatusCode::TOO_MANY_REQUESTS, "busy", "The service is busy with another request of this kind (a language-model call, an FMU run or an evidence export). Try again in a moment.".into()),
             Self::Rejected(message) => (StatusCode::UNPROCESSABLE_ENTITY, "rejected", message.clone()),
             Self::StateConflict(message) => (StatusCode::CONFLICT, "state_conflict", message.clone()),
             Self::Database(error) => {
