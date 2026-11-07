@@ -138,6 +138,24 @@ jobs:
         run: |
           cargo test --locked -p helqix-api --test builds_api -- --nocapture 2>&1 | tee api-test.log
           ! grep -q SKIPPED api-test.log
+      - name: Evidence export through the API, then independent checks on the downloaded file (E8, must not be skipped)
+        run: |
+          mkdir -p "$RUNNER_TEMP/ev"
+          HELQIX_TEST_ZIP_OUT="$RUNNER_TEMP/ev/evidence.zip" cargo test --locked -p helqix-api --test evidence_export_api -- --nocapture 2>&1 | tee evidence-api.log
+          ! grep -q SKIPPED evidence-api.log || { echo "::error title=E8::the evidence export tests were skipped"; exit 1; }
+          test -s "$RUNNER_TEMP/ev/evidence.zip"
+          # Not this repository's ZIP reader: Python's.
+          python3 -m zipfile -t "$RUNNER_TEMP/ev/evidence.zip"
+          python3 -m zipfile -e "$RUNNER_TEMP/ev/evidence.zip" "$RUNNER_TEMP/ev/x"
+          cargo build --locked --release -p helqix-evidence-verify
+          P=$(ls -d "$RUNNER_TEMP"/ev/x/evidence-run-*/ | head -1); P=${P%/}
+          sudo unshare --net ./target/release/helqix-evidence-verify "$P" --trusted-key-file "$RUNNER_TEMP/ev/x/trusted-public-key.txt" --attestation "$P.intoto.dsse.json" | tee verify.log
+          grep -q '^PASS' verify.log
+          cp -r "$P" "$RUNNER_TEMP/ev/tampered"
+          printf 'X' | dd of="$RUNNER_TEMP/ev/tampered/frames.parquet" bs=1 seek=10 conv=notrunc
+          sudo unshare --net ./target/release/helqix-evidence-verify "$RUNNER_TEMP/ev/tampered" --trusted-key-file "$RUNNER_TEMP/ev/x/trusted-public-key.txt" | tee tamper.log || true
+          grep -q '^FAIL' tamper.log
+          ! grep -q '^PASS' tamper.log
       - name: Start the API and run the curl demonstration
         env:
           DATABASE_URL: postgres://helqix:ci-only-password@127.0.0.1:5432/helqix

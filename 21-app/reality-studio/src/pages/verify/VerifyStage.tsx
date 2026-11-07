@@ -92,7 +92,7 @@ export const VerifyStage: React.FC<VerifyStageProps> = ({ onOpenEvidenceSheet })
         </ul>
       )}
       <div className="flex items-center justify-between gap-3 pt-1 border-t border-line">
-        <p className="text-[11px] text-muted">Hashes are SHA-256 over this browser's copy of the data. Nothing is signed yet.</p>
+        <p className="text-[11px] text-muted">Hashes are SHA-256 over this browser's copy of the data. They are a preview: the signed package is made on the server, from the evidence sheet.</p>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" onClick={onOpenEvidenceSheet}>Open evidence sheet</Button>
           <Button size="sm" variant="primary" disabled>Sign and export <PreviewTag /></Button>
