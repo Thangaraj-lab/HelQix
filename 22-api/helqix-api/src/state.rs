@@ -22,6 +22,8 @@ pub struct AppState {
     pub fmu: Option<crate::fmu_run::FmuConfig>,
     /// The battery domain pack (`HELQIX_BATTERY_PYTHON`, `HELQIX_BATTERY_PACKAGE`, `HELQIX_BATTERY_LIBRARY`); a model with a battery cell cannot run (503) without it.
     pub battery: Option<crate::battery_run::BatteryConfig>,
+    /// The key that signs evidence packages (`HELQIX_EVIDENCE_KEY_FILE`); evidence export answers 503 without it.
+    pub evidence: Option<crate::evidence_export::EvidenceConfig>,
     /// FMU runs in progress are limited (each is a native-code subprocess up to its time limit); when every slot is taken the answer is 429.
     pub(crate) fmu_gate: Arc<tokio::sync::Semaphore>,
     pub(crate) model_gate: Arc<tokio::sync::Semaphore>,
@@ -29,7 +31,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(database: PgPool, api_key: impl Into<Arc<str>>) -> Self {
-        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, battery: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
+        Self { database, api_key: api_key.into(), frame_store: None, ollama: None, oidc: None, run_metadata_in_postgres: false, mirror: None, fmu: None, battery: None, evidence: None, fmu_gate: Arc::new(tokio::sync::Semaphore::new(2)), metrics: Arc::new(crate::metrics::Metrics::default()), model_gate: Arc::new(tokio::sync::Semaphore::new(1)) }
     }
 
     pub fn with_oidc(mut self, oidc: Option<crate::auth::Oidc>) -> Self {
@@ -59,6 +61,11 @@ impl AppState {
 
     pub fn with_fmu(mut self, fmu: Option<crate::fmu_run::FmuConfig>) -> Self {
         self.fmu = fmu;
+        self
+    }
+
+    pub fn with_evidence(mut self, evidence: Option<crate::evidence_export::EvidenceConfig>) -> Self {
+        self.evidence = evidence;
         self
     }
 

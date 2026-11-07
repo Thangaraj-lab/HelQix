@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         .with_oidc(oidc_from_env().await?)
         .with_battery(helqix_api::battery_run::BatteryConfig::from_vars(|k| std::env::var(k).ok()).map_err(anyhow::Error::msg)?)
         .with_fmu(helqix_api::fmu_run::FmuConfig::from_vars(|k| std::env::var(k).ok()).map_err(anyhow::Error::msg)?)
+        .with_evidence(helqix_api::evidence_export::EvidenceConfig::from_vars(|k| std::env::var(k).ok()).map_err(anyhow::Error::msg)?)
         .with_ollama(std::env::var("HELQIX_OLLAMA_MODEL").ok().map(|m| (std::env::var("HELQIX_OLLAMA_HOST").unwrap_or_else(|_| "127.0.0.1:11434".into()), m)));
     if let (Some(oidc), true) = (state.oidc.clone(), std::env::var_os("HELQIX_OIDC_JWKS_URL").is_some()) {
         // Drop keys the provider has retired even when no token names an unknown key.

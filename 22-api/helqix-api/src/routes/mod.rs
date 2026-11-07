@@ -40,6 +40,8 @@ pub fn router(state: AppState, origins: &[String], timeout: Duration) -> Result<
         .route("/v1/projects/{project_id}/runs", get(crate::model_run::project_runs))
         .route("/metrics", get(crate::metrics::expose))
         .route("/v1/branches", axum::routing::post(crate::branching::branch_run))
+        .route("/v1/runs/{id}/evidence", axum::routing::post(crate::evidence_export::export))
+        .route("/v1/evidence/key", get(crate::evidence_export::key))
         .route("/v1/runs/{id}/frames", get(frames::run_frames))
         .route("/v1/runs/{id}/frame", get(frames::get_frame))
         .route("/v1/{resource}", get(resources::list).post(resources::create))

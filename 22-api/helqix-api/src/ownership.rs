@@ -43,6 +43,9 @@ pub fn need(method: &str, path: &str) -> Need {
         ["v1", "fmus", _] if method == "GET" => Need::Nothing,
         ["v1", "packs"] if method == "GET" => Need::Nothing,
         ["v1", "runs", _, "freeze" | "frames" | "frame"] => Need::Nothing,
+        // Checked in the handler: a user may export only a run they own.
+        ["v1", "runs", _, "evidence"] if method == "POST" => Need::Nothing,
+        ["v1", "evidence", "key"] if method == "GET" => Need::Nothing,
         ["v1", kind] if KINDS.contains(kind) => Need::Nothing,
         ["v1", kind, "query"] if KINDS.contains(kind) => Need::Nothing,
         ["v1", kind, id] if KINDS.contains(kind) => Need::Owner((*id).to_owned()),
@@ -83,6 +86,10 @@ mod tests {
         assert_eq!(need("POST", "/v1/builds/X/ops"), Need::BuildOwner("X".into()));
         assert_eq!(need("GET", "/v1/projects"), Need::Nothing);
         assert_eq!(need("POST", "/v1/projects/query"), Need::Nothing);
+        assert_eq!(need("POST", "/v1/runs/R/evidence"), Need::Nothing);
+        assert_eq!(need("GET", "/v1/runs/R/evidence"), Need::Unknown, "only POST exports");
+        assert_eq!(need("GET", "/v1/evidence/key"), Need::Nothing);
+        assert_eq!(need("POST", "/v1/evidence/key"), o("key"), "only GET reads the key");
         assert_eq!(need("GET", "/v1/runs"), Need::Nothing, "the list is filtered to the caller's own runs in the handler");
         assert_eq!(need("POST", "/v1/runs"), Need::Nothing);
         assert_eq!(need("POST", "/v1/runs/R/freeze"), Need::Nothing);

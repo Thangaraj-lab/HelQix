@@ -23,6 +23,8 @@ helqix-adapters = { path = "../../16-adapters/platform/adapters" }
 helqix-contracts = { path = "../../15-sdk/platform/contracts" }
 helqix-core = { path = "../../01-foundation/crates/helqix-core" }
 helqix-agent = { path = "../../19-intelligence/crates/helqix-agent" }
+ed25519-dalek = "2"
+helqix-evidence-pack = { path = "../../13-verification/crates/helqix-evidence-pack" }
 helqix-frames = { path = "../../07-time/crates/helqix-frames" }
 helqix-freeze = { path = "../../07-time/crates/helqix-freeze" }
 helqix-modelbuild = { path = "../../03-engineering/crates/helqix-modelbuild" }
@@ -43,4 +45,5 @@ object_store = { version = "0.14", features = ["aws"] }
 
 [dev-dependencies]
 aws-lc-rs = "1"
+helqix-evidence-verify = { path = "../../13-verification/crates/helqix-evidence-verify" }
 tower = { version = "0.5", features = ["util"] }
