@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import React from 'react';
 import { short } from '../../app/evidence';
+import { engine, engineMode } from '../../engine';
 import { Button, Drawer, MockTag, PreviewTag, SectionLabel } from '../../components/ui/UiKit';
+import { useModelData } from '../studio/ModelContext';
+import { EvidenceExportPanel } from './EvidenceExportPanel';
 import { useEvidencePackage } from './usePackage';
 
 export interface EvidenceSheetProps {
@@ -9,25 +11,15 @@ export interface EvidenceSheetProps {
   onClose: () => void;
 }
 
-// The command is the real offline verifier (13-verification/crates/helqix-evidence-verify). The
-// package directory and trusted key exist only after the evidence service has signed a package.
-const VERIFIER = 'helqix-evidence-verify <package-dir> --trusted-key-file <public-key>';
-
 export const EvidenceSheet: React.FC<EvidenceSheetProps> = ({ isOpen, onClose }) => {
   const pkg = useEvidencePackage(isOpen);
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    void navigator.clipboard?.writeText(VERIFIER);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
+  const { run, requirements } = useModelData();
 
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title="Evidence">
       <div className="space-y-7">
         <section className="space-y-3">
-          <SectionLabel aside={<MockTag />}>Package contents</SectionLabel>
+          <SectionLabel aside={<MockTag />}>Contents preview (hashed in this browser)</SectionLabel>
           {pkg === null ? (
             <p className="text-xs text-muted">Hashing.</p>
           ) : pkg.items.length === 0 ? (
@@ -48,25 +40,12 @@ export const EvidenceSheet: React.FC<EvidenceSheetProps> = ({ isOpen, onClose })
         <section className="space-y-2">
           <SectionLabel>Root hash</SectionLabel>
           <p className="num text-xs text-ink break-all">{pkg?.rootHash ?? 'Not computed'}</p>
-          <p className="text-[11px] text-muted">SHA-256 over the item hashes above.</p>
+          <p className="text-[11px] text-muted">SHA-256 over the item hashes above: a preview. The signed package has its own manifest and Merkle root, made on the server.</p>
         </section>
 
-        <section className="space-y-2">
-          <SectionLabel aside={<PreviewTag />}>Signature</SectionLabel>
-          <p className="text-[13px] text-strong">Not signed.</p>
-          <p className="text-xs text-muted">Signing runs in the evidence service, which this build does not call yet. Signing proves origin and integrity, not correct physics.</p>
-        </section>
-
-        <section className="space-y-2">
-          <SectionLabel>Verify a signed package</SectionLabel>
-          <div className="flex items-start gap-2 surface p-3">
-            <code className="num text-[11px] text-ink break-all flex-1">{VERIFIER}</code>
-            <button onClick={copy} aria-label="Copy verifier command" className="text-muted hover:text-strong shrink-0 mt-0.5">{copied ? <Check size={14} className="text-ok" /> : <Copy size={14} />}</button>
-          </div>
-        </section>
+        <EvidenceExportPanel client={engine} runId={run?.id ?? null} requirements={requirements} engineIsReal={engineMode === 'real'} />
 
         <div className="flex items-center gap-2">
-          <Button variant="primary" disabled>Export evidence <PreviewTag /></Button>
           <Button variant="secondary" disabled>Generate report <PreviewTag /></Button>
         </div>
       </div>

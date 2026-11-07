@@ -4,6 +4,9 @@ import {
   BuildEvent,
   Checkpoint,
   EngineClient,
+  EvidenceDownload,
+  EvidenceKeyInfo,
+  EvidenceRequirement,
   FmuDescription,
   FmuInfo,
   Intervention,
@@ -31,6 +34,14 @@ export class RealEngineClient implements EngineClient {
   /** `tokens` gives the signed-in user's access token (null: no session, the proxy's service key is used); `onUnauthorized` is told when the API refuses a token. */
   constructor(private base: string = '/api', private tokens?: () => Promise<string | null>, private onUnauthorized?: () => void) {}
 
+  /** Throws the engine's refusal in words; a 401 for a signed-in user tells the session. */
+  private refuse(res: Response, text: string, token: string | null): never {
+    if (res.status === 401 && token) this.onUnauthorized?.();
+    let detail = text;
+    try { const j = JSON.parse(text); detail = typeof j.error === 'string' ? j.error : (j.error?.message ?? j.message ?? text); } catch { /* plain text */ }
+    throw new Error(`The engine answered ${res.status}: ${String(detail).slice(0, 300) || res.statusText}`);
+  }
+
   private async call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ data: T; etag: string | null }> {
     const token = this.tokens ? await this.tokens() : null;
     const res = await fetch(`${this.base}${path}`, {
@@ -39,12 +50,7 @@ export class RealEngineClient implements EngineClient {
       body: body !== undefined ? JSON.stringify(body) : undefined
     });
     const text = await res.text();
-    if (!res.ok) {
-      if (res.status === 401 && token) this.onUnauthorized?.();
-      let detail = text;
-      try { const j = JSON.parse(text); detail = typeof j.error === 'string' ? j.error : (j.error?.message ?? j.message ?? text); } catch { /* plain text */ }
-      throw new Error(`The engine answered ${res.status}: ${String(detail).slice(0, 300) || res.statusText}`);
-    }
+    if (!res.ok) this.refuse(res, text, token);
     return { data: (text ? JSON.parse(text) : null) as T, etag: res.headers.get('etag') };
   }
 
@@ -100,6 +106,22 @@ export class RealEngineClient implements EngineClient {
   async runFmuRevision(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<{ runId: string; rows: number; fmuSha256: string; determinism: string }> {
     const { data } = await this.call<{ runId: string; rows: number; fmuSha256: string; determinism: string }>('POST', `/v1/projects/${pid}/revisions/${revisionNum}/run`, { endSeconds: p.endSeconds, stepSeconds: p.stepSeconds });
     return { runId: data.runId, rows: data.rows, fmuSha256: data.fmuSha256, determinism: data.determinism };
+  }
+
+  async exportEvidence(runId: string, requirement: EvidenceRequirement, subject?: string): Promise<EvidenceDownload> {
+    const token = this.tokens ? await this.tokens() : null;
+    const res = await fetch(`${this.base}/v1/runs/${encodeURIComponent(runId)}/evidence`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ requirement, ...(subject ? { subject } : {}) })
+    });
+    if (!res.ok) this.refuse(res, await res.text(), token);
+    const filename = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? `evidence-${runId}.zip`;
+    return { blob: await res.blob(), filename };
+  }
+
+  async evidenceKey(): Promise<EvidenceKeyInfo> {
+    return (await this.call<EvidenceKeyInfo>('GET', '/v1/evidence/key')).data;
   }
 
   async listPacks(): Promise<PackInfo[]> {

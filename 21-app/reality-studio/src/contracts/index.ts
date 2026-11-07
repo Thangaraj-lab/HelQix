@@ -228,6 +228,26 @@ export interface FmuDescription {
   variables: FmuVariable[];
 }
 
+/** The requirement a signed evidence package states the outcome of (the comparison that must hold at every recorded sample). */
+export interface EvidenceRequirement {
+  name: string;
+  variable: string;
+  /** atLeast >=, atMost <=, above >, below < */
+  comparator: 'atLeast' | 'atMost' | 'above' | 'below';
+  threshold: number;
+}
+
+/** Which key signs evidence on the server, so the person who receives a package knows what to trust. */
+export interface EvidenceKeyInfo {
+  publicKey: string;
+  keyId: string;
+  signer: string;
+  keyKind: 'test' | 'production';
+  note: string;
+}
+
+export interface EvidenceDownload { blob: Blob; filename: string }
+
 export interface EngineClient {
   createProject(): Promise<Project>;
   /** Home's project list (GET /v1/projects). Not in file 35 section 8; added for the Home screen. */
@@ -252,6 +272,10 @@ export interface EngineClient {
   listPacks?(): Promise<PackInfo[]>;
   /** Real engine only: run a committed revision whose part comes from a domain pack. */
   runPackRevision?(pid: string, revisionNum: number, p: { endSeconds: number; stepSeconds: number }): Promise<PackRunResult>;
+  /** Real engine only: a signed evidence package (a ZIP) for a stored run, built and signed on the server. */
+  exportEvidence?(runId: string, requirement: EvidenceRequirement, subject?: string): Promise<EvidenceDownload>;
+  /** Real engine only: the public key that signs evidence, and whether it is a test key. */
+  evidenceKey?(): Promise<EvidenceKeyInfo>;
   /** A committed revision of a project (r1 is revisionNum 1), or null when it does not exist. */
   getRevision(pid: string, revisionNum: number): Promise<ModelRevision | null>;
   startBuild(
