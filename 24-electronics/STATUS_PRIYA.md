@@ -3,6 +3,14 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## E3 — Harness wire checks
+
+- Done: wires list added to a DC copy of the circuit as series resistors; R = rho*L/A with copper/aluminium resistivity and temperature coefficient, voltage drop and % of supply, I^2 R, steady temperature rise with h = 10 W/(m^2 K) labelled ASSUMPTION, ampacity against IEC 60364-5-52 Table B.52.2 rows, PASS/WARN/FAIL with words; untabulated sizes and aluminium get UNKNOWN and no verdict.
+- Tests: 24 new passed, 0 failed, 0 skipped (E3 file 0.89 s); `helqix_circuit` 69 passed in 3.50 s; 23/23 mutations caught; full verify 40.45 s; targets MEASURED: R relative error 0.0, drop relative error 8.27e-15 (target 1e-6 both).
+- FAILs: none. UNKNOWNs: aluminium ampacity rows (not transcribed, so UNKNOWN with no verdict) and every size outside the cited rows (UNKNOWN by design, not invented).
+- Files changed: new `helqix_circuit/harness.py`, `helqix_circuit/ampacity_table.py`, `helqix_circuit/tests/test_harness.py`; edited `helqix_circuit/__init__.py`, `mutation_checks.py`, this status.
+- Needed: nothing; continued to E4.
+
 ## E0 — Setup
 
 - Done: inventory, device profile, branch `priya/e1-circuit`, venv, skeleton, conventions, unified verifier.
@@ -66,3 +74,25 @@ t_deg_c below absolute zero; now refused. (4) NaN or infinite AC frequencies
 reached the solver; now refused. Zero/negative R, C, L, NaN values, floating
 nodes, voltage loops, duplicate ids, wrong units and unknown kinds already
 refused with named causes; determinism and non-mutation held.
+
+### E3
+
+Measured: 24 E3 tests in 0.89 s; `helqix_circuit` suite 3.50 s, 69 tests;
+full verify 40.45 s. Hand formulas written in the tests: d_mm =
+0.127*92^((36-n)/39); R = rho*(1+alpha*(T-20))*L/A with copper 1.724e-8
+ohm m / 0.00393 per K and aluminium 2.826e-8 ohm m / 0.00403 per K; 12 V
+through 10 ohm and 2 m of 0.5 mm^2 copper gave R relative error 0.0 and drop
+relative error 8.27e-15 against the hand formula (target 1e-6 both).
+Prediction checked: AWG conversion was named as the main error source, and
+the AWG formula is exact by construction in float64; the real risk was the
+verdict boundary, so every limit is probed just below, exactly at and just
+above (drop 3 % and 5 %, ampacity 80 % and 100 % of the row).
+
+Ampacity rows: IEC 60364-5-52 Annex B, Table B.52.2, PVC insulation, two
+loaded conductors, copper, conductor 70 degC, ambient 30 degC, methods A1-F.
+The numbers were transcribed from the published ECalPro copy (accessed
+2026-11-14) and spot-checked against a second copy (2.5 mm^2 method C = 27 A).
+Only the copper rows were transcribed, so an aluminium wire or a size outside
+1.5-240 mm^2 gets ampacity UNKNOWN with no verdict and the reason says why.
+The steady temperature rise uses h = 10 W/(m^2 K) and is labelled
+ASSUMPTION; it is informational and is never used to claim safety.
