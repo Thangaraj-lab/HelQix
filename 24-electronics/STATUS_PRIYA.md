@@ -3,6 +3,14 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## E4 — Sensor reality models
+
+- Done: new `helqix_sensors` package; a model names kind (9 named kinds), range, bits or step, noise density, bias, drift/hour, first-order bandwidth, latency, sample rate, clip saturation and source; input is a true-signal time series, a {time_s, value} series, or one probe from a results.json ("probes" list only, unit must match); output resamples, adds bias/drift and white noise, filters with an exact -3 dB first-order stage, delays, quantizes, clips with per-sample flags, and reports a reality gap.
+- Tests: 35 passed, 0 failed, 0 skipped (34 sensor tests in 1.88 s + 1 smoke); `helqix_circuit` 69 passed in 4.14 s; 32/32 mutations caught; full verify 66.71 s; targets MEASURED: noise sigma 0.0040325 vs 0.0039620 predicted (1.78% vs 3% target), quantization step exact (1e-12), -3 dB worst 4.2e-12 vs 2%, saturation exact at 1.0 V with 200 flags, same seed identical bytes, reality gap 6.344e-4 RMS noise-dominant.
+- FAILs: none. UNKNOWNs: none.
+- Files changed: new `helqix_sensors/{errors,sensor}.py`, `tests/test_sensors.py`; edited `__init__.py`, `pyproject.toml`, `mutation_checks.py`, this status.
+- Needed: nothing; continued to E5.
+
 ## E3 — Harness wire checks
 
 - Done: wires list added to a DC copy of the circuit as series resistors; R = rho*L/A with copper/aluminium resistivity and temperature coefficient, voltage drop and % of supply, I^2 R, steady temperature rise with h = 10 W/(m^2 K) labelled ASSUMPTION, ampacity against IEC 60364-5-52 Table B.52.2 rows, PASS/WARN/FAIL with words; untabulated sizes and aluminium get UNKNOWN and no verdict.
@@ -74,6 +82,47 @@ t_deg_c below absolute zero; now refused. (4) NaN or infinite AC frequencies
 reached the solver; now refused. Zero/negative R, C, L, NaN values, floating
 nodes, voltage loops, duplicate ids, wrong units and unknown kinds already
 refused with named causes; determinism and non-mutation held.
+
+### E4
+
+Measured: 34 sensor tests in 1.88 s (35 with the package smoke test). Noise:
+100000 samples at 1000 Hz, 10 Hz bandwidth, density 1e-3, seed 7; predicted
+sigma = density*sqrt(ENBW), ENBW = (fs/2)(1-a)/(1+a); measured 0.0040325
+against 0.0039620 predicted, 1.78% (3% limit). Quantization step is exactly
+span/2^bits in every literal case (1e-12) and the report agrees; step 0.05 gave
+reported values of 0.30 exactly. Saturation is exact at +/-1.0 V with 200
+flagged samples. The -3 dB point, found by bisection on |H|, is within 4.2e-12
+of the request at 10, 100, 1000 and 4000 Hz (2% limit). Seed 42 twice gives
+byte-identical to_dict output; seed 43 differs. Reality gap: RMS 6.344e-4 with
+noise dominant; quantization RMS 1.4105e-4 against step^2/12 = 1.4095e-4;
+delay term 0.0 at zero latency. Tests hold their own formulas, including the
+first-order group delay (a/(1-a))/fs and the honest one-sample-scale lag of a
+drifting signal through the first-order stage. Mutations: 9 E4 entries (noise
+sigma fs/2 -> fs, exact matched-Z pole replaced by exp(-2*pi*fc/fs),
+quantization divisor 2^bits-1, clip scaled by 0.999, delay dropped, drift sign,
+ENBW inverted, seed pinned to 1, "probes" key renamed), all caught; 32/32
+overall.
+
+Adversarial review (the Agent tool is disabled in this environment, so the
+review ran as an independent black-box probe process against the public API
+only; the probe script is in the session temp folder, not the repo; 57 probes).
+Found and fixed: (1) a probe series ending at 1e7 s caused a 745 GiB allocation
+attempt, which surfaced as a numpy MemoryError instead of a plain refusal; any
+requested clock above 10,000,000 samples is now an InputError naming the count
+and the limit. (2) a probe carrying a different unit from the model ("degC" into
+a volt model) was silently mixed; it is now refused with both units named.
+(3) negative time_s was accepted; now refused. The same probe process confirmed
+refusals for every unknown kind, inverted range, bad bits/step (0, 33, 3.5,
+step > span, bits+step), negative/NaN noise, latency, bandwidth, saturation
+mode "fold", seed of the wrong type, NaN/inf series values, missing probe
+fields, unknown probe id/index, bool probe, probe list of the wrong type,
+one-sample series, missing model file (a plain InputError), non-finite signal
+specs and spec duration <= 0. It also confirmed: a 1e9 s latency is accepted
+and yields a constant output, identical seeds give identical bytes, and neither
+the model dict nor the probe document is mutated. On the circuit side it
+confirmed harness refusals (length 0/NaN, unknown material, node and method,
+gauge range, ambient below absolute zero, NaN supply, inverted drop limits, no
+source) and that untabulated wire sizes get UNKNOWN, never an invented verdict.
 
 ### E3
 
