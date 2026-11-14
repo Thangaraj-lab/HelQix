@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -175,6 +176,7 @@ def transient(
     min_step_s: float | None = None,
     max_steps: int | None = None,
     max_newton_iterations: int = 60,
+    deadline: float | None = None,
 ) -> TransientSolution:
     analysis = circuit.analysis
     stop = float(analysis.get("stop_s", 0.0) if stop_s is None else stop_s)
@@ -224,6 +226,8 @@ def transient(
             current_series[component.id].append(currents_new.get(component.id, 0.0))
 
     while t < stop - 1e-15:
+        if deadline is not None and time.perf_counter() > deadline:
+            raise SolverError("transient analysis exceeded its timeout; raise timeout_s or reduce the case", code="timeout")
         if attempts > max_steps * 20:
             raise SolverError(f"transient exceeded {max_steps * 20} attempts; reduce rtol or raise max_steps", code="max_steps")
         if accepted >= max_steps:

@@ -1,0 +1,26 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "rate_gyro",
+    "kind": "angular_rate",
+    "unit": "deg/s",
+    "range": {"min": -500.0, "max": 500.0},
+    "resolution": {"bits": 16},
+    "noise_density": 0.01,
+    "bias": 0.05,
+    "drift_per_hour": 0.0,
+    "bandwidth_hz": 100.0,
+    "latency_s": 0.001,
+    "sample_rate_hz": 1000.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {
+    "probes": [
+      {"id": "x", "unit": "deg/s", "time_s": [0.0, 0.01, 0.02], "value": [10.0, 20.0, 30.0]},
+      {"id": "z", "unit": "deg/s", "time_s": [0.0, 0.01, 0.02], "value": [0.0, 5.0, 10.0]}
+    ]
+  },
+  "probe": "z",
+  "seed": 12
+}

@@ -1,0 +1,21 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "five-node resistor ladder",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["s", "0"], "value": {"value": 10.0, "unit": "V"}},
+      {"id": "Rs", "kind": "resistor", "nodes": ["s", "1"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R12", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R1g", "kind": "resistor", "nodes": ["1", "0"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R23", "kind": "resistor", "nodes": ["2", "3"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R2g", "kind": "resistor", "nodes": ["2", "0"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R34", "kind": "resistor", "nodes": ["3", "4"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R3g", "kind": "resistor", "nodes": ["3", "0"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R45", "kind": "resistor", "nodes": ["4", "5"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R4g", "kind": "resistor", "nodes": ["4", "0"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R5g", "kind": "resistor", "nodes": ["5", "0"], "value": {"value": 1000.0, "unit": "ohm"}}
+    ],
+    "analysis": {"type": "dc"}
+  }
+}

@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-IGNORE = shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache", "*.pyc", "examples", "docs", "schemas")
+IGNORE = shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache", "*.pyc", "docs", "schemas")
 
 MUTATIONS = [
     {
@@ -272,6 +272,102 @@ MUTATIONS = [
         "old": 'if isinstance(signal, dict) and "probes" in signal:',
         "new": 'if isinstance(signal, dict) and "values" in signal:',
         "test": "helqix_sensors/tests/test_sensors.py::test_probes_from_results_json_are_read_and_resampled",
+    },
+    {
+        "phase": "E5",
+        "name": "bad input exits 3 instead of 2",
+        "file": "helqix_circuit/cli.py",
+        "old": '        print(f"error: {exc}", file=sys.stderr)\n        return 2',
+        "new": '        print(f"error: {exc}", file=sys.stderr)\n        return 3',
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_bad_input_exits_2_with_a_plain_message",
+    },
+    {
+        "phase": "E5",
+        "name": "probe cap raised to 20000",
+        "file": "helqix_circuit/cli.py",
+        "old": "MAX_PROBE_POINTS = 2000",
+        "new": "MAX_PROBE_POINTS = 20000",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_probes_are_downsampled_to_2000_points",
+    },
+    {
+        "phase": "E5",
+        "name": "reference label never VALIDATED",
+        "file": "helqix_circuit/cli.py",
+        "old": 'label = "VALIDATED" if reference_report["matched"] else "UNVALIDATED"',
+        "new": 'label = "CHECKED"',
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_divider_case_writes_the_contract_folder",
+    },
+    {
+        "phase": "E5",
+        "name": "fresh-folder rule disabled",
+        "file": "helqix_circuit/cli.py",
+        "old": "        if foreign:",
+        "new": "        if False:",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_out_folder_must_be_fresh",
+    },
+    {
+        "phase": "E5",
+        "name": "max_nodes limit ignored",
+        "file": "helqix_circuit/cli.py",
+        "old": 'if node_count > limits["max_nodes"]:',
+        "new": 'if node_count > limits["max_nodes"] * 100:',
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_limits_max_nodes_is_enforced",
+    },
+    {
+        "phase": "E5",
+        "name": "transient deadline check disabled",
+        "file": "helqix_circuit/transient.py",
+        "old": "        if deadline is not None and time.perf_counter() > deadline:",
+        "new": "        if False:",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_timeout_is_enforced",
+    },
+    {
+        "phase": "E5",
+        "name": "wire verdicts dropped from the result",
+        "file": "helqix_circuit/cli.py",
+        "old": 'result["wires"] = list(report["wires"].values())',
+        "new": 'result["wires"] = []',
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_wire_verdicts_are_in_the_result",
+    },
+    {
+        "phase": "E5",
+        "name": "downsample keeps only the first 2000 points",
+        "file": "helqix_circuit/cli.py",
+        "old": "return np.unique(np.rint(np.linspace(0.0, size - 1.0, MAX_PROBE_POINTS)).astype(int))",
+        "new": "return np.arange(MAX_PROBE_POINTS)",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_probes_are_downsampled_to_2000_points",
+    },
+    {
+        "phase": "E5",
+        "name": "sensor limits accept any key",
+        "file": "helqix_sensors/cli.py",
+        "old": "    unknown = sorted(set(raw) - set(DEFAULT_LIMITS))",
+        "new": "    unknown = []",
+        "test": "helqix_sensors/tests/test_cli_sensors.py::test_sensor_limits_accept_only_timeout",
+    },
+    {
+        "phase": "E5",
+        "name": "sensor reference label never VALIDATED",
+        "file": "helqix_sensors/cli.py",
+        "old": 'label = "VALIDATED" if reference_report["matched"] else "UNVALIDATED"',
+        "new": 'label = "CHECKED"',
+        "test": "helqix_sensors/tests/test_cli_sensors.py::test_reference_can_validate_a_case",
+    },
+    {
+        "phase": "E5",
+        "name": "sensor clipped series dropped",
+        "file": "helqix_sensors/cli.py",
+        "old": 'SERIES_IDS = ("truth", "analog", "reported", "clipped")',
+        "new": 'SERIES_IDS = ("truth", "analog", "reported")',
+        "test": "helqix_sensors/tests/test_cli_sensors.py::test_sensor_case_writes_the_contract_folder",
+    },
+    {
+        "phase": "E5",
+        "name": "sensor post-run timeout check disabled",
+        "file": "helqix_sensors/cli.py",
+        "old": "    if time.perf_counter() > deadline:",
+        "new": "    if False:",
+        "test": "helqix_sensors/tests/test_cli_sensors.py::test_timeout_is_enforced",
     },
 ]
 

@@ -1,0 +1,21 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "voltage_quiet",
+    "kind": "voltage",
+    "unit": "V",
+    "range": {"min": -2.5, "max": 2.5},
+    "resolution": {"bits": 20},
+    "noise_density": 0.0,
+    "bias": 0.0,
+    "drift_per_hour": 0.0,
+    "bandwidth_hz": 100.0,
+    "latency_s": 0.0,
+    "sample_rate_hz": 1000.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {"synthesize": {"type": "dc", "value": 1.25, "duration_s": 0.1}},
+  "seed": 1,
+  "reference": {"quantity": "reported_mean", "name": "reported", "value": 1.25, "relative_tolerance": 1e-9}
+}

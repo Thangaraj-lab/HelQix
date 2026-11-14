@@ -1,0 +1,20 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "voltage_step_resolution",
+    "kind": "voltage",
+    "unit": "V",
+    "range": {"min": -10.0, "max": 10.0},
+    "resolution": {"step": 0.01},
+    "noise_density": 0.0,
+    "bias": 0.0,
+    "drift_per_hour": 0.0,
+    "bandwidth_hz": 100.0,
+    "latency_s": 0.0,
+    "sample_rate_hz": 1000.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {"synthesize": {"type": "dc", "value": 0.123, "duration_s": 0.05}},
+  "seed": 0
+}

@@ -1,0 +1,20 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "pressure_16bit",
+    "kind": "pressure",
+    "unit": "kPa",
+    "range": {"min": 0.0, "max": 1000.0},
+    "resolution": {"bits": 16},
+    "noise_density": 0.02,
+    "bias": 0.0,
+    "drift_per_hour": 0.0,
+    "bandwidth_hz": 50.0,
+    "latency_s": 0.01,
+    "sample_rate_hz": 1000.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {"synthesize": {"type": "step", "amplitude": 500.0, "offset": 100.0, "delay_s": 0.5, "duration_s": 2.0}},
+  "seed": 5
+}

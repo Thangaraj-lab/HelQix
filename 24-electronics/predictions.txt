@@ -108,6 +108,30 @@ Prediction:
   will be verifiable by listing DIR before/after.
 - Expected CLI runtime per small case: under 1 s.
 
+E5 — outcome (kept honestly, written after the phase)
+------------------------------------------------------
+- Exit codes held: every probe produced 0, 2 or 3 with no traceback. Typos
+  in case keys are now refused (exit 2) instead of ignored.
+- Timeout: first attempt used a watchdog thread that hard-killed the run.
+  WRONG in practice: the daemon thread kept executing numpy at interpreter
+  shutdown and the process died with exit 120 and a SystemError. Replaced
+  with cooperative deadline checks inside the transient and AC loops; a
+  case that finishes after the deadline is reported as solver_error
+  (exit 3) with "timeout" in the message, as predicted.
+- Downsampling: predicted a min/max envelope. Actual implementation is a
+  rounded linspace index (2000 evenly spaced samples, endpoints kept,
+  duplicates removed). Simple and exact on the endpoints, and the tests
+  pin first/last point and strict monotonicity; spikes between samples can
+  be missed, so the envelope idea remains the better long-term option.
+  Prediction kept as a deviation.
+- Fresh folder: works for an empty or foreign folder; re-running over our
+  own outputs is allowed by deleting only the three known output files.
+- CLI runtime: MEASURED in-process small case about 0.02 s; one real
+  `python -m` subprocess start costs about 1 s on this laptop, so the
+  subprocess tests were cut to one launch per package.
+- Unknown key handling was not predicted; the adversarial review found that
+  `limts` was silently ignored, so both CLIs now reject unknown case keys.
+
 E6 — Automation (written before any E6 code)
 --------------------------------------------
 Prediction:

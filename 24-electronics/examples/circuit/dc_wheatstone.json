@@ -1,0 +1,16 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "wheatstone bridge with a bridge resistor",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 5.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R2", "kind": "resistor", "nodes": ["2", "0"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R3", "kind": "resistor", "nodes": ["1", "3"], "value": {"value": 2000.0, "unit": "ohm"}},
+      {"id": "R4", "kind": "resistor", "nodes": ["3", "0"], "value": {"value": 3000.0, "unit": "ohm"}},
+      {"id": "R5", "kind": "resistor", "nodes": ["2", "3"], "value": {"value": 1000.0, "unit": "ohm"}}
+    ],
+    "analysis": {"type": "dc"}
+  }
+}

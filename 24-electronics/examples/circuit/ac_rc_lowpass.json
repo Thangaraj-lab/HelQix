@@ -1,0 +1,20 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "RC low-pass magnitude sweep with cutoff search",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 1.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "C1", "kind": "capacitor", "nodes": ["2", "0"], "value": {"value": 1e-07, "unit": "F"}}
+    ],
+    "analysis": {
+      "type": "ac",
+      "start_hz": 1.0,
+      "stop_hz": 1000000.0,
+      "points_per_decade": 50,
+      "cutoff": {"source": "V1", "node": "2"}
+    }
+  },
+  "reference": {"quantity": "metric", "name": "cutoff_hz", "value": 1591.5494309189535, "relative_tolerance": 0.01}
+}

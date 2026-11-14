@@ -1,0 +1,14 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "RC charge, trapezoidal, fixed step",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 5.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "C1", "kind": "capacitor", "nodes": ["2", "0"], "value": {"value": 1e-06, "unit": "F"}, "initial": {"value": 0.0, "unit": "V"}}
+    ],
+    "analysis": {"type": "tran", "stop_s": 0.005, "step_s": 5e-06, "method": "trapezoidal", "adaptive": false}
+  },
+  "reference": {"quantity": "probe_final", "name": "V(2)", "value": 4.966310265004573, "relative_tolerance": 0.001}
+}
