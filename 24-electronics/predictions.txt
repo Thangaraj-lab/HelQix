@@ -1,0 +1,140 @@
+HELQIX electronics work — predictions written before each phase
+===============================================================
+Rule: a prediction stays in this file even when it turns out wrong.
+      "Prediction" means what I expect to measure, written before the code
+      that could produce it exists.
+
+E0 — Setup (written before creating the venv and verify.py)
+----------------------------------------------------------
+Environment prediction:
+- Windows 11 build 26300, AMD Ryzen 7 7445HS, 6 physical cores / 12 logical,
+  15.2 GB RAM (HP Victus 15-fb3xxx). MATCHED inventory.
+- Python 3.13.12 at C:\Users\Gokul Priya S\AppData\Local\Programs\Python\Python313.
+- numpy and scipy are already importable in system Python; pytest is not.
+  A fresh 24-electronics/.venv will install numpy, scipy, pytest, matplotlib
+  from wheels in under 2 minutes (network available only at setup time).
+  MEASURED after the fact: numpy 2.5.4, scipy 1.18.1, pytest 9.2.0,
+  matplotlib 3.11.2.
+- verify.py will run three smoke suites in under 10 s and print one table.
+- Risk: Windows console encoding of the table. Mitigation: ASCII-only table.
+- Risk: pytest import path when run from the repository root. Mitigation:
+  conftest.py inserts 24-electronics/ into sys.path.
+- Branch plan: E0 and E1 share priya/e1-circuit (E0 has no branch of its own
+  in the allowed list). Each later phase branch is created from the branch
+  checked out when that phase starts, so the work stacks and nothing is
+  committed to main.
+
+E1 — DC analysis (written before any E1 code)
+---------------------------------------------
+Prediction:
+- The hand-calculated divider, bridge, Thevenin/Norton, superposition and
+  10-node ladder cases will agree to better than 1e-12 relative with sparse
+  MNA in float64, i.e. inside the 1e-9 target.
+- The dominant risk is sign convention on current sources and VCVS control
+  nodes, not arithmetic. Hand formulas in tests will pin the convention.
+- Floating-node detection and voltage-source-loop detection will need
+  topology checks before factorization; relying on a singular-matrix error
+  alone would give vague messages.
+- Expected runtime of the E1 suite: under 2 s.
+
+E2 — Transient / AC / nonlinear (written before any E2 code)
+------------------------------------------------------------
+Prediction:
+- Trapezoidal RC charge at h = T/200 will be within 0.02% of the analytic
+  curve; backward Euler will be within 0.5% only at the same step, so the
+  0.5% target is reachable with both methods at modest step counts.
+- RLC resonance with Q around 5 will be within 0.2% of 1/(2*pi*sqrt(LC))
+  when the sweep has 200 points/decade plus bisection refinement.
+- Newton on a diode with series resistance will converge in under 15
+  iterations with damping; without damping it will overflow exp() on a
+  direct 5 V step. Expect to need a voltage limiter.
+- MOSFET level-1 saturation current will match the formula to float64
+  round-off (it is the same formula) inside 1e-12.
+- Op-amp gain target 0.1% is easy for the finite-gain model; the ideal
+  model needs a nullor constraint, not a 1e9 VCVS, or the matrix becomes
+  badly conditioned.
+- AC cutoff search by bisection will hit 1% easily; a 20-point/decade grid
+  alone may miss by 1–2% near the knee.
+- Risk: adaptive stepping can reject forever near a switching event.
+  Mitigation: minimum step and a hard max_steps report.
+- Expected suite runtime: under 10 s.
+
+E3 — Harness (written before any E3 code)
+-----------------------------------------
+Prediction:
+- R = rho*L/A will match the hand formula to 1e-15 relative; the 1e-6
+  target is limited only by unit conversion (mm, mm^2, AWG).
+- AWG conversion will be the main error source; the exact formula
+  d_mm = 0.127 * 92^((36-n)/39) will be written in the test.
+- Verdict logic will be the main correctness risk at boundaries; tests will
+  probe just below, exactly at, and just above each limit.
+- Ampacity: I will use IEC 60364-5-52 Table B.52.2 rows for PVC, 2 loaded
+  conductors, 30 C ambient. Sizes not in the cited table will be UNKNOWN and
+  get no ampacity verdict, per the no-invented-data rule.
+- Temperature rise with h = 10 W/(m^2 K) is an ASSUMPTION; the number will
+  be labelled as such and will not be used to claim safety.
+- Expected suite runtime: under 2 s.
+
+E4 — Sensors (written before any E4 code)
+-----------------------------------------
+Prediction:
+- White noise scaled by density*sqrt(fs/2) through the discrete one-pole
+  filter will give a measured sigma within 1% of the analytic
+  density*sqrt(ENBW) prediction at 100000 samples (statistical error about
+  0.22%), comfortably inside 3%.
+- Quantization step will be exact to float64 representation; tests will
+  compare multiples within 1e-12 absolute.
+- The digital one-pole -3 dB point will land within 0.5% of the stated
+  bandwidth for fc/fs <= 0.1; at fc/fs = 0.4 the bilinear-free one-pole
+  will drift several percent, so tests will use the documented valid range.
+- Seeded output will be byte-identical because no wall-clock or hash-order
+  randomness is used.
+- Reality gap will be dominated by noise and delay, not quantization for a
+  12-bit sensor.
+- Expected suite runtime: under 3 s (100k-sample tests marked nightly may be
+  slower).
+
+E5 — Interface (written before any E5 code)
+-------------------------------------------
+Prediction:
+- Exit codes 0/2/3 can be enforced without catching programmer errors by
+  validating input into typed exceptions at the boundary.
+- Timeout enforcement inside Python loops is reliable for our step counts;
+  a hard kill is not portable without processes, so timeout_s will be
+  checked between steps and reported as solver failure (exit 3).
+- Downsampling to 2000 points with min/max envelope per bucket preserves
+  spikes better than plain decimation.
+- Fresh work folder: writing only results.json, series CSV and a manifest
+  will be verifiable by listing DIR before/after.
+- Expected CLI runtime per small case: under 1 s.
+
+E6 — Automation (written before any E6 code)
+--------------------------------------------
+Prediction:
+- Full verify without nightly tests will finish in under 60 s on this
+  laptop; with mutation checks it may reach 90–120 s. The 3-minute limit
+  should hold if 100k-sample and 10000-message tests stay nightly.
+- Mutation checks will catch every registered mutation; if a mutation
+  survives, the related test is too weak and I will add an assertion rather
+  than delete the mutation.
+- Key scan will find nothing; the scanner will avoid containing the literal
+  patterns it searches for.
+
+E7 — Virtual I/O (written before any E7 code)
+---------------------------------------------
+Prediction:
+- 10000 in-memory framed messages round-trip exactly in under 2 s.
+- Ordering is guaranteed by FIFO queues per endpoint as long as fault
+  injection does not reorder; delay injection may reorder, so ordering
+  tests will use no-delay mode.
+- Retry after disconnect needs an application-level ack with a message id;
+  a bare queue cannot know a message was lost.
+- Timeout behaviour will use real short timeouts (10–50 ms) and may be
+  flaky on a busy laptop; tests will allow a generous upper bound.
+- A real MQTT broker is not installable under the allowed dependency list,
+  so that cross-check will be UNKNOWN.
+
+Final sweep prediction:
+- At least one target will need a second round: most likely the E2 cutoff
+  frequency or the E3 ampacity table coverage. I will record it rather than
+  lower the target.
