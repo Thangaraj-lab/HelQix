@@ -248,7 +248,7 @@ def assemble(
         elif kind in {"vsource", "isource"}:
             if mode == "ac":
                 stamp_source(component, source_phasor(component))
-            elif mode == "tran":
+            elif mode in {"tran", "ic"}:
                 stamp_source(component, source_value(component, time_s))
             else:
                 stamp_source(component, source_dc(component))
@@ -289,7 +289,8 @@ def assemble(
                 builder.add(b, k, -1.0)
                 builder.add(k, a, 1.0)
                 builder.add(k, b, -1.0)
-                builder.rhs[k] = component.initial if component.initial is not None else 0.0
+                held = (state.cap_v if state else {}).get(component.id)
+                builder.rhs[k] = held if held is not None else (component.initial if component.initial is not None else 0.0)
             else:
                 if step_s is None or step_s <= 0:
                     raise InputError("transient analysis needs a step greater than zero")
@@ -315,7 +316,8 @@ def assemble(
                     raise InputError("AC analysis needs a frequency greater than zero")
                 stamp_conductance(a, b, 1.0 / (1j * 2.0 * np.pi * frequency_hz * inductance))
             elif mode == "ic":
-                value = component.initial if component.initial is not None else 0.0
+                held = (state.ind_i if state else {}).get(component.id)
+                value = held if held is not None else (component.initial if component.initial is not None else 0.0)
                 if a is not None:
                     builder.rhs[a] -= value
                 if b is not None:

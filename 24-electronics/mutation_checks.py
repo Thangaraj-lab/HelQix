@@ -105,6 +105,38 @@ MUTATIONS = [
         "new": "                builder.add(k, b, -1.0)\n                if mode == \"dc\":\n                    builder.add(a, k, -1.0)",
         "test": "helqix_circuit/tests/test_nonlinear.py::test_capacitor_open_and_inductor_short_in_dc",
     },
+    {
+        "phase": "E2-review",
+        "name": "initial point ignores waveform value at t=0",
+        "file": "helqix_circuit/core.py",
+        "old": "elif mode in {\"tran\", \"ic\"}:",
+        "new": "elif mode == \"tran\":",
+        "test": "helqix_circuit/tests/test_robustness.py::test_adaptive_transient_handles_step_source_at_zero",
+    },
+    {
+        "phase": "E2-review",
+        "name": "waveform breakpoints disabled",
+        "file": "helqix_circuit/transient.py",
+        "old": "breakpoints = _breakpoints(circuit, stop)",
+        "new": "breakpoints = []",
+        "test": "helqix_circuit/tests/test_robustness.py::test_adaptive_transient_lands_on_delayed_step_breakpoint",
+    },
+    {
+        "phase": "E2-review",
+        "name": "non-finite AC frequency guard removed",
+        "file": "helqix_circuit/ac.py",
+        "old": "np.any(grid <= 0) or not np.all(np.isfinite(grid))",
+        "new": "np.any(grid <= 0)",
+        "test": "helqix_circuit/tests/test_robustness.py::test_ac_sweep_rejects_non_finite_frequency",
+    },
+    {
+        "phase": "E2-review",
+        "name": "diode absolute-zero guard removed",
+        "file": "helqix_circuit/netlist.py",
+        "old": "        if result[\"t_deg_c\"] <= -273.15:\n            raise InputError(f\"{where} diode temperature must be above absolute zero (-273.15 degC)\")\n",
+        "new": "",
+        "test": "helqix_circuit/tests/test_robustness.py::test_diode_temperature_must_be_above_absolute_zero",
+    },
 ]
 
 

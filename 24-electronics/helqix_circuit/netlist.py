@@ -202,6 +202,8 @@ def _device_parameters(cid: str, kind: str, body) -> dict:
         }
         if result["is_a"] <= 0 or result["n"] <= 0 or result["rs_ohm"] < 0:
             raise InputError(f"{where} diode needs is_a > 0, n > 0, rs_ohm >= 0")
+        if result["t_deg_c"] <= -273.15:
+            raise InputError(f"{where} diode temperature must be above absolute zero (-273.15 degC)")
         return result
     if kind == "mosfet":
         channel = params.get("channel")

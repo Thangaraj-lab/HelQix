@@ -72,8 +72,8 @@ def _sweep_frequencies(circuit: Circuit) -> np.ndarray:
     analysis = circuit.analysis
     start = float(analysis.get("start_hz", 0.0))
     stop = float(analysis.get("stop_hz", 0.0))
-    if start <= 0 or stop < start:
-        raise InputError("AC analysis needs 0 < start_hz <= stop_hz")
+    if not (math.isfinite(start) and math.isfinite(stop)) or start <= 0 or stop < start:
+        raise InputError("AC analysis needs finite 0 < start_hz <= stop_hz")
     if "points" in analysis:
         points = int(analysis["points"])
         if points < 2:
@@ -92,8 +92,8 @@ def ac_sweep(circuit: Circuit, frequencies=None) -> AcSolution:
         raise InputError("circuit analysis type is not 'ac'")
     check_topology(circuit, "ac")
     grid = np.asarray(_sweep_frequencies(circuit) if frequencies is None else frequencies, dtype=float)
-    if grid.ndim != 1 or grid.size == 0 or np.any(grid <= 0):
-        raise InputError("AC frequencies must be a non-empty list of positive numbers")
+    if grid.ndim != 1 or grid.size == 0 or np.any(grid <= 0) or not np.all(np.isfinite(grid)):
+        raise InputError("AC frequencies must be a non-empty list of finite positive numbers")
     analyzer = AcAnalyzer(circuit)
     node_names = list(circuit.node_names)
     series = {name: [] for name in node_names}
