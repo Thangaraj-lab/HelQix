@@ -9,7 +9,7 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import splu
 
 from .errors import InputError, SolverError
-from .netlist import Circuit, Component
+from .netlist import LINEAR_DC_KINDS, Circuit, Component
 
 SOLVER_NAME = "helqix_circuit.mna"
 SOLVER_VERSION = "0.1.0"
@@ -22,9 +22,11 @@ class DcSolution:
     powers: dict[str, float]
     residual: float
     circuit: Circuit
+    report: object | None = None
+    internal_node_voltages: dict[str, float] = None
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "status": "ok",
             "analysis": "dc",
             "validation_label": "CALCULATED",
@@ -34,6 +36,11 @@ class DcSolution:
             "residual": self.residual,
             "solver": {"name": SOLVER_NAME, "version": SOLVER_VERSION, "method": "modified nodal analysis, sparse LU"},
         }
+        if self.internal_node_voltages:
+            payload["internal_node_voltages"] = {name: {"value": value, "unit": "V"} for name, value in self.internal_node_voltages.items()}
+        if self.report is not None:
+            payload["convergence"] = self.report.to_dict()
+        return payload
 
 
 def _conductive_edges(circuit: Circuit) -> list[tuple[str, str, str]]:
@@ -235,10 +242,29 @@ def _currents(circuit: Circuit, x: np.ndarray, node_index: dict[str, int], branc
     return voltages, currents, powers
 
 
+def _solve_general_dc(circuit: Circuit) -> DcSolution:
+    from . import core
+
+    core.check_topology(circuit, "dc")
+    system = core.assemble(circuit, "dc")
+    x, report = core.solve_system(system)
+    voltages = core.node_voltage_map(x, system)
+    external = {"0": 0.0}
+    internal: dict[str, float] = {}
+    for name, value in voltages.items():
+        target = internal if name.startswith(core.INTERNAL_PREFIX) else external
+        target[name] = float(np.real(value))
+    currents = core.component_currents(circuit, x, system)
+    power = core.powers(circuit, voltages, currents)
+    return DcSolution(external, currents, power, report.residual, circuit, report=report, internal_node_voltages=internal)
+
+
 def solve_dc(circuit: Circuit) -> DcSolution:
     analysis_type = str(circuit.analysis.get("type", "dc")).lower()
     if analysis_type != "dc":
         raise InputError(f"solve_dc cannot run analysis type {analysis_type!r}")
+    if any(component.kind not in LINEAR_DC_KINDS for component in circuit.components):
+        return _solve_general_dc(circuit)
     _check_floating(circuit)
     _check_voltage_loops(circuit)
     matrix, rhs, node_index, branch_index = _assemble(circuit)
