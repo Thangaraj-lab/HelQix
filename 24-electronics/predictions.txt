@@ -306,3 +306,21 @@ R2 Phase 3 item 2 - outcome
   CONFIG clean, 102.48 s, OVERALL PASS. Both new R2 mutations now caught.
 - Provenance counts: `python -m helqix_circuit.ampacity_table` prints
   "IEC 60364-5-52 B.52.2: 105 rows, 105 VERIFIED, 0 UNKNOWN".
+
+R2 Phase 3 item 3 - first real Actions runs
+-------------------------------------------
+- Predicted before pushing: both verify jobs green on ubuntu and windows,
+  nightly skipped on push, no install failures on Python 3.11.
+- Observed (MEASURED from the job logs):
+  push run   https://github.com/Thangaraj-lab/HelQix/actions/runs/43699300222
+    ubuntu  104/60/19 fast, 63/63 mutations, OVERALL PASS, 46.79 s
+    windows same table, job green
+  PR run     https://github.com/Thangaraj-lab/HelQix/actions/runs/43699306186
+    pull_request event, completed success at 6f85c7c
+  nightly (manual workflow_dispatch)
+             https://github.com/Thangaraj-lab/HelQix/actions/runs/43699592152
+    ubuntu  124/80/39 nightly mode, 63/63 mutations, OVERALL PASS, 71.03 s
+    windows job green
+- The nightly job previously had no manual trigger, so it could only be
+  exercised by waiting for 00:00 IST; workflow_dispatch was added and the
+  condition widened to schedule OR workflow_dispatch. check_ci stays clean.

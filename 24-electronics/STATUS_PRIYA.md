@@ -103,6 +103,44 @@ Phase 2 (hardening) on branch `priya/r2-hardening`:
   0 failed, 0 skipped, 61/61 mutations, key scan clean, CONFIG clean,
   127.79 s, OVERALL PASS. Predictions and outcomes are in `predictions.txt`.
 
+Phase 3 item 2 (ampacity audit), same branch:
+
+- Every Table B.52.2 row now carries its own provenance: standard, table,
+  installation method, material, insulation, loaded conductors, conductor and
+  ambient temperature, status, source page, optional cross-check page and
+  access date (14 fields).
+- The 105 copper values (15 sizes x 7 methods) were read again from the
+  openly published ecalpro copy on 2026-11-15 and all 105 matched
+  (MEASURED). A1, A2, B1, B2 and C were additionally read from the ti-soft
+  copy and matched for every size 1.5-240 mm2. All 105 rows are therefore
+  VERIFIED; the module prints
+  `IEC 60364-5-52 B.52.2: 105 rows, 105 VERIFIED, 0 UNKNOWN`.
+- A row that cannot be checked is tagged UNKNOWN in data and
+  `report_text()` prints it as `unverified table row: ...`; `row_problems()`
+  flags a missing field, an unknown status, or a VERIFIED row without a
+  source or access date. No interpolation: 3.3 mm2 matches no row and gets no
+  verdict (`test_ampacity_never_interpolates_between_sizes`).
+- Tests: four new harness tests (provenance on every row, UNKNOWN report
+  path, bad-row reporting, no interpolation). Two new mutations (VERIFIED row
+  without source accepted, unverified rows not reported), 63/63 caught. The
+  first run left one mutation alive because the bad-row test set two faults
+  in one row; the test was split into single-fault rows and the second run
+  was green (MEASURED 183 tests, 63/63, 102.48 s, OVERALL PASS).
+
+Phase 3 item 3 (first real Actions runs):
+
+- `priya-electronics` push run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43699300222 completed
+  success on ubuntu-latest and windows-latest; the ubuntu log shows
+  104/60/19, 63/63 mutations, key scan clean, CONFIG clean, OVERALL PASS in
+  46.79 s (MEASURED). The pull_request run for the same commit
+  (runs/43699306186) also completed success.
+- The nightly job had no manual trigger; `workflow_dispatch` was added and
+  its condition widened to schedule OR workflow_dispatch. A manual run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43699592152 completed
+  success: ubuntu nightly mode ran 124/80/39 = 243 tests, 63/63 mutations,
+  OVERALL PASS in 71.03 s; windows green (MEASURED from the job log).
+
 ## E7 — Virtual I/O
 
 - Done: new `helqix_io` package, standard library only: `serial_pair` with length + CRC32 framing, bounded FIFO queues, read/write timeouts, write back-pressure, disconnect/reconnect, seeded drop/corrupt/delay faults and counters; in-process MQTT-style `Broker`/`Client` with `+`/`#` topics, QoS 0/1, ack plus `retry_unacked()` after a reconnect, whole-publish back-pressure refusal; documented as a reusable building block in `docs/priya/INTERFACE_IO.md`.
