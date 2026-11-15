@@ -26,6 +26,7 @@ class SerialPort:
         self.faults = FaultProfile()
         self.stats = PortStats()
         self._incoming: Deque[Tuple[bytes, float]] = deque()
+        self._duplicates: Deque[bytes] = deque()
         self._peer: SerialPort | None = None
         self._closed = False
         self._rng = self.faults.rng()
@@ -35,9 +36,12 @@ class SerialPort:
         return self._closed or (self._peer is not None and self._peer._closed)
 
     def configure_faults(self, *, seed: int = 0, drop: float = 0.0, corrupt: float = 0.0,
-                         delay_s: float = 0.0) -> None:
+                         delay_s: float = 0.0, duplicate: float = 0.0, reorder: float = 0.0) -> None:
         """Faults on this port affect what this port receives."""
-        self.faults = FaultProfile(seed=seed, drop=drop, corrupt=corrupt, delay_s=delay_s)
+        self.faults = FaultProfile(
+            seed=seed, drop=drop, corrupt=corrupt, delay_s=delay_s,
+            duplicate=duplicate, reorder=reorder,
+        )
         self._rng = self.faults.rng()
 
     def write(self, payload: bytes, timeout_s: float = 1.0) -> None:
@@ -63,8 +67,19 @@ class SerialPort:
         deadline = time.monotonic() + timeout_s
         while True:
             now = time.monotonic()
+            if self._duplicates:
+                self.stats.duplicated += 1
+                self.stats.received += 1
+                return self._duplicates.popleft()
             while self._incoming and self._incoming[0][1] <= now:
-                raw, _ = self._incoming.popleft()
+                raw, ready_at = self._incoming.popleft()
+                if (self.faults.reorder and self._incoming
+                        and self._incoming[0][1] <= now
+                        and self._rng.random() < self.faults.reorder):
+                    other_raw, other_at = self._incoming.popleft()
+                    self._incoming.appendleft((raw, ready_at))
+                    raw, ready_at = other_raw, other_at
+                    self.stats.reordered += 1
                 if self.faults.drop and self._rng.random() < self.faults.drop:
                     self.stats.dropped += 1
                     continue
@@ -77,6 +92,8 @@ class SerialPort:
                 except ValueError:
                     self.stats.corrupted += 1
                     continue
+                if self.faults.duplicate and self._rng.random() < self.faults.duplicate:
+                    self._duplicates.append(payload)
                 self.stats.received += 1
                 return payload
             remaining = deadline - time.monotonic()
@@ -88,12 +105,15 @@ class SerialPort:
     def disconnect(self) -> None:
         self._closed = True
         self._incoming.clear()
+        self._duplicates.clear()
         if self._peer is not None:
             self._peer._incoming.clear()
+            self._peer._duplicates.clear()
 
     def reconnect(self) -> None:
         self._closed = False
         self._incoming.clear()
+        self._duplicates.clear()
 
 
 def serial_pair(capacity_frames: int = 4096) -> tuple[SerialPort, SerialPort]:

@@ -110,6 +110,69 @@ def test_delay_holds_the_frame_until_its_time():
     assert right.read(timeout_s=0.5) == b"slow"
 
 
+def drain(port, timeout_s=0.02):
+    received = []
+    while True:
+        try:
+            received.append(port.read(timeout_s))
+        except IOTimeoutError:
+            return received
+
+
+def test_duplicate_injection_delivers_each_hit_twice():
+    left, right = serial_pair()
+    right.configure_faults(seed=5, duplicate=1.0)
+    payloads = [f"dup-{index:03d}".encode() for index in range(40)]
+    for payload in payloads:
+        left.write(payload)
+    assert drain(right) == [payload for payload in payloads for _ in (0, 1)]
+    assert right.stats.received == 80
+    assert right.stats.duplicated == 40
+
+
+def test_duplicate_injection_is_seeded_and_keeps_reading_order():
+    def run():
+        left, right = serial_pair()
+        right.configure_faults(seed=9, duplicate=0.5)
+        for index in range(100):
+            left.write(bytes([index]))
+        return drain(right), right.stats.duplicated
+
+    first = run()
+    assert first == run(), "the same seed must duplicate the same frames"
+    received, duplicated = first
+    assert len(received) == 100 + duplicated
+    assert 0 < duplicated < 100
+    assert list(dict.fromkeys(received)) == [bytes([index]) for index in range(100)]
+    assert all(received.count(payload) in (1, 2) for payload in received)
+
+
+def test_reorder_injection_swaps_each_frame_with_the_next():
+    left, right = serial_pair()
+    right.configure_faults(seed=4, reorder=1.0)
+    payloads = [f"swap-{index}".encode() for index in range(6)]
+    for payload in payloads:
+        left.write(payload)
+    assert [right.read(timeout_s=0.5) for _ in range(6)] == payloads[1:] + payloads[:1]
+    assert right.stats.reordered == 5
+
+
+def test_reorder_injection_is_seeded_and_keeps_every_frame():
+    def run():
+        left, right = serial_pair()
+        right.configure_faults(seed=13, reorder=0.5)
+        for index in range(100):
+            left.write(bytes([index]))
+        return drain(right), right.stats.reordered
+
+    first = run()
+    assert first == run(), "the same seed must reorder the same frames"
+    received, reordered = first
+    assert 0 < reordered < 100
+    assert sorted(received) == [bytes([index]) for index in range(100)]
+    assert received != sorted(received)
+
+
 def test_write_only_reaches_the_peer():
     left, right = serial_pair()
     left.write(b"one-way")

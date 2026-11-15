@@ -123,6 +123,64 @@ def test_corruption_is_detected_never_delivered():
     assert subscriber.stats.corrupted == 10
 
 
+def drain(client, timeout_s=0.02):
+    messages = []
+    while True:
+        try:
+            messages.append(client.receive(timeout_s))
+        except IOTimeoutError:
+            return messages
+
+
+def test_duplicate_injection_delivers_each_hit_twice():
+    broker = Broker()
+    subscriber = Client("sub", broker)
+    subscriber.subscribe("a")
+    subscriber.configure_faults(seed=5, duplicate=1.0)
+    publisher = Client("pub", broker)
+    payloads = [f"dup-{index:03d}".encode() for index in range(40)]
+    for payload in payloads:
+        publisher.publish("a", payload)
+    assert [message.payload for message in drain(subscriber)] == [
+        payload for payload in payloads for _ in (0, 1)
+    ]
+    assert subscriber.stats.received == 80
+    assert subscriber.stats.duplicated == 40
+
+
+def test_duplicate_injection_is_seeded_and_keeps_message_order():
+    def run():
+        broker = Broker()
+        subscriber = Client("sub", broker)
+        subscriber.subscribe("a")
+        subscriber.configure_faults(seed=9, duplicate=0.5)
+        publisher = Client("pub", broker)
+        for index in range(100):
+            publisher.publish("a", bytes([index]))
+        messages = drain(subscriber)
+        return [message.payload for message in messages], subscriber.stats.duplicated
+
+    first = run()
+    assert first == run(), "the same seed must duplicate the same messages"
+    payloads, duplicated = first
+    assert len(payloads) == 100 + duplicated
+    assert 0 < duplicated < 100
+    assert list(dict.fromkeys(payloads)) == [bytes([index]) for index in range(100)]
+
+
+def test_reorder_injection_swaps_each_message_with_the_next():
+    broker = Broker()
+    subscriber = Client("sub", broker)
+    subscriber.subscribe("a")
+    subscriber.configure_faults(seed=4, reorder=1.0)
+    publisher = Client("pub", broker)
+    payloads = [f"swap-{index}".encode() for index in range(6)]
+    for payload in payloads:
+        publisher.publish("a", payload)
+    assert [message.payload for message in drain(subscriber)] == payloads[1:] + payloads[:1]
+    assert subscriber.stats.reordered == 5
+
+
 def test_disconnect_drops_delivery_and_reconnect_restores_it():
     broker = Broker()
     subscriber = Client("sub", broker)

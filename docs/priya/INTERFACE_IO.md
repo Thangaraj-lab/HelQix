@@ -45,10 +45,16 @@ payloads are legal, and a frame whose CRC does not match is never returned.
 - `read` raises `IOTimeoutError` (a `TimeoutError`) after its deadline.
 - `disconnect()` closes both ends of the pair and clears queued frames;
   `reconnect()` starts clean. Traffic while closed raises `DisconnectedError`.
-- `configure_faults(seed, drop, corrupt, delay_s)` installs faults on the
-  receiving port: frames are dropped, corrupted (one byte flipped, so CRC
-  fails) or delayed. The same seed always produces the same outcome.
-- `stats` counts `sent, received, dropped, corrupted, timeouts, retries, acks`.
+- `configure_faults(seed, drop, corrupt, delay_s, duplicate, reorder)` installs
+  faults on the receiving port: frames are dropped, corrupted (one byte flipped,
+  so CRC fails), delayed, duplicated or swapped with the next ready frame. The
+  same seed always produces the same outcome.
+- A duplicate is delivered on the next read, before any newer frame, and is
+  not itself subject to drop or corrupt. A reorder read requires a second
+  frame that is already ready and swaps the two oldest ready frames.
+- `stats` counts `sent, received, dropped, corrupted, timeouts, retries, acks,
+  duplicated, reordered`. `received` includes duplicate deliveries, so
+  `sent == received - duplicated + dropped + corrupted`.
 
 ## Message bus
 
@@ -66,7 +72,8 @@ publish is refused), `IOTimeoutError` on an empty read.
   `retry_unacked()` on the publisher.
 - The sender's own subscription receives the message, as in MQTT.
 - `configure_faults` applies to what this client receives (drop, corrupt,
-  delay), seeded per client.
+  delay, duplicate, reorder), seeded per client, with the same semantics as the
+  serial pair.
 
 ## Measured behaviour
 
@@ -74,16 +81,23 @@ publish is refused), `IOTimeoutError` on an empty read.
 |------|--------|-------|
 | 10000 serial frames round trip, in order | 0.049 s, every payload identical | MEASURED |
 | 10000 bus messages round trip, in order | 0.080 s, unique ids, every payload identical | MEASURED |
-| suite (fast) | 19 tests | MEASURED |
-| suite (nightly) | 20 seeded property cases, seeds 0..19 | MEASURED |
-| mutation checks | 11 mutations, 11 caught | MEASURED |
+| suite (fast) | 35 tests | MEASURED |
+| suite (nightly) | 20 seeded property cases, seeds 0..19 (55 tests in total) | MEASURED |
+| mutation checks | 18 io and probe mutations, 18 caught | MEASURED |
 | wildcard agreement with amqtt 0.12.2 | 49 of 49 filter/topic pairs agree | MEASURED |
+| live probe, 7 scenarios x 2 transports, seed 11 | 120 readings: drop 65, corrupt 65, duplicate 120, reorder 119, combined 96 unique + 12 dropped + 12 corrupted + 10 duplicates; serial and bus counters identical | MEASURED |
 
 The interop probe ran once in a throwaway venv (Python 3.13.12, amqtt 0.12.2,
 paho-mqtt) against a real broker on 127.0.0.1; it needs network to install and
 is not part of the offline suites. Interop covers topic-matching decisions
 only; wire-protocol compatibility is UNKNOWN because it is deliberately not
 implemented.
+
+`scripts/live_probe.py` sends a seeded sensor trace through both transports
+into a consumer for seven scenarios: clean, drop, corrupt, delay, reorder,
+duplicate and a combined run. The expected counters are calculated from the
+same seed with a separate `random.Random` stream, so a mismatch fails the run.
+Repeating seed 11 reproduces the report byte for byte; seed 29 differs.
 
 ## Limits
 

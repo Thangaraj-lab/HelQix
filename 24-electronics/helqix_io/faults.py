@@ -31,18 +31,22 @@ def decode_frame(raw: bytes) -> bytes:
 class FaultProfile:
     """Deterministic fault injection applied by the receiving side.
 
-    drop and corrupt are probabilities in [0, 1]; delay_s is added to the
-    arrival time of every frame. A corrupted frame always fails its CRC and
-    is counted, never delivered.
+    drop, corrupt, duplicate and reorder are probabilities in [0, 1];
+    delay_s is added to the arrival time of every frame. A corrupted frame
+    always fails its CRC and is counted, never delivered. A duplicated frame
+    waits in a small queue that skips drop and corrupt, so it is always seen.
+    A reordered read swaps the two oldest ready frames.
     """
 
     seed: int = 0
     drop: float = 0.0
     corrupt: float = 0.0
     delay_s: float = 0.0
+    duplicate: float = 0.0
+    reorder: float = 0.0
 
     def __post_init__(self) -> None:
-        for name in ("drop", "corrupt"):
+        for name in ("drop", "corrupt", "duplicate", "reorder"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be a probability between 0 and 1")
@@ -62,3 +66,5 @@ class PortStats:
     timeouts: int = 0
     retries: int = 0
     acks: int = 0
+    duplicated: int = 0
+    reordered: int = 0

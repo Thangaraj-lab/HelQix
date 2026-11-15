@@ -380,3 +380,61 @@ R2 Phase 3 item 1 - second CI run (final)
 - Fast suite on the same commit: 113 circuit + 60 sensors + 19 io = 192
   tests, 65/65 mutations, key scan clean, CONFIG clean, 109.35 s,
   OVERALL PASS (MEASURED locally).
+
+R2 Phase 3 item 4 - E7 live probe (written before writing the probe)
+--------------------------------------------------------------------
+Intent: one process, no threads, no network. A seeded sensor trace is sent
+twice - once through the serial pair, once through the broker - into a
+consumer that checks every delivered reading against the sensor's reported
+value. Each scenario injects one fault on the receiving side and compares the
+observed counters with an independent prediction from the same seed.
+
+Hand-derived expectations for n = 120 readings:
+- clean: order 0..119 on both channels; received 120, all fault counters 0.
+- drop p=0.5, seed s: every frame is consumed once in order and dropped with
+  one draw of random.Random(s); received + dropped = 120, and the delivered
+  index list equals the independent prediction exactly, on both channels.
+- corrupt p=0.5: delivered + corrupted = 120, every delivered payload passes
+  the frame/bus checksum and carries the exact quantized value.
+- delay_s=0.05: a probe read with a 0.01 s timeout must raise IOTimeoutError;
+  after that all 120 readings arrive in order.
+- reorder p=1.0: the receiver swaps each frame with the next one, so the
+  order becomes 1,2,...,119,0, reordered = 119, and exactly one first
+  delivery is below the running maximum.
+- duplicate p=1.0: each reading is delivered twice before the next one, so
+  the order is 0,0,1,1,...,119,119, received = 240, duplicated = 120.
+- combined (drop/corrupt/duplicate/reorder p=0.1, delay 5 ms): only
+  conservation is asserted: unique + dropped + corrupted = 120 and
+  received = unique + duplicates, because the five draws interleave.
+- two seeds: running the whole probe twice with seed 11 must produce an
+  identical JSON report (same sensor trace bytes included), and seed 29 must
+  differ, at least in the drop scenario.
+- Runtime prediction: under 2 s for all scenarios on both channels.
+- Risk: the consumer's drain read adds one timeout counter per scenario; the
+  assertions therefore name each counter instead of comparing whole stats.
+- Risk: 120 writes may let a 5 ms delay expire before reading starts; the
+  combined scenario only relies on conservation, so this cannot break it.
+
+R2 Phase 3 item 4 - E7 live probe (outcome)
+-------------------------------------------
+- MEASURED, seed 11, 120 readings, both transports identical:
+  clean 120 in order; drop 55 received / 65 dropped; corrupt 55 / 65;
+  delay: the 0.01 s probe read timed out and all 120 then arrived in order;
+  reorder 120 with order 1..119,0 and 119 swaps; duplicate 240 deliveries,
+  120 unique, 120 duplicates; combined 106 deliveries = 96 unique + 10
+  duplicates, with 12 dropped + 12 corrupted = 120 sent.
+- Seed 29 combined differs (108 deliveries = 99 unique + 9 duplicates,
+  13 dropped + 8 corrupted); seed 11 repeated byte-identical report.
+- Wrong prediction kept: three first-run failures were my mistakes, not the
+  library's. (1) The scenario fault dicts omitted the seed, so the transport
+  used seed 0 while the prediction used the probe seed. (2) The probe fed a
+  synthesis spec to simulate(), which expects a time/value series; it now
+  calls synthesize_signal first. (3) The combined scenario included a 5 ms
+  delay, so how many reorder draws happened depended on wall-clock readiness
+  and the same seed produced different counters; the delay was removed from
+  combined (the delay scenario covers it), which made repeats deterministic.
+- One flaky failure appeared in a full-suite run before fix (3) and did not
+  reproduce when the probe test ran alone; after the fix, three consecutive
+  full I/O suite runs passed (MEASURED).
+- Fast suite: 113 circuit + 60 sensors + 35 io = 208 tests, 72/72 mutations,
+  key scan clean, CONFIG clean, 123.64 s, OVERALL PASS (MEASURED locally).
