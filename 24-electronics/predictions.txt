@@ -207,3 +207,20 @@ Final sweep prediction:
 - At least one target will need a second round: most likely the E2 cutoff
   frequency or the E3 ampacity table coverage. I will record it rather than
   lower the target.
+
+Final sweep — outcome (written after the sweep)
+-----------------------------------------------
+- Three consecutive fast verify runs: 127.96 s, 136.85 s, 142.48 s, all
+  green; nightly verify 132.05 s green; 57/57 mutations caught every time;
+  key scan and CONFIG clean.
+- The predicted second round did not happen for a measured target: E2's
+  cutoff, E3's verdict sides and E4's noise and -3 dB figures all held on
+  re-run. The second rounds that did happen were E7's no-op mutation and
+  E5's unknown-field bug, both found and fixed during their own phases.
+- Missed targets re-attempted: ngspice now has a real retry (PySpice 1.5
+  installs, its ngspice.dll does not ship; OSError 0x7e) and stays UNKNOWN.
+  The workflow YAML was parsed with PyYAML 6.0.3 in a throwaway venv: correct
+  triggers, cron, jobs and commands; the Actions runtime itself is still
+  UNKNOWN offline.
+- Everything stayed inside 24-electronics/, docs/priya/ and the one new
+  workflow file; no key patterns; commits local on the priya/* branches.

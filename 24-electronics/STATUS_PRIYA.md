@@ -3,6 +3,53 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## Final sweep — all seven phases
+
+Status: **DONE**, nothing BLOCKED. Work is on branches `priya/e1-circuit` …
+`priya/e7-io`, committed locally, not pushed.
+
+| phase | status | commit(s) | tests now | main targets, measured | UNKNOWNs |
+|-------|--------|-----------|-----------|------------------------|----------|
+| E0 Setup | DONE | 8875dae | 3 smoke | verify.py runs every suite end to end, 2.12 s | none |
+| E1 DC MNA | DONE | 2d5a48d | 16 fast | 15 hand cases within 1e-9, worst 1.33e-16; 5/5 mutations | none |
+| E2 Transient/AC/nonlinear | DONE | f54e98c, 5cd642a | 45 fast | RC trap 1.61e-6, BE 0.192% (0.5%), RLC f0/Q 1.70e-8, cutoff 1.43e-16, op-amp 0.0 (0.1%) | ngspice cross-check |
+| E3 Harness | DONE | dd8018f | 24 new | R error 0.0, drop 8.27e-15; IEC B.52.2 verdicts both sides of every limit | aluminium and untabulated ampacity |
+| E4 Sensors | DONE | 579b4d1 | 35 fast | noise 1.78% (3%), step exact 1e-12, -3 dB 4.2e-12 (2%), clip exact, seed-identical bytes, reality gap 6.344e-4 | none |
+| E5 Interface | DONE | f96afca, 8ab6af8 | 52 new CLI | 2000-point cap, exit 0/2/3, fresh folder, VALIDATED/CHECKED/UNVALIDATED, 20 examples, 93 external probes 0 BAD | none (envelope deviation kept) |
+| E6 Automation | DONE | ced94ef | 46/46 mutations | fast 123.41 s, nightly 120.51 s (limit 180 s); workflow YAML parsed once with PyYAML 6.0.3 | Actions runtime, hook install |
+| E7 Virtual I/O | DONE | 3b00e4d | 19 fast + 20 nightly | 10000 frames 0.049 s, 10000 messages 0.080 s, 11/11 mutations, amqtt 49/49 topic decisions | wire-level MQTT |
+
+Verification runs after E7 (MEASURED): verify.py three times green, 127.96 s,
+136.85 s and 142.48 s; nightly verify green at 132.05 s; every run reports
+57/57 mutations caught, key scan clean and CONFIG clean. Current totals:
+175 fast tests (97 circuit + 59 sensors + 19 io) and 235 in nightly mode
+(117 + 79 + 39).
+
+Every missed or unknown target was re-attempted in this sweep:
+- ngspice: retried with network available. `pip` has no ngspice distribution;
+  PySpice 1.5 installs but its `ngspice.dll` is not shipped, so loading the
+  shared library fails (OSError 0x7e). Cross-check stays **UNKNOWN**.
+- Workflow YAML: parsed with PyYAML 6.0.3 in a throwaway venv. Triggers
+  (`push`, `pull_request`, `schedule`), the cron line, both jobs, both OS
+  values and both verify commands are exactly as intended (**MEASURED**);
+  running Actions itself offline remains **UNKNOWN**.
+- E2 numbers, E3 verdict sides, E4 targets, E5 contract probes, E6 timing and
+  E7 round trips were all re-run by the three verify passes above and held.
+
+UNKNOWNs, in one place:
+1. E2 ngspice cross-check: no user-level ngspice binary or library exists on
+   this laptop.
+2. E3 aluminium and untabulated wire ampacity: UNKNOWN by design, no verdict,
+   because those rows are not transcribed.
+3. E6 GitHub Actions runtime: the YAML is valid and structurally checked, but
+   the runner cannot execute offline; first real run is on first push.
+4. E6 pre-commit hook: one documented copy command, not installed
+   automatically.
+5. E7 wire-level MQTT interop: deliberately not implemented; only topic
+   matching was compared with a real broker.
+6. E5 downsampling: rounded-even-spacing indices, not a min/max envelope;
+   kept as a documented limitation, not a lowered target.
+
 ## E7 — Virtual I/O
 
 - Done: new `helqix_io` package, standard library only: `serial_pair` with length + CRC32 framing, bounded FIFO queues, read/write timeouts, write back-pressure, disconnect/reconnect, seeded drop/corrupt/delay faults and counters; in-process MQTT-style `Broker`/`Client` with `+`/`#` topics, QoS 0/1, ack plus `retry_unacked()` after a reconnect, whole-publish back-pressure refusal; documented as a reusable building block in `docs/priya/INTERFACE_IO.md`.
