@@ -3,6 +3,7 @@ name: priya-electronics
 on:
   push:
   pull_request:
+  workflow_dispatch:
   schedule:
     # 00:00 IST; the nightly job also runs the slow property suites.
     - cron: "30 18 * * *"
@@ -31,7 +32,7 @@ jobs:
 
   nightly:
     name: nightly properties (${{ matrix.os }})
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
