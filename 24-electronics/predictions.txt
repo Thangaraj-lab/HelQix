@@ -345,3 +345,24 @@ R2 Phase 3 item 1 - ngspice cross-check (written before the run)
   single-point "ac lin 1 f f" sweep, (b) the exact meas line format, (c) the
   1 mOhm closed switch vs the ideal short in our solver, (d) diode
   temperature handling. If one fails the log will name the deck and value.
+
+R2 Phase 3 item 1 - first CI ngspice run and metric fix
+-------------------------------------------------------
+- First CI run PASS 18/18 circuits (MEASURED, log of job 132776150468,
+  run 43702396529). Ubuntu installed ngspice 42+ds-3build1 (apt package
+  line in the log); the source site currently offers 47, so CI uses 42.
+- Per-circuit errors with the first metric (error / max(|python|,|ngspice|)):
+  divider 5.0e-8, ladder 1.36e-7, bridge 2.08e-8, current source 0, two
+  sources 4.76e-8, vcvs 0, vccs 0, switch closed 1.0e-5, switch open 1.0
+  (a ~5e-9 V difference against an expected 0 V, within atol 1e-6),
+  diode forward 3.53e-7, diode reverse 1.0e-9, RC low-pass 6.19e-7,
+  RL high-pass 1.04e-7, RLC series 1.71e-2, RC ladder 5.33e-7, RC step
+  8.81e-7, RL step 1.16e-4, RLC step 1.97e-5.
+- Fixes after reading the log: (a) the version banner printed "******"
+  because ngspice prefixes its version block with asterisks; the first
+  line containing "ngspice" is now used. (b) the summary error is now
+  error / circuit scale (largest compared magnitude) instead of
+  error / max(|a|,|b|), so near-zero points no longer report 1.0.
+  Per-point pass criteria are unchanged (atol + rtol*max(|a|,|b|)).
+- Predicted second CI run: same 18/18 PASS, with switch open below 1e-9
+  and RLC series below 2e-5 on the new scale.

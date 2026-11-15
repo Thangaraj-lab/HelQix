@@ -193,11 +193,13 @@ def _write_deck(directory: Path, stem: str, deck: str) -> tuple[Path, Path]:
 
 
 def _compare(pairs: list[tuple[str, float, float]], rtol: float, atol: float) -> tuple[float, list[str]]:
+    scale = max((max(abs(py), abs(sp)) for _, py, sp in pairs), default=0.0)
+    denominator = max(scale, 1e-12)
     worst = 0.0
     failures: list[str] = []
     for name, py, sp in pairs:
         error = abs(py - sp)
-        worst = max(worst, error / max(abs(py), abs(sp), 1e-12))
+        worst = max(worst, error / denominator)
         if error > atol + rtol * max(abs(py), abs(sp)):
             failures.append(f"{name}: python {py:.12g} ngspice {sp:.12g} (|d| {error:.3g})")
     return worst, failures
@@ -265,8 +267,9 @@ def main(argv=None) -> int:
         return 0
     try:
         version = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30)
-        first = (version.stdout or version.stderr).strip().splitlines()
-        print(f"ngspice cross-check: {first[0] if first else exe}")
+        lines = [line.strip() for line in (version.stdout or version.stderr).splitlines() if line.strip()]
+        banner = next((line for line in lines if "ngspice" in line.lower()), lines[0] if lines else exe)
+        print(f"ngspice cross-check: {banner}")
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"ngspice cross-check: skipped (cannot run {exe}: {exc})")
         return 0
@@ -283,7 +286,7 @@ def main(argv=None) -> int:
             shutil.copytree(workdir, final, dirs_exist_ok=True)
             print(f"decks kept in {final}")
 
-    header = f"{'CIRCUIT':<22}{'POINTS':>7}{'MAX REL ERR':>14}  STATUS"
+    header = f"{'CIRCUIT':<22}{'POINTS':>7}{'MAX ERR/SCALE':>16}  STATUS"
     print(header)
     print("-" * len(header))
     all_ok = True

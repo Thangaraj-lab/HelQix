@@ -147,3 +147,15 @@ def test_crosscheck_case_list_builds_every_deck():
             tran_step_s=timing["step_s"], tran_stop_s=timing["stop_s"], measures=measures,
         )
         assert "meas tran" in deck
+
+
+def test_crosscheck_compare_reports_error_against_circuit_scale():
+    script = Path(__file__).resolve().parents[2] / "scripts" / "ngspice_crosscheck.py"
+    spec = importlib.util.spec_from_file_location("ngspice_crosscheck_compare", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    worst, failed = module._compare([("v(1)", 5.0, 5.0 - 5e-9), ("v(2)", 0.0, 5e-9)], 1e-4, 1e-6)
+    assert failed == []
+    assert worst == pytest.approx(1e-9)
+    worst, failed = module._compare([("v(1)", 1.0, 1.1)], 1e-3, 1e-6)
+    assert failed and worst == pytest.approx(0.1 / 1.1)
