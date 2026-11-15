@@ -1,0 +1,20 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "strain_clipped",
+    "kind": "strain",
+    "unit": "microstrain",
+    "range": {"min": -1000.0, "max": 1000.0},
+    "resolution": {"bits": 12},
+    "noise_density": 1.0,
+    "bias": 1500.0,
+    "drift_per_hour": 0.0,
+    "bandwidth_hz": 100.0,
+    "latency_s": 0.0,
+    "sample_rate_hz": 1000.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {"synthesize": {"type": "dc", "value": 0.0, "duration_s": 0.05}},
+  "seed": 4
+}

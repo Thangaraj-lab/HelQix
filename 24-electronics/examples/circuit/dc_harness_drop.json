@@ -1,0 +1,26 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "12 V source through two 10 ohm loads and a 2 m wire",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 12.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 10.0, "unit": "ohm"}},
+      {"id": "R2", "kind": "resistor", "nodes": ["2", "0"], "value": {"value": 10.0, "unit": "ohm"}}
+    ],
+    "analysis": {"type": "dc"}
+  },
+  "wires": [
+    {
+      "id": "W1",
+      "from": "1",
+      "to": "2",
+      "length_mm": 2000.0,
+      "diameter_mm": 1.784,
+      "material": "copper",
+      "insulation_rating_c": 70.0,
+      "installation_method": "C"
+    }
+  ],
+  "reference": {"quantity": "node_voltage", "name": "V(2)", "value": 5.995865, "relative_tolerance": 1e-4}
+}

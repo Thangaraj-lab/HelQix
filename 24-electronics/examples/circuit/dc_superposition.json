@@ -1,0 +1,16 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "two sources feeding one node",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["S1", "0"], "value": {"value": 10.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["S1", "A"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "V2", "kind": "vsource", "nodes": ["S2", "0"], "value": {"value": 5.0, "unit": "V"}},
+      {"id": "R2", "kind": "resistor", "nodes": ["S2", "A"], "value": {"value": 2000.0, "unit": "ohm"}},
+      {"id": "R3", "kind": "resistor", "nodes": ["A", "0"], "value": {"value": 1000.0, "unit": "ohm"}}
+    ],
+    "analysis": {"type": "dc"}
+  },
+  "reference": {"quantity": "node_voltage", "name": "V(A)", "value": 5.0, "relative_tolerance": 1e-9}
+}

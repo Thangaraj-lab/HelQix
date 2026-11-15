@@ -1,0 +1,15 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "thevenin source with a load resistor",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 12.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "A"], "value": {"value": 4.0, "unit": "ohm"}},
+      {"id": "R2", "kind": "resistor", "nodes": ["A", "0"], "value": {"value": 6.0, "unit": "ohm"}},
+      {"id": "RL", "kind": "resistor", "nodes": ["A", "0"], "value": {"value": 1.6, "unit": "ohm"}}
+    ],
+    "analysis": {"type": "dc"}
+  },
+  "reference": {"quantity": "node_voltage", "name": "V(A)", "value": 2.88, "relative_tolerance": 1e-9}
+}

@@ -16,3 +16,9 @@ class InputError(HelqixError):
     """The case itself is wrong; the platform should exit 2."""
 
     code = "invalid_input"
+
+
+class SolverError(HelqixError):
+    """The case was understood but no result could be produced; exit 3."""
+
+    code = "solver_error"

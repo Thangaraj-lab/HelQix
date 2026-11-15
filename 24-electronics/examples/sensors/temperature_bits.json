@@ -1,0 +1,20 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "temp_12bit",
+    "kind": "temperature",
+    "unit": "degC",
+    "range": {"min": -40.0, "max": 125.0},
+    "resolution": {"bits": 12},
+    "noise_density": 0.05,
+    "bias": 0.1,
+    "drift_per_hour": 0.02,
+    "bandwidth_hz": 5.0,
+    "latency_s": 0.0,
+    "sample_rate_hz": 100.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {"synthesize": {"type": "dc", "value": 21.5, "duration_s": 60.0}},
+  "seed": 3
+}

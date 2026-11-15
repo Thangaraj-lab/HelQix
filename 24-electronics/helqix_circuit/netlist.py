@@ -34,6 +34,30 @@ POSITIVE_KINDS = {"resistor", "capacitor", "inductor"}
 
 WAVEFORM_TYPES = {"dc", "step", "sine", "pulse"}
 
+CIRCUIT_KEYS = {"version", "title", "ground", "components", "analysis"}
+COMPONENT_KEYS = {"id", "kind", "nodes", "value", "state", "parameters", "initial", "waveform"}
+ANALYSIS_KEYS = {
+    "type", "stop_s", "step_s", "method", "adaptive", "rtol", "max_step_s", "min_step_s",
+    "max_steps", "start_hz", "stop_hz", "points", "points_per_decade", "cutoff", "resonance",
+}
+WAVEFORM_KEYS = {
+    "dc": {"type"},
+    "step": {"type", "delay_s"},
+    "sine": {"type", "amplitude", "frequency_hz", "offset", "phase_deg"},
+    "pulse": {"type", "amplitude", "period_s", "duty", "delay_s"},
+}
+DEVICE_KEYS = {
+    "diode": {"is_a", "n", "rs_ohm", "t_deg_c"},
+    "mosfet": {"channel", "vth", "k", "lambda"},
+    "opamp": {"ideal", "gain"},
+}
+
+
+def _reject_unknown(where: str, body: dict, allowed: set[str]) -> None:
+    unknown = sorted(set(body) - allowed)
+    if unknown:
+        raise InputError(f"{where} has unknown field(s) {unknown}; allowed fields are {sorted(allowed)}")
+
 
 @dataclass(frozen=True)
 class Component:
@@ -109,6 +133,7 @@ def _component(index: int, body: dict) -> Component:
     if not isinstance(cid, str) or not cid.strip():
         raise InputError(f"{where} needs a non-empty string id")
     where = f"component {cid!r}"
+    _reject_unknown(where, body, COMPONENT_KEYS)
     kind = body.get("kind")
     if kind not in KIND_NODES:
         raise InputError(f"{where} has unknown kind {kind!r}; supported kinds are {sorted(KIND_NODES)}")
@@ -142,6 +167,7 @@ def _component(index: int, body: dict) -> Component:
     value_body = body.get("value")
     if not isinstance(value_body, dict):
         raise InputError(f"{where} needs value {{'value': number, 'unit': string}}")
+    _reject_unknown(f"{where} value", value_body, {"value", "unit"})
     if "value" not in value_body or "unit" not in value_body:
         raise InputError(f"{where} value needs both 'value' and 'unit'")
     value, unit = to_si(value_body["value"], value_body["unit"], kind)
@@ -171,6 +197,7 @@ def _initial_value(where: str, kind: str, body) -> float:
         return 0.0
     if not isinstance(body, dict) or "value" not in body or "unit" not in body:
         raise InputError(f"{where} initial needs {{'value': number, 'unit': string}}")
+    _reject_unknown(f"{where} initial", body, {"value", "unit"})
     value, unit = to_si(body["value"], body["unit"])
     allowed = {"v", "mv"} if kind == "capacitor" else {"a", "ma", "ua"}
     if unit not in allowed:
@@ -192,6 +219,7 @@ def _device_parameters(cid: str, kind: str, body) -> dict:
         body = {}
     if not isinstance(body, dict):
         raise InputError(f"{where} parameters must be an object")
+    _reject_unknown(f"{where} parameters", body, DEVICE_KEYS[kind])
     params = copy.deepcopy(body)
     if kind == "diode":
         result = {
@@ -237,6 +265,7 @@ def _waveform(where: str, body) -> dict | None:
     kind = body.get("type", "dc")
     if kind not in WAVEFORM_TYPES:
         raise InputError(f"{where} waveform type must be one of {sorted(WAVEFORM_TYPES)}")
+    _reject_unknown(f"{where} waveform", body, WAVEFORM_KEYS[kind])
     result = {"type": kind}
     if kind == "step":
         result["delay_s"] = _number(body.get("delay_s", 0.0), f"{where} waveform delay_s")
@@ -259,6 +288,7 @@ def load_circuit(source) -> Circuit:
     body = _read(source)
     if not isinstance(body, dict):
         raise InputError("netlist root must be an object")
+    _reject_unknown("netlist", body, CIRCUIT_KEYS)
     version = body.get("version")
     if version != VERSION:
         raise InputError(f"netlist version must be {VERSION!r}, got {version!r}")
@@ -278,6 +308,7 @@ def load_circuit(source) -> Circuit:
     analysis = body.get("analysis", {"type": "dc"})
     if not isinstance(analysis, dict) or not isinstance(analysis.get("type", "dc"), str):
         raise InputError("analysis must be an object with a type")
+    _reject_unknown("analysis", analysis, ANALYSIS_KEYS)
     title = body.get("title", "")
     if not isinstance(title, str):
         raise InputError("title must be a string")

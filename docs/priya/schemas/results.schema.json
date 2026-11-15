@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helqix/results.schema.json",
+  "title": "HELQIX result document",
+  "type": "object",
+  "required": ["status", "analysis", "solver", "seconds"],
+  "properties": {
+    "status": {"enum": ["ok", "solver_error"]},
+    "analysis": {"enum": ["dc", "transient", "ac", "sensor"]},
+    "validation_label": {"enum": ["VALIDATED", "CHECKED", "UNVALIDATED", "CALCULATED"]},
+    "solver": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "seconds": {"type": "number", "minimum": 0},
+    "limits": {"type": "object"},
+    "message": {"type": "string"},
+    "code": {"type": ["string", "null"]},
+    "values": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "quantity", "value", "unit", "label"],
+        "properties": {
+          "name": {"type": "string"},
+          "quantity": {"type": "string"},
+          "value": {"type": ["number", "null"]},
+          "unit": {"type": "string"},
+          "label": {"type": "string"}
+        }
+      }
+    },
+    "wires": {"type": "array", "items": {"type": "object"}},
+    "wire_verdict": {"enum": ["PASS", "WARN", "FAIL", "UNKNOWN"]},
+    "probes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "unit", "value", "samples_total", "samples_written"],
+        "properties": {
+          "id": {"type": "string"},
+          "unit": {"type": "string"},
+          "value": {"type": "array", "items": {"type": "number"}},
+          "time_s": {"type": "array", "items": {"type": "number"}},
+          "frequency_hz": {"type": "array", "items": {"type": "number"}},
+          "x_name": {"type": "string"},
+          "samples_total": {"type": "integer", "minimum": 1},
+          "samples_written": {"type": "integer", "minimum": 1, "maximum": 2000},
+          "label": {"type": "string"}
+        }
+      }
+    },
+    "series_csv": {"type": ["string", "null"]},
+    "reference": {
+      "type": "object",
+      "required": ["quantity", "expected", "actual", "relative_error", "relative_tolerance", "matched"],
+      "properties": {
+        "quantity": {"type": "string"},
+        "name": {"type": "string"},
+        "expected": {"type": "number"},
+        "actual": {"type": "number"},
+        "relative_error": {"type": "number", "minimum": 0},
+        "relative_tolerance": {"type": "number", "exclusiveMinimum": 0},
+        "matched": {"type": "boolean"}
+      }
+    },
+    "report": {"type": "object"},
+    "model": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"type": "string"},
+        "unit": {"type": "string"},
+        "source": {"type": "string"}
+      }
+    },
+    "seed": {"type": "integer"},
+    "probe": {"type": ["string", "integer", "null"]}
+  }
+}

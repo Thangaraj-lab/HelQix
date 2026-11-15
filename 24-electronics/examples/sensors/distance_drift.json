@@ -1,0 +1,20 @@
+{
+  "version": "case/0.1",
+  "model": {
+    "id": "distance_drifting",
+    "kind": "distance",
+    "unit": "mm",
+    "range": {"min": 0.0, "max": 5000.0},
+    "resolution": {"bits": 16},
+    "noise_density": 0.02,
+    "bias": 0.0,
+    "drift_per_hour": 30.0,
+    "bandwidth_hz": 10.0,
+    "latency_s": 0.002,
+    "sample_rate_hz": 100.0,
+    "saturation": {"mode": "clip"},
+    "source": "generic"
+  },
+  "signal": {"synthesize": {"type": "dc", "value": 2500.0, "duration_s": 60.0}},
+  "seed": 9
+}

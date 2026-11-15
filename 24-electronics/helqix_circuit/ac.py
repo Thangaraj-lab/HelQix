@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import cmath
 import math
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -87,7 +88,7 @@ def _sweep_frequencies(circuit: Circuit) -> np.ndarray:
     return np.logspace(math.log10(start), math.log10(stop), count)
 
 
-def ac_sweep(circuit: Circuit, frequencies=None) -> AcSolution:
+def ac_sweep(circuit: Circuit, frequencies=None, deadline: float | None = None) -> AcSolution:
     if str(circuit.analysis.get("type", "ac")).lower() != "ac":
         raise InputError("circuit analysis type is not 'ac'")
     check_topology(circuit, "ac")
@@ -98,6 +99,8 @@ def ac_sweep(circuit: Circuit, frequencies=None) -> AcSolution:
     node_names = list(circuit.node_names)
     series = {name: [] for name in node_names}
     for frequency in grid:
+        if deadline is not None and time.perf_counter() > deadline:
+            raise SolverError("AC sweep exceeded its timeout; raise timeout_s or reduce the case", code="timeout")
         voltages = analyzer.solve(float(frequency))
         for name in node_names:
             series[name].append(voltages.get(name, 0.0))

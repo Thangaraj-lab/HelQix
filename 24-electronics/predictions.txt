@@ -108,6 +108,30 @@ Prediction:
   will be verifiable by listing DIR before/after.
 - Expected CLI runtime per small case: under 1 s.
 
+E5 — outcome (kept honestly, written after the phase)
+------------------------------------------------------
+- Exit codes held: every probe produced 0, 2 or 3 with no traceback. Typos
+  in case keys are now refused (exit 2) instead of ignored.
+- Timeout: first attempt used a watchdog thread that hard-killed the run.
+  WRONG in practice: the daemon thread kept executing numpy at interpreter
+  shutdown and the process died with exit 120 and a SystemError. Replaced
+  with cooperative deadline checks inside the transient and AC loops; a
+  case that finishes after the deadline is reported as solver_error
+  (exit 3) with "timeout" in the message, as predicted.
+- Downsampling: predicted a min/max envelope. Actual implementation is a
+  rounded linspace index (2000 evenly spaced samples, endpoints kept,
+  duplicates removed). Simple and exact on the endpoints, and the tests
+  pin first/last point and strict monotonicity; spikes between samples can
+  be missed, so the envelope idea remains the better long-term option.
+  Prediction kept as a deviation.
+- Fresh folder: works for an empty or foreign folder; re-running over our
+  own outputs is allowed by deleting only the three known output files.
+- CLI runtime: MEASURED in-process small case about 0.02 s; one real
+  `python -m` subprocess start costs about 1 s on this laptop, so the
+  subprocess tests were cut to one launch per package.
+- Unknown key handling was not predicted; the adversarial review found that
+  `limts` was silently ignored, so both CLIs now reject unknown case keys.
+
 E6 — Automation (written before any E6 code)
 --------------------------------------------
 Prediction:
@@ -138,3 +162,24 @@ Final sweep prediction:
 - At least one target will need a second round: most likely the E2 cutoff
   frequency or the E3 ampacity table coverage. I will record it rather than
   lower the target.
+
+R2 Phase 1 — E5 verify repair (written before the rerun)
+--------------------------------------------------------
+- Found while gating the E5 PR: the "transient deadline check disabled"
+  mutation made test_timeout_is_enforced run to the 120 s harness cap
+  because the case allowed max_steps = 5,000,000. That is a test-design
+  fault, not a product fault.
+- Prediction: bounding the case at max_steps = 2000 and timeout_s = 0.5 ms
+  makes the unmutated test pass in about a second and the mutated build fail
+  on the max_steps message in under 25 s. The full E5 verify should stay
+  under 170 s with 46/46 mutations caught.
+- Also predicted: mutation_checks should report a hung test as a survivor
+  instead of crashing with a traceback; that guard goes in the round-2
+  hardening branch, not this PR.
+
+R2 Phase 1 — E5 verify repair: outcome
+--------------------------------------
+- Unmutated test passes in 1.02 s; the mutated build is caught in 18.85 s on
+  the hand-run check, and the full E5 verify finished in 111.08 s with 46/46
+  mutations caught, beating the 170 s prediction. The earlier 120 s hang and
+  the traceback are gone.

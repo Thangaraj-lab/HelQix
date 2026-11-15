@@ -1,6 +1,6 @@
 """helqix_sensors — deterministic models of what a real sensor would report."""
 
-from .errors import HelqixError, InputError
+from .errors import HelqixError, InputError, SolverError
 from .sensor import (
     KINDS,
     SensorModel,
@@ -16,6 +16,7 @@ __version__ = "0.1.0"
 __all__ = [
     "HelqixError",
     "InputError",
+    "SolverError",
     "KINDS",
     "SensorModel",
     "SensorTrace",

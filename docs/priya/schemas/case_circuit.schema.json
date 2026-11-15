@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helqix/case_circuit.schema.json",
+  "title": "HELQIX circuit case",
+  "type": "object",
+  "required": ["version", "circuit"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": "case/0.1"},
+    "circuit": {
+      "type": "object",
+      "required": ["version", "components"],
+      "properties": {
+        "version": {"const": "circuit/0.1"},
+        "title": {"type": "string"},
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "nodes"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "kind": {
+                "enum": ["resistor", "vsource", "isource", "capacitor", "inductor", "diode", "mosfet", "opamp", "vcvs", "vccs", "switch"]
+              },
+              "nodes": {"type": "array", "items": {"type": "string"}, "minItems": 2},
+              "value": {
+                "type": "object",
+                "required": ["value", "unit"],
+                "properties": {
+                  "value": {"type": "number"},
+                  "unit": {"type": "string"}
+                }
+              },
+              "params": {"type": "object"},
+              "waveform": {"type": "object"},
+              "initial": {"type": "object"},
+              "state": {"enum": ["open", "closed"]}
+            }
+          }
+        },
+        "analysis": {"type": "object", "required": ["type"]}
+      }
+    },
+    "wires": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "from", "to", "length_mm", "material", "insulation_rating_c"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "length_mm": {"type": "number", "exclusiveMinimum": 0},
+          "gauge_awg": {"type": "number", "exclusiveMinimum": -20, "exclusiveMaximum": 60},
+          "diameter_mm": {"type": "number", "exclusiveMinimum": 0},
+          "material": {"enum": ["copper", "aluminium"]},
+          "insulation_rating_c": {"type": "number", "exclusiveMinimum": 0},
+          "installation_method": {"enum": ["A1", "A2", "B1", "B2", "C", "E", "F"]}
+        },
+        "oneOf": [{"required": ["gauge_awg"]}, {"required": ["diameter_mm"]}]
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeout_s": {"type": "number", "exclusiveMinimum": 0},
+        "max_nodes": {"type": "integer", "minimum": 1},
+        "max_steps": {"type": "integer", "minimum": 1}
+      }
+    },
+    "reference": {
+      "type": "object",
+      "required": ["quantity", "name", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "quantity": {"enum": ["node_voltage", "branch_current", "probe_final", "metric"]},
+        "name": {"type": "string", "minLength": 1},
+        "value": {"type": "number"},
+        "relative_tolerance": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
+  }
+}

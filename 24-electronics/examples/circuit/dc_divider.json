@@ -1,0 +1,14 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "two-resistor voltage divider",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 10.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 1000.0, "unit": "ohm"}},
+      {"id": "R2", "kind": "resistor", "nodes": ["2", "0"], "value": {"value": 2000.0, "unit": "ohm"}}
+    ],
+    "analysis": {"type": "dc"}
+  },
+  "reference": {"quantity": "node_voltage", "name": "V(2)", "value": 6.666666666666667, "relative_tolerance": 1e-9}
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helqix/case_sensor.schema.json",
+  "title": "HELQIX sensor case",
+  "type": "object",
+  "required": ["version", "model", "signal"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": "case/0.1"},
+    "model": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "required": [
+            "id", "kind", "unit", "range", "resolution", "noise_density", "bias",
+            "drift_per_hour", "bandwidth_hz", "latency_s", "sample_rate_hz",
+            "saturation", "source"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "kind": {
+              "enum": ["temperature", "pressure", "acceleration", "angular_rate", "current", "voltage", "strain", "distance", "light"]
+            },
+            "unit": {"type": "string", "minLength": 1},
+            "range": {
+              "type": "object",
+              "required": ["min", "max"],
+              "additionalProperties": false,
+              "properties": {"min": {"type": "number"}, "max": {"type": "number"}}
+            },
+            "resolution": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "bits": {"type": "integer", "minimum": 1, "maximum": 32},
+                "step": {"type": "number", "exclusiveMinimum": 0}
+              },
+              "oneOf": [{"required": ["bits"]}, {"required": ["step"]}]
+            },
+            "noise_density": {"type": "number", "minimum": 0},
+            "bias": {"type": "number"},
+            "drift_per_hour": {"type": "number"},
+            "bandwidth_hz": {"type": "number", "exclusiveMinimum": 0},
+            "latency_s": {"type": "number", "minimum": 0},
+            "sample_rate_hz": {"type": "number", "exclusiveMinimum": 0},
+            "saturation": {
+              "type": "object",
+              "required": ["mode"],
+              "additionalProperties": false,
+              "properties": {"mode": {"const": "clip"}}
+            },
+            "source": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    },
+    "signal": {
+      "oneOf": [
+        {"type": "array", "items": {"type": "number"}, "minItems": 1},
+        {
+          "type": "object",
+          "properties": {
+            "time_s": {"type": "array", "items": {"type": "number"}, "minItems": 2},
+            "value": {"type": "array", "items": {"type": "number"}, "minItems": 2},
+            "probes": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["id", "time_s", "value"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "unit": {"type": "string"},
+                  "time_s": {"type": "array", "items": {"type": "number"}, "minItems": 2},
+                  "value": {"type": "array", "items": {"type": "number"}, "minItems": 2}
+                }
+              }
+            },
+            "synthesize": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {"enum": ["dc", "sine", "step"]},
+                "duration_s": {"type": "number", "exclusiveMinimum": 0},
+                "value": {"type": "number"},
+                "amplitude": {"type": "number"},
+                "frequency_hz": {"type": "number"},
+                "offset": {"type": "number"},
+                "phase_deg": {"type": "number"},
+                "delay_s": {"type": "number"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "probe": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}]},
+    "seed": {"type": "integer"},
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"timeout_s": {"type": "number", "exclusiveMinimum": 0}}
+    },
+    "reference": {
+      "type": "object",
+      "required": ["quantity", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "quantity": {"enum": ["reported_mean", "reality_gap_rms", "clipped_samples", "metric"]},
+        "name": {"type": "string"},
+        "value": {"type": "number"},
+        "relative_tolerance": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
+  }
+}

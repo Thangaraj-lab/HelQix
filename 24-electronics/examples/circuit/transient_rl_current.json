@@ -1,0 +1,13 @@
+{
+  "version": "case/0.1",
+  "circuit": {
+    "version": "circuit/0.1",
+    "title": "RL current rise, backward Euler",
+    "components": [
+      {"id": "V1", "kind": "vsource", "nodes": ["1", "0"], "value": {"value": 5.0, "unit": "V"}},
+      {"id": "R1", "kind": "resistor", "nodes": ["1", "2"], "value": {"value": 10.0, "unit": "ohm"}},
+      {"id": "L1", "kind": "inductor", "nodes": ["2", "0"], "value": {"value": 0.01, "unit": "H"}, "initial": {"value": 0.0, "unit": "A"}}
+    ],
+    "analysis": {"type": "tran", "stop_s": 0.005, "step_s": 1e-05, "method": "backward_euler", "adaptive": false}
+  }
+}
