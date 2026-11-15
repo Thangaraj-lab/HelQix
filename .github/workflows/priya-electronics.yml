@@ -1,0 +1,51 @@
+name: priya-electronics
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # 00:00 IST; the nightly job also runs the slow property suites.
+    - cron: "30 18 * * *"
+
+jobs:
+  fast:
+    name: verify (${{ matrix.os }})
+    if: github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check numpy scipy pytest
+      - name: Verify (fast suites, mutations, key scan, config)
+        run: python 24-electronics/verify.py
+
+  nightly:
+    name: nightly properties (${{ matrix.os }})
+    if: github.event_name == 'schedule'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check numpy scipy pytest
+      - name: Verify (nightly, includes 20 random-seeded property tests per package)
+        run: python 24-electronics/verify.py --nightly
