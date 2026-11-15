@@ -35,6 +35,16 @@ SATURATION_MODES = ("clip",)
 SIGNAL_TYPES = ("dc", "sine", "step")
 MAX_SAMPLES = 10_000_000
 
+MODEL_KEYS = {
+    "id", "kind", "unit", "range", "resolution", "noise_density", "bias", "drift_per_hour",
+    "bandwidth_hz", "latency_s", "sample_rate_hz", "saturation", "source",
+}
+SYNTH_KEYS = {
+    "dc": {"type", "duration_s", "value"},
+    "sine": {"type", "duration_s", "amplitude", "frequency_hz", "offset", "phase_deg"},
+    "step": {"type", "duration_s", "amplitude", "delay_s", "offset"},
+}
+
 LABELS = {
     "quantization_step": "CALCULATED",
     "quantization_rms_theory": "CALCULATED",
@@ -68,6 +78,12 @@ def _integer(value, what: str, minimum: int) -> int:
     if value < minimum:
         raise InputError(f"{what} must be at least {minimum}")
     return value
+
+
+def _reject_unknown(where: str, body: dict, allowed: set[str]) -> None:
+    unknown = sorted(set(body) - allowed)
+    if unknown:
+        raise InputError(f"{where} has unknown field(s) {unknown}; allowed fields are {sorted(allowed)}")
 
 
 @dataclass(frozen=True)
@@ -120,6 +136,7 @@ def load_model(source) -> SensorModel:
     sid = body.get("id")
     if not isinstance(sid, str) or not sid.strip():
         raise InputError("sensor model needs a non-empty string id")
+    _reject_unknown(f"sensor {sid!r}", body, MODEL_KEYS)
     kind = body.get("kind")
     if kind not in KINDS:
         raise InputError(
@@ -132,6 +149,7 @@ def load_model(source) -> SensorModel:
     span_body = body.get("range")
     if not isinstance(span_body, dict):
         raise InputError(f"sensor {sid!r} needs range {{'min': number, 'max': number}}")
+    _reject_unknown(f"sensor {sid!r} range", span_body, {"min", "max"})
     low = _number(span_body.get("min"), f"sensor {sid!r} range min")
     high = _number(span_body.get("max"), f"sensor {sid!r} range max")
     if low >= high:
@@ -140,6 +158,7 @@ def load_model(source) -> SensorModel:
     resolution = body.get("resolution")
     if not isinstance(resolution, dict):
         raise InputError(f"sensor {sid!r} resolution must be {{'bits': n}} or {{'step': x}}")
+    _reject_unknown(f"sensor {sid!r} resolution", resolution, {"bits", "step"})
     has_bits = "bits" in resolution
     has_step = "step" in resolution
     if has_bits == has_step:
@@ -179,6 +198,7 @@ def load_model(source) -> SensorModel:
     saturation = body.get("saturation", {"mode": "clip"})
     if not isinstance(saturation, dict):
         raise InputError(f"sensor {sid!r} saturation must be an object")
+    _reject_unknown(f"sensor {sid!r} saturation", saturation, {"mode"})
     mode = saturation.get("mode", "clip")
     if mode not in SATURATION_MODES:
         raise InputError(
@@ -214,6 +234,7 @@ def synthesize_signal(spec: dict, sample_rate_hz: float) -> dict:
     kind = spec.get("type", "dc")
     if kind not in SIGNAL_TYPES:
         raise InputError(f"signal type must be one of {list(SIGNAL_TYPES)}, got {kind!r}")
+    _reject_unknown("signal synthesize", spec, SYNTH_KEYS[kind])
     duration = _number(spec.get("duration_s"), "signal duration_s")
     if duration <= 0:
         raise InputError("signal duration_s must be greater than zero")

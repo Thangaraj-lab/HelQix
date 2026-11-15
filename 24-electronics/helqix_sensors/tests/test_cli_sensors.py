@@ -174,6 +174,24 @@ def test_unknown_case_key_is_refused(tmp_path):
     assert "seeed" in proc.stderr
 
 
+def test_unknown_model_field_is_refused(tmp_path):
+    bad = model()
+    bad["noise_densiy"] = 0.01
+    proc, _ = run(tmp_path, case(model=bad))
+    assert proc.returncode == 2
+    assert "noise_densiy" in proc.stderr
+
+
+def test_missing_optional_model_fields_use_documented_defaults(tmp_path):
+    keep = {"id", "kind", "unit", "range", "resolution", "bandwidth_hz", "sample_rate_hz"}
+    lean = {key: value for key, value in model().items() if key in keep}
+    proc, out = run(tmp_path, case(model=lean))
+    assert proc.returncode == 0, proc.stderr
+    payload = results(out)
+    assert payload["model"]["source"] == "generic"
+    assert value(payload, "noise_sigma_predicted")["value"] == 0.0
+
+
 def test_sensor_limits_accept_only_timeout(tmp_path):
     proc, _ = run(tmp_path, case(limits={"max_steps": 10}))
     assert proc.returncode == 2

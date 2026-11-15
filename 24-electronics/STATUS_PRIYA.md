@@ -3,6 +3,22 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## E5 — Interface contract
+
+- Done: `python -m helqix_circuit run CASE.json --out DIR` and the sensor equivalent; exit 0 writes results.json plus values.csv/series.csv, exit 2 is a one-line `error:` for a bad case with nothing written, exit 3 writes a solver_error result; `case/0.1`; limits `timeout_s`, `max_nodes`, `max_steps` enforced by cooperative checks inside the solver loops; a fresh out folder is required; probes are capped at 2000 points; a reference gives VALIDATED/UNVALIDATED, no reference gives CHECKED; JSON schemas, ten example cases per package and docs/priya/INTERFACE_ELECTRONICS.md (including the "What the Studio can show" section) let another engineer wire it without reading the code.
+- Tests: 52 new passed (28 circuit CLI + 24 sensor CLI), 0 failed, 0 skipped; suites 97 circuit + 59 sensors + 1 io; 46/46 mutations caught; full verify 120.37 s MEASURED; targets MEASURED: a 10001-sample transient is written as 2000 points with first/last kept and x strictly increasing, a timeout case exits 3 with code `timeout`, a foreign out folder exits 2 and is left untouched, unknown case/field names exit 2, all 20 examples run, circuit results.json feeds the sensor CLI as a probe document.
+- FAILs: none. UNKNOWNs: none.
+- Files changed: new `helqix_circuit/{cli,__main__}.py`, `helqix_sensors/{cli,__main__}.py`, both `tests/test_cli_*.py`, `examples/circuit/*`, `examples/sensors/*`, `docs/priya/INTERFACE_ELECTRONICS.md`, `docs/priya/schemas/*`; edited `transient.py`/`ac.py` (deadline), `netlist.py`/`sensor.py` (unknown fields), `predictions.txt`, `mutation_checks.py`, this status.
+- Needed: nothing; continued to E6.
+
+### E5
+
+- Independent black-box review: a separate process that read only the interface document and the schemas drove both commands 93 times (bad JSON, NaN/Infinity, negative and zero values, huge durations, singular and floating circuits, wrong units, probe and reference misuse, out folder as a file or as the case folder, the circuit-to-sensor pipeline). Result: 93 probes, 0 BAD. Four early flags were mistakes in the probe, not the product: float-looking node names are legal names, a foreign out folder is correctly left untouched, the sensor truth final value equals the circuit V(2) final value exactly, and a missing `analysis` is the documented DC default.
+- What it found and I fixed: unknown fields were silently ignored. `"analysys"` next to a valid circuit ran DC, and a misspelled `"noise_densiy"` meant zero noise. Both packages now refuse unknown fields with exit 2 at every documented level (netlist root, component, value, initial, parameters, waveform, analysis; sensor model, range, resolution, saturation, synthesize spec), with regression tests and two new mutations (46/46 caught) and documented defaults (analysis -> dc, optional model fields -> 0, source -> generic).
+- Timeout design: a watchdog thread was tried first and crashed the interpreter at shutdown (exit 120, SystemError from numpy inside a daemon thread), so timeout is cooperative: the transient and AC loops check a deadline between steps and report exit 3 code `timeout`; a single long step can overshoot slightly, which the document states.
+- Downsampling deviation kept in predictions.txt: the implementation takes 2000 evenly spaced rounded indices (endpoints pinned) rather than the predicted min/max envelope; spikes between picks can be missed and the envelope remains the better long-term option.
+- Everything offline: no network, no clock-dependent numbers except the `seconds` timing field.
+
 ## E4 — Sensor reality models
 
 - Done: new `helqix_sensors` package; a model names kind (9 named kinds), range, bits or step, noise density, bias, drift/hour, first-order bandwidth, latency, sample rate, clip saturation and source; input is a true-signal time series, a {time_s, value} series, or one probe from a results.json ("probes" list only, unit must match); output resamples, adds bias/drift and white noise, filters with an exact -3 dB first-order stage, delays, quantizes, clips with per-sample flags, and reports a reality gap.

@@ -363,6 +363,22 @@ MUTATIONS = [
     },
     {
         "phase": "E5",
+        "name": "circuit unknown-field check disabled",
+        "file": "helqix_circuit/netlist.py",
+        "old": "    unknown = sorted(set(body) - allowed)\n    if unknown:",
+        "new": "    unknown = sorted(set(body) - allowed)\n    if False:",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_unknown_fields_inside_the_circuit_are_refused",
+    },
+    {
+        "phase": "E5",
+        "name": "sensor unknown-field check disabled",
+        "file": "helqix_sensors/sensor.py",
+        "old": "    unknown = sorted(set(body) - allowed)\n    if unknown:",
+        "new": "    unknown = sorted(set(body) - allowed)\n    if False:",
+        "test": "helqix_sensors/tests/test_cli_sensors.py::test_unknown_model_field_is_refused",
+    },
+    {
+        "phase": "E5",
         "name": "sensor post-run timeout check disabled",
         "file": "helqix_sensors/cli.py",
         "old": "    if time.perf_counter() > deadline:",

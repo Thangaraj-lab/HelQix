@@ -162,6 +162,29 @@ def test_unknown_case_key_is_refused(tmp_path):
     assert "limts" in proc.stderr
 
 
+def test_unknown_fields_inside_the_circuit_are_refused(tmp_path):
+    body = case(divider())
+    body["circuit"]["analysys"] = {"type": "tran"}
+    proc, _ = run(tmp_path, body)
+    assert proc.returncode == 2 and "analysys" in proc.stderr
+    body = case(divider())
+    body["circuit"]["components"][0]["wafeform"] = {"type": "dc"}
+    proc, _ = run(tmp_path, body, out_name="out2")
+    assert proc.returncode == 2 and "wafeform" in proc.stderr
+    body = case(divider())
+    body["circuit"]["analysis"]["stopp_s"] = 1.0
+    proc, _ = run(tmp_path, body, out_name="out3")
+    assert proc.returncode == 2 and "stopp_s" in proc.stderr
+
+
+def test_missing_analysis_defaults_to_dc(tmp_path):
+    body = case(divider())
+    del body["circuit"]["analysis"]
+    proc, out = run(tmp_path, body)
+    assert proc.returncode == 0, proc.stderr
+    assert results(out)["analysis"] == "dc"
+
+
 def test_limits_max_nodes_is_enforced(tmp_path):
     proc, out = run(tmp_path, case(divider(), limits={"max_nodes": 1}))
     assert proc.returncode == 2

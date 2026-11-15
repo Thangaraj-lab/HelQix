@@ -66,6 +66,14 @@ mosfet, opamp, vcvs, vccs, switch), and `analysis.type` selects the run:
 - `"ac"` — small-signal sweep. Carries `start_hz`, `stop_hz` and either
   `points` or `points_per_decade`.
 
+`analysis` may be omitted; it then defaults to `{"type": "dc"}`. A misspelled
+key would otherwise look like an omission, so unknown fields are refused with
+exit 2 everywhere inside the circuit object: the netlist root (`version`,
+`title`, `ground`, `components`, `analysis`), each component (`id`, `kind`,
+`nodes`, `value`, `state`, `parameters`, `initial`, `waveform`), `value` and
+`initial` (`value`, `unit`), `parameters` and `waveform` (the fields of that
+kind and waveform type), and `analysis` (the names listed above plus `type`).
+
 Two optional AC extras produce numbers in `values`:
 
 - `"cutoff": {"source": "V1", "node": "2"}` — adds `cutoff_hz`, found by
@@ -150,14 +158,18 @@ Either an object or a path to a JSON file holding that object.
 | `unit` | the physical unit of every value in this case (e.g. `V`, `degC`, `kPa`, `g`, `mm`) |
 | `range` | `{"min": ..., "max": ...}` with min < max; readings are clipped to it |
 | `resolution` | exactly one of `{"bits": n}` (1..32, step = span / 2^n) or `{"step": s}` (s > 0, at most the span) |
-| `noise_density` | white noise density in unit per sqrt(Hz), >= 0 |
-| `bias` | constant offset in unit |
-| `drift_per_hour` | linear drift in unit per hour of sensor time |
+| `noise_density` | white noise density in unit per sqrt(Hz), >= 0; default 0 |
+| `bias` | constant offset in unit; default 0 |
+| `drift_per_hour` | linear drift in unit per hour of sensor time; default 0 |
 | `bandwidth_hz` | first-order -3 dB bandwidth, > 0 and below the Nyquist limit |
-| `latency_s` | pure delay in seconds, >= 0 (fractional samples allowed) |
+| `latency_s` | pure delay in seconds, >= 0 (fractional samples allowed); default 0 |
 | `sample_rate_hz` | sensor clock in samples per second, > 0 |
-| `saturation` | `{"mode": "clip"}` |
-| `source` | where the numbers came from: a datasheet name or `"generic"` |
+| `saturation` | `{"mode": "clip"}`; default `clip` |
+| `source` | where the numbers came from: a datasheet name or `"generic"`; default `"generic"` |
+
+Only the fields in this table are accepted; an unknown field inside the model,
+`range`, `resolution` or `saturation` is exit 2, because a misspelled
+`noise_densiy` would otherwise silently mean "no noise".
 
 ### `signal`
 
@@ -166,6 +178,9 @@ One of three forms:
 1. **Synthesized truth** — `{"synthesize": {"type": "dc" | "sine" | "step",
    "duration_s": ..., "value": ..., "amplitude": ..., "frequency_hz": ...,
    "offset": ..., "phase_deg": ..., "delay_s": ...}}`. Must be the only key.
+   Each type accepts only its own fields (dc: `value`; sine: `amplitude`,
+   `frequency_hz`, `offset`, `phase_deg`; step: `amplitude`, `delay_s`,
+   `offset`; all: `duration_s`); anything else is exit 2.
 2. **A truth series** — `{"time_s": [...], "value": [...]}` with at least two
    finite samples, strictly increasing time starting at zero or later.
 3. **A probe document** — any object with a non-empty `"probes"` list, which is
