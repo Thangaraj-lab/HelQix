@@ -98,6 +98,15 @@ def run_key_scan() -> tuple[bool, str]:
     return proc.returncode == 0, text or "clean"
 
 
+def run_config_check() -> tuple[bool, str]:
+    checker = ROOT / "scripts" / "check_ci.py"
+    if not checker.exists():
+        return False, "checker absent"
+    proc = subprocess.run([sys.executable, str(checker)], capture_output=True, text=True)
+    text = (proc.stdout + proc.stderr).strip()
+    return proc.returncode == 0, text or "clean"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--nightly", action="store_true", help="include tests marked nightly")
@@ -118,6 +127,7 @@ def main() -> int:
 
     mutation_ok, mutation_text = (True, "skipped") if args.no_mutations else run_mutations()
     key_ok, key_text = (True, "skipped") if args.no_keyscan else run_key_scan()
+    config_ok, config_text = run_config_check()
     total = time.perf_counter() - started
 
     print("=" * 78)
@@ -135,9 +145,10 @@ def main() -> int:
     print("-" * len(header))
     print(f"{'MUTATIONS':<20}{'':>7}{'':>7}{'':>7}{'':>7}{'':>10}  {'PASS' if mutation_ok else 'FAIL'}  {mutation_text}")
     print(f"{'KEY SCAN':<20}{'':>7}{'':>7}{'':>7}{'':>7}{'':>10}  {'PASS' if key_ok else 'FAIL'}  {key_text}")
+    print(f"{'CONFIG':<20}{'':>7}{'':>7}{'':>7}{'':>7}{'':>10}  {'PASS' if config_ok else 'FAIL'}  {config_text}")
     print(f"TOTAL {total:.2f} s")
-    print("OVERALL", "PASS" if (all_green and mutation_ok and key_ok) else "FAIL")
-    return 0 if (all_green and mutation_ok and key_ok) else 1
+    print("OVERALL", "PASS" if (all_green and mutation_ok and key_ok and config_ok) else "FAIL")
+    return 0 if (all_green and mutation_ok and key_ok and config_ok) else 1
 
 
 if __name__ == "__main__":

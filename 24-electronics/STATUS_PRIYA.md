@@ -3,6 +3,14 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## E6 — Automation
+
+- Done: `verify.py` runs every suite, every registered mutation, the key scan and the automation config, and exits 0 only when all four are green; `--nightly` adds 20 random-seeded property tests per package (circuit: random series ladder against the hand formula plus scaling invariance; sensors: range, quantization grid, clip flags, determinism and the reality-gap identity); `.github/workflows/priya-electronics.yml` runs the fast verify on push and pull request on windows-latest and ubuntu-latest and a nightly cron job with `--nightly` on both; `scripts/precommit.py` blocks a commit when a staged file looks like a credential and has a planted-key selftest; `README.md` gives a new person the three commands.
+- Tests: fast verify 123.41 s MEASURED (limit 180 s), nightly 120.51 s MEASURED; suites 117 circuit + 79 sensors + 1 io in nightly mode (97 + 59 + 1 in fast mode); 46/46 mutations caught; key scan clean; CONFIG clean.
+- FAILs: none. UNKNOWNs: the workflow file is checked as text only (no YAML parser under the allowed dependencies and no Actions runtime offline); its first real run happens on the first push. The pre-commit hook is installed by one documented copy command, not automatically.
+- Files changed: new `.github/workflows/priya-electronics.yml`, `24-electronics/README.md`, `scripts/precommit.py`, `scripts/check_ci.py`, `helqix_circuit/tests/test_properties.py`, `helqix_sensors/tests/test_properties.py`; edited `verify.py`, `predictions.txt`, this status.
+- Needed: nothing; continued to E7.
+
 ## E5 — Interface contract
 
 - Done: `python -m helqix_circuit run CASE.json --out DIR` and the sensor equivalent; exit 0 writes results.json plus values.csv/series.csv, exit 2 is a one-line `error:` for a bad case with nothing written, exit 3 writes a solver_error result; `case/0.1`; limits `timeout_s`, `max_nodes`, `max_steps` enforced by cooperative checks inside the solver loops; a fresh out folder is required; probes are capped at 2000 points; a reference gives VALIDATED/UNVALIDATED, no reference gives CHECKED; JSON schemas, ten example cases per package and docs/priya/INTERFACE_ELECTRONICS.md (including the "What the Studio can show" section) let another engineer wire it without reading the code.

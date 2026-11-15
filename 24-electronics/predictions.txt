@@ -144,6 +144,24 @@ Prediction:
 - Key scan will find nothing; the scanner will avoid containing the literal
   patterns it searches for.
 
+E6 — outcome (written after the phase)
+--------------------------------------
+- Fast verify: 123.41 s MEASURED on this laptop (predicted under 60 s
+  without nightly and 90-120 s with mutations). The prediction missed the
+  upper guess by about 3 s because mutation checking dominates; the 3-minute
+  limit holds. Nightly verify: 120.51 s (the extra 40 property tests cost
+  about 3 s; mutation time varies from run to run).
+- Mutations: 46/46 caught, including the two new unknown-field checks. No
+  survivor needed a new assertion this time.
+- Key scan: clean. The scanner still assembles its patterns at run time,
+  and the precommit selftest plants a fake key assembled the same way, so
+  neither file can scan itself.
+- New CONFIG line: a workflow that loses a platform, a trigger or --nightly
+  fails locally before GitHub ever sees it.
+- UNKNOWN: the workflow file has only been checked as text (no YAML parser
+  is installed under the allowed dependencies, and Actions cannot run
+  offline). Its first real execution is on the first push.
+
 E7 — Virtual I/O (written before any E7 code)
 ---------------------------------------------
 Prediction:
