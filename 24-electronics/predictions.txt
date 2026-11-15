@@ -176,10 +176,54 @@ Prediction:
 - A real MQTT broker is not installable under the allowed dependency list,
   so that cross-check will be UNKNOWN.
 
+E7 — outcome (written after the phase)
+--------------------------------------
+- Round trips: 10000 serial frames in 0.049 s and 10000 bus messages in
+  0.080 s, all payloads identical and in order. The 2 s prediction was
+  beaten by a wide margin. The 10000-message tests stay in the fast suite.
+- Ordering: the prediction that delay injection may reorder was wrong. A
+  per-port delay is one constant added to every frame, so FIFO order is
+  preserved; the seeded property tests exercise random delay up to 2 ms and
+  assert the delivered frames are an in-order subsequence.
+- Retry after disconnect: as predicted, the bare queue could not know a
+  message was lost, so QoS 1 keeps a pending entry with a message id until
+  `ack()`; `retry_unacked()` resends under a new id. Unlike MQTT persistent
+  sessions the broker does not queue for a disconnected client; this is
+  documented rather than hidden.
+- Timeouts: 20–50 ms with generous upper bounds; no flake across the verify
+  runs, so the predicted flakiness did not appear on this laptop.
+- Real broker: the prediction was wrong. amqtt 0.12.2 and paho-mqtt
+  installed cleanly in a throwaway venv (network available, no admin). A
+  probe against a real broker compared 49 filter/topic pairs with
+  `topic_matches` and found zero disagreements. It is not part of the
+  offline suite because it needs network to install; wire-protocol
+  compatibility stays UNKNOWN as deliberate scope.
+- Mutation harness found my first "corrupted frame delivered" mutation was
+  behaviourally equivalent (the frame was still skipped); rewrote it to
+  actually deliver the frame, after which all 57 mutations are caught. Kept
+  here because the harness catching a bad mutation is itself a result.
+
 Final sweep prediction:
 - At least one target will need a second round: most likely the E2 cutoff
   frequency or the E3 ampacity table coverage. I will record it rather than
   lower the target.
+
+Final sweep — outcome (written after the sweep)
+-----------------------------------------------
+- Three consecutive fast verify runs: 127.96 s, 136.85 s, 142.48 s, all
+  green; nightly verify 132.05 s green; 57/57 mutations caught every time;
+  key scan and CONFIG clean.
+- The predicted second round did not happen for a measured target: E2's
+  cutoff, E3's verdict sides and E4's noise and -3 dB figures all held on
+  re-run. The second rounds that did happen were E7's no-op mutation and
+  E5's unknown-field bug, both found and fixed during their own phases.
+- Missed targets re-attempted: ngspice now has a real retry (PySpice 1.5
+  installs, its ngspice.dll does not ship; OSError 0x7e) and stays UNKNOWN.
+  The workflow YAML was parsed with PyYAML 6.0.3 in a throwaway venv: correct
+  triggers, cron, jobs and commands; the Actions runtime itself is still
+  UNKNOWN offline.
+- Everything stayed inside 24-electronics/, docs/priya/ and the one new
+  workflow file; no key patterns; commits local on the priya/* branches.
 
 R2 Phase 1 — E5 verify repair (written before the rerun)
 --------------------------------------------------------

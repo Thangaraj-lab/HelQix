@@ -3,6 +3,97 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## Final sweep — all seven phases
+
+Status: **DONE**, nothing BLOCKED. Work is on branches `priya/e1-circuit` …
+`priya/e7-io`, committed locally, not pushed.
+
+| phase | status | commit(s) | tests now | main targets, measured | UNKNOWNs |
+|-------|--------|-----------|-----------|------------------------|----------|
+| E0 Setup | DONE | 8875dae | 3 smoke | verify.py runs every suite end to end, 2.12 s | none |
+| E1 DC MNA | DONE | 2d5a48d | 16 fast | 15 hand cases within 1e-9, worst 1.33e-16; 5/5 mutations | none |
+| E2 Transient/AC/nonlinear | DONE | f54e98c, 5cd642a | 45 fast | RC trap 1.61e-6, BE 0.192% (0.5%), RLC f0/Q 1.70e-8, cutoff 1.43e-16, op-amp 0.0 (0.1%) | ngspice cross-check |
+| E3 Harness | DONE | dd8018f | 24 new | R error 0.0, drop 8.27e-15; IEC B.52.2 verdicts both sides of every limit | aluminium and untabulated ampacity |
+| E4 Sensors | DONE | 579b4d1 | 35 fast | noise 1.78% (3%), step exact 1e-12, -3 dB 4.2e-12 (2%), clip exact, seed-identical bytes, reality gap 6.344e-4 | none |
+| E5 Interface | DONE | f96afca, 8ab6af8 | 52 new CLI | 2000-point cap, exit 0/2/3, fresh folder, VALIDATED/CHECKED/UNVALIDATED, 20 examples, 93 external probes 0 BAD | none (envelope deviation kept) |
+| E6 Automation | DONE | ced94ef | 46/46 mutations | fast 123.41 s, nightly 120.51 s (limit 180 s); workflow YAML parsed once with PyYAML 6.0.3 | Actions runtime, hook install |
+| E7 Virtual I/O | DONE | 3b00e4d | 19 fast + 20 nightly | 10000 frames 0.049 s, 10000 messages 0.080 s, 11/11 mutations, amqtt 49/49 topic decisions | wire-level MQTT |
+
+Verification runs after E7 (MEASURED): verify.py three times green, 127.96 s,
+136.85 s and 142.48 s; nightly verify green at 132.05 s; every run reports
+57/57 mutations caught, key scan clean and CONFIG clean. Current totals:
+175 fast tests (97 circuit + 59 sensors + 19 io) and 235 in nightly mode
+(117 + 79 + 39).
+
+Every missed or unknown target was re-attempted in this sweep:
+- ngspice: retried with network available. `pip` has no ngspice distribution;
+  PySpice 1.5 installs but its `ngspice.dll` is not shipped, so loading the
+  shared library fails (OSError 0x7e). Cross-check stays **UNKNOWN**.
+- Workflow YAML: parsed with PyYAML 6.0.3 in a throwaway venv. Triggers
+  (`push`, `pull_request`, `schedule`), the cron line, both jobs, both OS
+  values and both verify commands are exactly as intended (**MEASURED**);
+  running Actions itself offline remains **UNKNOWN**.
+- E2 numbers, E3 verdict sides, E4 targets, E5 contract probes, E6 timing and
+  E7 round trips were all re-run by the three verify passes above and held.
+
+UNKNOWNs, in one place:
+1. E2 ngspice cross-check: no user-level ngspice binary or library exists on
+   this laptop.
+2. E3 aluminium and untabulated wire ampacity: UNKNOWN by design, no verdict,
+   because those rows are not transcribed.
+3. E6 GitHub Actions runtime: the YAML is valid and structurally checked, but
+   the runner cannot execute offline; first real run is on first push.
+4. E6 pre-commit hook: one documented copy command, not installed
+   automatically.
+5. E7 wire-level MQTT interop: deliberately not implemented; only topic
+   matching was compared with a real broker.
+6. E5 downsampling: rounded-even-spacing indices, not a min/max envelope;
+   kept as a documented limitation, not a lowered target.
+
+## E7 — Virtual I/O
+
+- Done: new `helqix_io` package, standard library only: `serial_pair` with length + CRC32 framing, bounded FIFO queues, read/write timeouts, write back-pressure, disconnect/reconnect, seeded drop/corrupt/delay faults and counters; in-process MQTT-style `Broker`/`Client` with `+`/`#` topics, QoS 0/1, ack plus `retry_unacked()` after a reconnect, whole-publish back-pressure refusal; documented as a reusable building block in `docs/priya/INTERFACE_IO.md`.
+- Tests: 19 fast + 20 nightly seeded property cases, 0 failed, 0 skipped; `helqix_io` suite 1.28 s (fast and nightly together); 11 new mutations, 57/57 caught; targets MEASURED: 10000 serial frames round trip in 0.049 s and 10000 bus messages in 0.080 s with every payload identical and in order; drop/corrupt never deliver an altered payload; the same seed reproduces the same drops and corruptions; 20–50 ms timeouts return bounded; a QoS 1 message published while the subscriber is away is redelivered after reconnect and stops after the ack.
+- FAILs: none. UNKNOWNs: wire-level MQTT compatibility (deliberately not implemented); the offline suite has no real-broker test, but a one-off probe against amqtt 0.12.2 in a throwaway venv agreed on 49 of 49 filter/topic decisions.
+- Files changed: new `helqix_io/{__init__,errors,faults,serial_port,bus}.py`, `helqix_io/tests/{test_serial,test_bus,test_properties}.py`, `docs/priya/INTERFACE_IO.md`; edited `mutation_checks.py`, `scripts/check_ci.py`, `predictions.txt`, this status.
+- Needed: nothing; ready for the final sweep.
+
+### E7
+
+- Round trips, measured on this laptop (Python 3.13.12, in-process, no threads):
+  10000 serial frames written and read back in 0.049 s and 10000 broker
+  messages published and received in 0.080 s, every payload identical, every
+  read in send order, ids strictly increasing. Framing is a 4-byte big-endian
+  length, the payload and a CRC32; empty and binary payloads are covered by
+  tests.
+- Faults are applied by the receiving side with a per-port `random.Random`
+  seeded from the profile: `test_drop_injection_is_seeded_and_counted` runs
+  1000 frames twice with seed 7 and drop 0.5 and gets identical counts, with
+  received + dropped = 1000; `test_corrupt_injection_never_delivers_bad_bytes`
+  flips bytes, counts them and verifies every delivered payload is unchanged;
+  `test_delay_holds_the_frame_until_its_time` shows a 100 ms delay is not
+  visible to a 20 ms read; the nightly property suite replays 20 random seeds
+  with random drop/corrupt/delay and checks reproducibility, counters and that
+  survivors are an in-order subsequence.
+- Back-pressure and disconnect: the serial writer polls a 1 ms deadline and
+  raises `BackpressureError` without partial delivery; the broker refuses the
+  whole publish when any target queue is full; both ends of a cut serial pair
+  answer `DisconnectedError` and clear queued frames; reconnect starts clean.
+- QoS 1 retry: a message published while the subscriber is disconnected stays
+  pending on the publisher; `retry_unacked()` resends it under a new id after
+  reconnect, `ack()` records it, the next `retry_unacked()` returns 0 and a
+  second receive times out. QoS 0 is never retried.
+- Real-broker probe: amqtt 0.12.2 plus paho-mqtt installed in a throwaway venv
+  under the user temp folder (no admin, network used only for installation);
+  seven filters against seven topics gave 49 decisions, all identical to
+  `topic_matches`, including the `a/#` matches `a` case. The probe is not in
+  the repo or the offline suite; wire-protocol interop is UNKNOWN by design.
+- Mutation harness: 11 E7 mutations registered, 11 caught (57/57 overall). The
+  first "corrupted frame delivered" mutation turned out to be a no-op because
+  the corrupt branch still skipped the frame; it was rewritten to deliver the
+  frame and was then caught by the counter assertion. Kept in predictions.txt
+  rather than deleted.
+
 ## E6 — Automation
 
 - Done: `verify.py` runs every suite, every registered mutation, the key scan and the automation config, and exits 0 only when all four are green; `--nightly` adds 20 random-seeded property tests per package (circuit: random series ladder against the hand formula plus scaling invariance; sensors: range, quantization grid, clip flags, determinism and the reality-gap identity); `.github/workflows/priya-electronics.yml` runs the fast verify on push and pull request on windows-latest and ubuntu-latest and a nightly cron job with `--nightly` on both; `scripts/precommit.py` blocks a commit when a staged file looks like a credential and has a planted-key selftest; `README.md` gives a new person the three commands.
