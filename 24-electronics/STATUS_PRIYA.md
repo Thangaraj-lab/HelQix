@@ -3,6 +3,50 @@
 Five lines per phase. Full evidence and round-by-round measurements are kept
 in the phase sections below the five-line reports.
 
+## E7 — Virtual I/O
+
+- Done: new `helqix_io` package, standard library only: `serial_pair` with length + CRC32 framing, bounded FIFO queues, read/write timeouts, write back-pressure, disconnect/reconnect, seeded drop/corrupt/delay faults and counters; in-process MQTT-style `Broker`/`Client` with `+`/`#` topics, QoS 0/1, ack plus `retry_unacked()` after a reconnect, whole-publish back-pressure refusal; documented as a reusable building block in `docs/priya/INTERFACE_IO.md`.
+- Tests: 19 fast + 20 nightly seeded property cases, 0 failed, 0 skipped; `helqix_io` suite 1.28 s (fast and nightly together); 11 new mutations, 57/57 caught; targets MEASURED: 10000 serial frames round trip in 0.049 s and 10000 bus messages in 0.080 s with every payload identical and in order; drop/corrupt never deliver an altered payload; the same seed reproduces the same drops and corruptions; 20–50 ms timeouts return bounded; a QoS 1 message published while the subscriber is away is redelivered after reconnect and stops after the ack.
+- FAILs: none. UNKNOWNs: wire-level MQTT compatibility (deliberately not implemented); the offline suite has no real-broker test, but a one-off probe against amqtt 0.12.2 in a throwaway venv agreed on 49 of 49 filter/topic decisions.
+- Files changed: new `helqix_io/{__init__,errors,faults,serial_port,bus}.py`, `helqix_io/tests/{test_serial,test_bus,test_properties}.py`, `docs/priya/INTERFACE_IO.md`; edited `mutation_checks.py`, `scripts/check_ci.py`, `predictions.txt`, this status.
+- Needed: nothing; ready for the final sweep.
+
+### E7
+
+- Round trips, measured on this laptop (Python 3.13.12, in-process, no threads):
+  10000 serial frames written and read back in 0.049 s and 10000 broker
+  messages published and received in 0.080 s, every payload identical, every
+  read in send order, ids strictly increasing. Framing is a 4-byte big-endian
+  length, the payload and a CRC32; empty and binary payloads are covered by
+  tests.
+- Faults are applied by the receiving side with a per-port `random.Random`
+  seeded from the profile: `test_drop_injection_is_seeded_and_counted` runs
+  1000 frames twice with seed 7 and drop 0.5 and gets identical counts, with
+  received + dropped = 1000; `test_corrupt_injection_never_delivers_bad_bytes`
+  flips bytes, counts them and verifies every delivered payload is unchanged;
+  `test_delay_holds_the_frame_until_its_time` shows a 100 ms delay is not
+  visible to a 20 ms read; the nightly property suite replays 20 random seeds
+  with random drop/corrupt/delay and checks reproducibility, counters and that
+  survivors are an in-order subsequence.
+- Back-pressure and disconnect: the serial writer polls a 1 ms deadline and
+  raises `BackpressureError` without partial delivery; the broker refuses the
+  whole publish when any target queue is full; both ends of a cut serial pair
+  answer `DisconnectedError` and clear queued frames; reconnect starts clean.
+- QoS 1 retry: a message published while the subscriber is disconnected stays
+  pending on the publisher; `retry_unacked()` resends it under a new id after
+  reconnect, `ack()` records it, the next `retry_unacked()` returns 0 and a
+  second receive times out. QoS 0 is never retried.
+- Real-broker probe: amqtt 0.12.2 plus paho-mqtt installed in a throwaway venv
+  under the user temp folder (no admin, network used only for installation);
+  seven filters against seven topics gave 49 decisions, all identical to
+  `topic_matches`, including the `a/#` matches `a` case. The probe is not in
+  the repo or the offline suite; wire-protocol interop is UNKNOWN by design.
+- Mutation harness: 11 E7 mutations registered, 11 caught (57/57 overall). The
+  first "corrupted frame delivered" mutation turned out to be a no-op because
+  the corrupt branch still skipped the frame; it was rewritten to deliver the
+  frame and was then caught by the counter assertion. Kept in predictions.txt
+  rather than deleted.
+
 ## E6 — Automation
 
 - Done: `verify.py` runs every suite, every registered mutation, the key scan and the automation config, and exits 0 only when all four are green; `--nightly` adds 20 random-seeded property tests per package (circuit: random series ladder against the hand formula plus scaling invariance; sensors: range, quantization grid, clip flags, determinism and the reality-gap identity); `.github/workflows/priya-electronics.yml` runs the fast verify on push and pull request on windows-latest and ubuntu-latest and a nightly cron job with `--nightly` on both; `scripts/precommit.py` blocks a commit when a staged file looks like a credential and has a planted-key selftest; `README.md` gives a new person the three commands.

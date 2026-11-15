@@ -16,7 +16,11 @@ REPO = ROOT.parent
 WORKFLOW = REPO / ".github" / "workflows" / "priya-electronics.yml"
 README = ROOT / "README.md"
 PRECOMMIT = ROOT / "scripts" / "precommit.py"
-PROPERTIES = [ROOT / "helqix_circuit" / "tests" / "test_properties.py", ROOT / "helqix_sensors" / "tests" / "test_properties.py"]
+PROPERTIES = [
+    ROOT / "helqix_circuit" / "tests" / "test_properties.py",
+    ROOT / "helqix_sensors" / "tests" / "test_properties.py",
+    ROOT / "helqix_io" / "tests" / "test_properties.py",
+]
 
 
 def check() -> list[str]:
