@@ -162,3 +162,24 @@ Final sweep prediction:
 - At least one target will need a second round: most likely the E2 cutoff
   frequency or the E3 ampacity table coverage. I will record it rather than
   lower the target.
+
+R2 Phase 1 — E5 verify repair (written before the rerun)
+--------------------------------------------------------
+- Found while gating the E5 PR: the "transient deadline check disabled"
+  mutation made test_timeout_is_enforced run to the 120 s harness cap
+  because the case allowed max_steps = 5,000,000. That is a test-design
+  fault, not a product fault.
+- Prediction: bounding the case at max_steps = 2000 and timeout_s = 0.5 ms
+  makes the unmutated test pass in about a second and the mutated build fail
+  on the max_steps message in under 25 s. The full E5 verify should stay
+  under 170 s with 46/46 mutations caught.
+- Also predicted: mutation_checks should report a hung test as a survivor
+  instead of crashing with a traceback; that guard goes in the round-2
+  hardening branch, not this PR.
+
+R2 Phase 1 — E5 verify repair: outcome
+--------------------------------------
+- Unmutated test passes in 1.02 s; the mutated build is caught in 18.85 s on
+  the hand-run check, and the full E5 verify finished in 111.08 s with 46/46
+  mutations caught, beating the 170 s prediction. The earlier 120 s hang and
+  the traceback are gone.
