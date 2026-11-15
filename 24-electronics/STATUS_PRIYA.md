@@ -141,6 +141,38 @@ Phase 3 item 3 (first real Actions runs):
   success: ubuntu nightly mode ran 124/80/39 = 243 tests, 63/63 mutations,
   OVERALL PASS in 71.03 s; windows green (MEASURED from the job log).
 
+Phase 3 item 1 (ngspice cross-check, separate process):
+
+- `helqix_circuit/spice.py` exports resistor, vsource, isource, vcvs, vccs,
+  switch, capacitor, inductor and diode to a deck with a `.control` block
+  (switch = 1 mOhm closed / 1 TOhm open; printed precision raised with
+  `.options numdgt=15`). Other kinds, non-zero capacitor/inductor initial
+  conditions and diodes at different temperatures are refused, so a deck can
+  never silently omit or approximate a component. A parser reads ngspice's
+  `name = number` print/measure lines.
+- `scripts/ngspice_crosscheck.py` runs 18 circuits (11 DC, 4 AC at 2–3
+  frequencies, 3 transient at 3 times) through ngspice in batch mode in a
+  temporary directory. ngspice is never imported or linked. A missing
+  executable prints `skipped` and exits 0.
+- CI: a dedicated ubuntu job installs ngspice with apt and runs the check.
+  MEASURED on run 43703077659 (job log): ngspice-42, 18/18 circuits within
+  tolerance, OVERALL PASS. Error / circuit scale, largest first: RLC step
+  1.97e-5, switch closed 1.0e-5, RL step 4.78e-6, RC step 3.49e-7, diode
+  forward 2.49e-7, RC ladder 1.22e-7, RC low-pass 9.6e-8, ladder 8.6e-8,
+  RLC series 4.6e-8, divider 3.3e-8, two sources 3.0e-8, RL high-pass
+  2.3e-8, bridge 1.2e-8, switch open / diode reverse / current source /
+  vcvs / vccs at 1e-9 or 0. The RLC step is the expected integration-method
+  difference; every other case is at print/rounding level.
+- Fast suite on the same commit (MEASURED locally): 113 circuit + 60 sensors
+  + 19 io = 192 tests, 0 failed, 65/65 mutations caught, key scan clean,
+  CONFIG clean, 109.35 s, OVERALL PASS. Predictions and outcomes, including
+  the first run's confusing near-zero relative error and its fix, are in
+  `predictions.txt`.
+- `docs/priya/LICENCES.md` records every third-party tool, the licence as
+  read from the project's own site/metadata/repository, and whether it is
+  linked or used as a separate process (ngspice: separate process, modified
+  BSD per its FAQ; numpy/scipy BSD-3, pytest MIT, Python PSF-2.0).
+
 ## E7 — Virtual I/O
 
 - Done: new `helqix_io` package, standard library only: `serial_pair` with length + CRC32 framing, bounded FIFO queues, read/write timeouts, write back-pressure, disconnect/reconnect, seeded drop/corrupt/delay faults and counters; in-process MQTT-style `Broker`/`Client` with `+`/`#` topics, QoS 0/1, ack plus `retry_unacked()` after a reconnect, whole-publish back-pressure refusal; documented as a reusable building block in `docs/priya/INTERFACE_IO.md`.

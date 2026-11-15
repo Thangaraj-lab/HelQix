@@ -23,7 +23,7 @@ packages, so the BSD/MIT/PSF terms apply as attribution only.
 
 | Tool | Version | Licence | Verified from | How used |
 | --- | --- | --- | --- | --- |
-| ngspice | whatever `apt-get install ngspice` provides on ubuntu-latest; printed by the cross-check | modified BSD (manual CC-BY-SA 4.0) | ngspice FAQ, https://ngspice.sourceforge.io/faq.html ("The ngspice license is the modified BSD license"), read 2026-11-15 | circuit cross-check only: `scripts/ngspice_crosscheck.py` writes a deck and runs `ngspice -b`; no ngspice code is linked or imported. Local runs skip when ngspice is absent. |
+| ngspice | 42+ds-3build1 on ubuntu-latest (the apt package, MEASURED from the CI log); the project site currently offers 47 | modified BSD (manual CC-BY-SA 4.0) | ngspice FAQ, https://ngspice.sourceforge.io/faq.html ("The ngspice license is the modified BSD license"), read 2026-11-15 | circuit cross-check only: `scripts/ngspice_crosscheck.py` writes a deck and runs `ngspice -b`; no ngspice code is linked or imported. Local runs skip when ngspice is absent. |
 | git | local install, version not recorded | GPL-2.0 | `COPYING` in https://github.com/git/git (v2 only is valid for that project) | version control; not part of the shipped module |
 | curl | local install, version not recorded | curl (MIT/X-inspired, SPDX `curl`) | https://curl.se/docs/copyright.html | GitHub API calls for pull requests and Actions logs; not part of the shipped module |
 | GitHub Actions `actions/checkout` | tag `v4` | MIT | `LICENSE` in https://github.com/actions/checkout | CI checkout |
@@ -42,8 +42,8 @@ packages, so the BSD/MIT/PSF terms apply as attribution only.
 
 ## Honesty notes
 
-- The ngspice version actually used by CI is recorded from the first line of
-  its `--version` output in the job log; until that run exists it is UNKNOWN.
+- The ngspice version actually used by CI is 42+ds-3build1 (read from the
+  apt line and the `--version` banner in the job log of run 43703077659).
 - "Modified BSD" is the wording of the ngspice project itself. The summary of
   the three merged simulators (spice3f5 and CIDER modified BSD, XSPICE public
   domain) is copied from that FAQ, not independently audited file by file.

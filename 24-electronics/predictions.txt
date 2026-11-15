@@ -366,3 +366,17 @@ R2 Phase 3 item 1 - first CI ngspice run and metric fix
   Per-point pass criteria are unchanged (atol + rtol*max(|a|,|b|)).
 - Predicted second CI run: same 18/18 PASS, with switch open below 1e-9
   and RLC series below 2e-5 on the new scale.
+
+R2 Phase 3 item 1 - second CI run (final)
+-----------------------------------------
+- MEASURED, job log of run 43703077659: ngspice-42 banner printed,
+  18/18 circuits PASS in the same job. Error / circuit scale: divider
+  3.33e-8, ladder 8.57e-8, bridge 1.19e-8, current source 0, two sources
+  3.03e-8, vcvs 0, vccs 0, switch closed 1.0e-5, switch open 1.0e-9,
+  diode forward 2.49e-7, diode reverse 1.0e-9, RC low-pass 9.61e-8,
+  RL high-pass 2.30e-8, RLC series 4.59e-8, RC ladder 1.22e-7, RC step
+  3.49e-7, RL step 4.78e-6, RLC step 1.97e-5. Worst circuit is the RLC
+  step, where trapezoidal integration differs from ngspice's default.
+- Fast suite on the same commit: 113 circuit + 60 sensors + 19 io = 192
+  tests, 65/65 mutations, key scan clean, CONFIG clean, 109.35 s,
+  OVERALL PASS (MEASURED locally).
