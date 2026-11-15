@@ -274,3 +274,35 @@ R2 Phase 2 — outcome
   61/61 mutations caught, key scan clean, CONFIG clean, 127.79 s, OVERALL
   PASS. All four new mutations were caught on the first run and the wall time
   was 6.18 s above main's 121.61 s.
+
+R2 Phase 3 item 2 - ampacity audit (written before the run)
+-----------------------------------------------------------
+- All 105 copper rows (15 sizes x 7 methods) are VERIFIED: the ecalpro copy
+  was fetched and all 105 values matched the transcription; A1/A2/B1/B2/C
+  were also read from the ti-soft copy and matched for 1.5-240 mm2. So no
+  row is tagged UNKNOWN and `report_text()` says "105 rows, 105 VERIFIED,
+  0 UNKNOWN".
+- Existing test_ampacity_row_is_cited_and_not_invented needs "method C" in
+  TABLE_SOURCE; the amended text now says "method C", so that test should
+  stay green.
+- Four new circuit tests (provenance on every row, synthetic UNKNOWN row
+  prints "unverified table row", row_problems names missing source/status,
+  no interpolation at 3.3 mm2) -> circuit fast count 100 -> 104.
+- Two new R2 mutations (verified row without source accepted, unverified
+  rows not reported) -> 61 -> 63, both caught on the first run, about 15 s
+  added to verify.
+- Predicted verify fast: circuit 104 + sensors 60 + io 19 = 183 tests,
+  63/63 mutations, key scan clean, CONFIG clean, OVERALL PASS in about
+  145 s.
+
+R2 Phase 3 item 2 - outcome
+---------------------------
+- First verify run: 104 + 60 + 19 = 183 tests all green, 62/63 mutations -
+  "verified ampacity row without a source accepted" survived because the
+  bad-row test also set an invalid status, so the source check was never
+  reached. Test split into three single-fault rows; no production code
+  changed.
+- Second run: 183 tests green, 63/63 mutations caught, key scan clean,
+  CONFIG clean, 102.48 s, OVERALL PASS. Both new R2 mutations now caught.
+- Provenance counts: `python -m helqix_circuit.ampacity_table` prints
+  "IEC 60364-5-52 B.52.2: 105 rows, 105 VERIFIED, 0 UNKNOWN".

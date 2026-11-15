@@ -186,6 +186,22 @@ MUTATIONS = [
         "test": "helqix_circuit/tests/test_harness.py::test_ampacity_verdict_on_both_sides_of_each_limit",
     },
     {
+        "phase": "R2",
+        "name": "verified ampacity row without a source accepted",
+        "file": "helqix_circuit/ampacity_table.py",
+        "old": '            if not row.get("source"):',
+        "new": '            if False:',
+        "test": "helqix_circuit/tests/test_harness.py::test_ampacity_row_problems_name_bad_rows",
+    },
+    {
+        "phase": "R2",
+        "name": "unverified ampacity rows not reported",
+        "file": "helqix_circuit/ampacity_table.py",
+        "old": "    for row in unverified_rows(rows):",
+        "new": "    for row in []:",
+        "test": "helqix_circuit/tests/test_harness.py::test_unknown_ampacity_row_is_reported_as_unverified",
+    },
+    {
         "phase": "E3",
         "name": "size match widened so 0.75 mm2 matches a row",
         "file": "helqix_circuit/ampacity_table.py",

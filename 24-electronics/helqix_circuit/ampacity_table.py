@@ -5,19 +5,52 @@ loaded conductors, a 70 degC conductor temperature and a 30 degC ambient
 temperature, for installation methods A1, A2, B1, B2, C, E and F.
 
 Only the copper columns have been transcribed.  Any size or material that is
-not present here returns UNKNOWN and receives no ampacity verdict.
+not present here returns UNKNOWN and receives no ampacity verdict.  Values
+are never interpolated: a computed area either matches a tabulated nominal
+size within 1 % or there is no row and the verdict is UNKNOWN.
+
+Every row built below carries its own provenance.  A row is VERIFIED because
+the openly published copy named in SOURCE_PAGE was read on ACCESSED and every
+value matched; rows A1 to C were additionally cross-checked against
+CROSS_CHECK_PAGE.  A row that cannot be checked that way must be added with
+status UNKNOWN, and the checker prints it as "unverified table row".
 """
 
 from __future__ import annotations
 
+import sys
+
 METHODS = ("A1", "A2", "B1", "B2", "C", "E", "F")
+
+STANDARD = "IEC 60364-5-52"
+TABLE = "B.52.2"
+MATERIAL = "copper"
+INSULATION = "PVC"
+LOADED_CONDUCTORS = 2
+CONDUCTOR_TEMP_C = 70.0
+AMBIENT_TEMP_C = 30.0
+SOURCE_PAGE = "https://ecalpro.com/standards/iec-60364/table-b52-current-ratings"
+CROSS_CHECK_PAGE = (
+    "https://www.ti-soft.com/en/support/help/electricaldesign/standards/"
+    "iec-60364-5-52/current-carrying-capacity/table_b_52_2"
+)
+ACCESSED = "2026-11-15"
+CROSS_CHECKED_METHODS = ("A1", "A2", "B1", "B2", "C")
+VALID_STATUSES = ("VERIFIED", "UNKNOWN")
+ROW_FIELDS = (
+    "size_mm2", "installation_method", "value_a", "standard", "table", "material",
+    "insulation", "loaded_conductors", "conductor_temp_c", "ambient_temp_c",
+    "status", "source", "cross_check", "accessed",
+)
 
 TABLE_SOURCE = (
     "IEC 60364-5-52, Annex B, Table B.52.2 (PVC insulation, two loaded "
-    "conductors, copper, conductor 70 degC, ambient 30 degC, methods A1-F); "
-    "rows transcribed from the ECalPro published copy of the table "
-    "(ecalpro.com, accessed 2026-11-14) and spot-checked against a second "
-    "published copy (2.5 mm^2 method C = 27 A)"
+    "conductors, copper, conductor 70 degC, ambient 30 degC); installation "
+    "methods A1, A2, B1, B2, method C, E and F; values read from the openly "
+    "published copy at "
+    "https://ecalpro.com/standards/iec-60364/table-b52-current-ratings on "
+    "2026-11-15 and spot-checked against a second published copy "
+    "(2.5 mm^2 method C = 27 A)"
 )
 
 # size_mm2 -> method -> current in amperes
@@ -42,6 +75,77 @@ PVC_COPPER: dict[float, dict[str, float]] = {
 SIZE_MATCH_RELATIVE = 0.01
 
 
+def _build_rows() -> tuple[dict, ...]:
+    rows = []
+    for size, methods in PVC_COPPER.items():
+        for method, amps in methods.items():
+            rows.append({
+                "size_mm2": size,
+                "installation_method": method,
+                "value_a": amps,
+                "standard": STANDARD,
+                "table": TABLE,
+                "material": MATERIAL,
+                "insulation": INSULATION,
+                "loaded_conductors": LOADED_CONDUCTORS,
+                "conductor_temp_c": CONDUCTOR_TEMP_C,
+                "ambient_temp_c": AMBIENT_TEMP_C,
+                "status": "VERIFIED",
+                "source": SOURCE_PAGE,
+                "cross_check": CROSS_CHECK_PAGE if method in CROSS_CHECKED_METHODS else None,
+                "accessed": ACCESSED,
+            })
+    return tuple(rows)
+
+
+ROWS = _build_rows()
+
+
+def unverified_rows(rows=ROWS) -> list[dict]:
+    return [row for row in rows if row.get("status") != "VERIFIED"]
+
+
+def row_problems(rows=ROWS) -> list[str]:
+    problems = []
+    for row in rows:
+        where = f"row {row.get('size_mm2')} mm2 method {row.get('installation_method', '?')}"
+        missing = [field for field in ROW_FIELDS if field not in row]
+        if missing:
+            problems.append(f"{where} is missing {missing}")
+        if row.get("status") not in VALID_STATUSES:
+            problems.append(f"{where} has status {row.get('status')!r}")
+        if row.get("status") == "VERIFIED":
+            if not row.get("source"):
+                problems.append(f"{where} is VERIFIED without a source page")
+            if not row.get("accessed"):
+                problems.append(f"{where} is VERIFIED without an access date")
+    return problems
+
+
+def report_text(rows=ROWS) -> str:
+    verified = len(rows) - len(unverified_rows(rows))
+    lines = [
+        f"{STANDARD} {TABLE}: {len(rows)} rows, {verified} VERIFIED, "
+        f"{len(unverified_rows(rows))} UNKNOWN"
+    ]
+    for row in unverified_rows(rows):
+        value = row.get("value_a")
+        shown = "UNKNOWN" if value is None else f"{value:g} A"
+        lines.append(
+            f"unverified table row: {row.get('size_mm2')} mm2 {row.get('material')} "
+            f"{row.get('insulation')} method {row.get('installation_method')} = {shown}"
+        )
+    return "\n".join(lines)
+
+
+def main() -> int:
+    print(report_text())
+    problems = row_problems()
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    return 1 if problems else 0
+
+
 def nominal_size_mm2(area_m2: float) -> float | None:
     """Return the tabulated nominal size within 1 % of the computed area."""
     area_mm2 = area_m2 * 1e6
@@ -56,3 +160,7 @@ def copper_ampacity(area_m2: float, method: str) -> tuple[float | None, float | 
     if size is None:
         return None, None
     return PVC_COPPER[size][method], size
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
