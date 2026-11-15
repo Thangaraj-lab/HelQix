@@ -56,8 +56,9 @@ Every case starts with `"version": "case/0.1"`. A different version is exit 2.
 ### `circuit`
 
 The netlist object from the circuit package: `version` must be `"circuit/0.1"`,
-`components` is a list (resistor, vsource, isource, capacitor, inductor, diode,
-mosfet, opamp, vcvs, vccs, switch), and `analysis.type` selects the run:
+`components` is a non-empty list (resistor, vsource, isource, capacitor,
+inductor, diode, mosfet, opamp, vcvs, vccs, switch) — an empty list is exit 2
+with `circuit has no components` — and `analysis.type` selects the run:
 
 - `"dc"` — DC operating point.
 - `"tran"` (or `"transient"`) — time stepping. The analysis object also carries
@@ -95,8 +96,12 @@ exit 2). Each wire:
 | `gauge_awg` | AWG size, between -20 and 60 (give this or `diameter_mm`, not both) |
 | `diameter_mm` | conductor diameter in millimetres, > 0 |
 | `material` | `"copper"` or `"aluminium"` |
-| `insulation_rating_c` | rating in degC, > 0 (informational) |
+| `insulation_rating_c` | required rating in degC, > 0; echoed in the per-wire report (a missing or non-positive value is exit 2 naming the field) |
 | `installation_method` | `A1 A2 B1 B2 C E F`; default `C` |
+
+The insulation rating does not change today's ampacity or temperature verdict;
+it is required so every harness check records the rating it was judged against,
+and it is reported back as `GIVEN` in the wire report.
 
 The wire is inserted as a series resistor in a copy of the circuit and the
 current through it is measured. `wires` in the result is the full per-wire
@@ -117,6 +122,18 @@ ampacity verdict. `wire_verdict` is the worst per-wire verdict
 
 The timeout is cooperative: a single very long solver step can overshoot it
 slightly. It never changes the numbers when the case finishes in time.
+
+Separately from `limits`, a transient is refused **before any solver work**
+when `stop_s / step_s` exceeds **2,000,000 requested steps** (exit 2, and the
+message states the computed count and the cap). When `step_s` is omitted the
+requested count is `stop_s / (stop_s / 100) = 100`, so only an explicit
+`step_s` can trip it. The cap exists because an absurd grid (for example
+`stop_s: 10, step_s: 1e-7`, 100 million rows) would otherwise be built
+step-by-step inside the timeout thread, burning memory and CPU until either
+`max_steps` or `timeout_s` stops it, while the case itself proves the request
+impossible. Two million rows is far beyond any example in `examples/circuit`
+and still cheap to march; `max_steps` remains the run-time guard on steps
+actually taken (exit 3), and the cap only rejects the request up front.
 
 ### `reference`
 
@@ -170,6 +187,19 @@ Either an object or a path to a JSON file holding that object.
 Only the fields in this table are accepted; an unknown field inside the model,
 `range`, `resolution` or `saturation` is exit 2, because a misspelled
 `noise_densiy` would otherwise silently mean "no noise".
+
+**Quantizer grid convention: zero-anchored.** With `{"bits": n}` the step is
+`(max - min) / 2^n` and every reading is rounded to the nearest level
+`k * step` for integer `k`, then clipped to `[min, max]`. The grid is anchored
+at 0 V, not at `min`. Worked example, range `min = -1`, `max = 4`, 2 bits:
+step `= 5 / 4 = 1.25`, so levels include 0, ±1.25, ±2.5, … A reading of
+`-0.6` is nearest to level `0` (result 0.0); `0.7` → `1.25`; `2.9` →
+`2.5`. Ties are resolved by round-half-to-even (NumPy `rint`), so `0.625`
+(0.5 steps) → `0.0` and `-0.625` → `-0.0`, while `1.875` (1.5 steps) →
+`2.5`. A range-minimum-anchored grid would place levels at `-1 + k*1.25`
+and report `-0.6` as `-0.25`; this package does not do that, and
+`test_quantizer_grid_is_zero_anchored` pins the behaviour. `{"step": s}`
+uses the same zero-anchored rounding with the given step.
 
 ### `signal`
 

@@ -245,3 +245,32 @@ R2 Phase 1 — E5 verify repair: outcome
   the hand-run check, and the full E5 verify finished in 111.08 s with 46/46
   mutations caught, beating the 170 s prediction. The earlier 120 s hang and
   the traceback are gone.
+
+R2 Phase 2 — hardening (written before the verification run)
+------------------------------------------------------------
+- Four new rules, four new mutations. Predictions: removing the empty-circuit
+  refusal turns test_empty_circuit_is_refused red; removing the step cap turns
+  test_transient_step_count_cap_is_refused red in under 2 s (the case's
+  timeout_s is 0.2 s); defaulting insulation_rating_c to 70 turns
+  test_wire_insulation_rating_is_required red; anchoring the quantizer at the
+  range minimum turns test_quantizer_grid_is_zero_anchored red. Expect
+  61/61 caught.
+- `--import-mode=importlib` in pyproject should let a bare
+  `pytest 24-electronics` collect every test with 0 errors. On main before
+  this change the same command stops with 4 basename collisions (measured in
+  a temp worktree: 193 collected, 4 errors, no file written).
+- Full verify: expect 4 more fast tests than main's 175 (three circuit, one
+  sensor) and 4 more in nightly mode; wall time near main's 121.61 s plus the
+  four mutations (about 15 s each).
+- The mutation harness itself now returns a hung mutated test as a survivor
+  instead of raising subprocess.TimeoutExpired (the E5 hang from Phase 1).
+
+R2 Phase 2 — outcome
+--------------------
+- Bare `pytest 24-electronics` from the repo root: 239 collected with zero
+  errors, 239 passed in 12.19 s. On main the same command had 4 basename
+  collisions and only 193 tests collected.
+- verify.py fast: 100 circuit + 60 sensors + 19 io = 179 tests, 0 failed,
+  61/61 mutations caught, key scan clean, CONFIG clean, 127.79 s, OVERALL
+  PASS. All four new mutations were caught on the first run and the wall time
+  was 6.18 s above main's 121.61 s.

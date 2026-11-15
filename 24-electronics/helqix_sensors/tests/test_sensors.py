@@ -52,6 +52,26 @@ def test_noise_sigma_within_three_percent_over_100k_samples():
 
 
 # ---------------------------------------------------------------- quantization
+def test_quantizer_grid_is_zero_anchored():
+    # range -1..4 V, 2 bits -> step 5/4 = 1.25 V. A zero-anchored grid has
+    # levels k*1.25; a range-minimum-anchored grid would have -1 + k*1.25.
+    fs = 1000.0
+    sensor = load_model(model(
+        range={"min": -1.0, "max": 4.0},
+        resolution={"bits": 2},
+        bandwidth_hz=400.0,
+        noise_density=0.0,
+        sample_rate_hz=fs,
+    ))
+    trace = simulate(sensor, series(np.full(50, -0.6), fs))
+    assert np.allclose(trace.reported, 0.0), "nearest level to -0.6 is 0, not -1 or -0.25"
+    trace = simulate(sensor, series(np.full(50, 0.7), fs))
+    assert np.allclose(trace.reported, 1.25), "nearest level to 0.7 is 1.25"
+    ratios = np.concatenate([simulate(sensor, series(np.full(20, value), fs)).reported
+                             for value in (-0.3, 0.4, 1.1, 2.9)])
+    assert np.allclose(ratios / sensor.step, np.rint(ratios / sensor.step))
+
+
 def test_quantization_step_is_exact():
     fs = 1000.0
     step = 2.0 / 2**12  # (max - min) / 2**bits

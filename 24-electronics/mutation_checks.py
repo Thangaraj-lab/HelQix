@@ -473,6 +473,38 @@ MUTATIONS = [
         "new": "        if False:",
         "test": "helqix_io/tests/test_bus.py::test_back_pressure_refuses_the_whole_publish",
     },
+    {
+        "phase": "R2",
+        "name": "empty circuit accepted",
+        "file": "helqix_circuit/netlist.py",
+        "old": "    if not components_body:\n        raise InputError(\"circuit has no components; add at least one component or give the case something to solve\")",
+        "new": "    if not components_body and False:\n        pass",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_empty_circuit_is_refused",
+    },
+    {
+        "phase": "R2",
+        "name": "transient step cap removed",
+        "file": "helqix_circuit/cli.py",
+        "old": "    if requested > MAX_REQUESTED_STEPS:",
+        "new": "    if False:",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_transient_step_count_cap_is_refused",
+    },
+    {
+        "phase": "R2",
+        "name": "wire insulation rating made optional",
+        "file": "helqix_circuit/harness.py",
+        "old": "    rating = _number(body.get(\"insulation_rating_c\"), f\"{where} insulation_rating_c\")\n    if rating <= 0:\n        raise InputError(f\"{where} insulation_rating_c must be greater than zero\")",
+        "new": "    rating = _number(body.get(\"insulation_rating_c\", 70.0), f\"{where} insulation_rating_c\")",
+        "test": "helqix_circuit/tests/test_cli_circuit.py::test_wire_insulation_rating_is_required",
+    },
+    {
+        "phase": "R2",
+        "name": "quantizer anchored at range minimum",
+        "file": "helqix_sensors/sensor.py",
+        "old": "    quantized = model.step * np.rint(analog / model.step)",
+        "new": "    quantized = model.min_value + model.step * np.rint((analog - model.min_value) / model.step)",
+        "test": "helqix_sensors/tests/test_sensors.py::test_quantizer_grid_is_zero_anchored",
+    },
 ]
 
 
@@ -483,14 +515,17 @@ def _copy_tree(destination: Path) -> None:
 def _run_test(root: Path, node: str) -> tuple[int, str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(root) + os.pathsep + env.get("PYTHONPATH", "")
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", node, "-q", "--tb=no", "-p", "no:cacheprovider"],
-        cwd=str(root),
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=120,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", node, "-q", "--tb=no", "-p", "no:cacheprovider"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, "test hung for 120 s"
     return proc.returncode, (proc.stdout + proc.stderr).strip().splitlines()[-1] if (proc.stdout or proc.stderr) else ""
 
 
@@ -508,7 +543,9 @@ def run() -> tuple[bool, str]:
                 continue
             target.write_text(text.replace(mutation["old"], mutation["new"], 1), encoding="utf-8")
             code, summary = _run_test(root, mutation["test"])
-            if code == 0:
+            if code == 124:
+                survivors.append(f"{mutation['phase']} {mutation['name']}: {summary}")
+            elif code == 0:
                 survivors.append(f"{mutation['phase']} {mutation['name']}: survived ({summary})")
             else:
                 caught += 1

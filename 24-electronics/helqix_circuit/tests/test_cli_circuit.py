@@ -268,6 +268,33 @@ def test_wires_with_a_non_dc_analysis_are_refused(tmp_path):
     assert "dc" in proc.stderr.lower()
 
 
+def test_empty_circuit_is_refused(tmp_path):
+    body = {"version": "case/0.1", "circuit": {"version": "circuit/0.1", "components": []}}
+    proc, out = run(tmp_path, body)
+    assert proc.returncode == 2
+    assert "no components" in proc.stderr
+    assert not out.exists()
+
+
+def test_transient_step_count_cap_is_refused(tmp_path):
+    body = case(rc_transient(stop_s=10.0, step_s=1e-7), limits={"timeout_s": 0.2})  # 100,000,000 steps
+    proc, out = run(tmp_path, body)
+    assert proc.returncode == 2
+    assert "2,000,000" in proc.stderr and "cap" in proc.stderr
+    assert not out.exists()
+
+
+def test_wire_insulation_rating_is_required(tmp_path):
+    wire = {
+        "id": "W1", "from": "1", "to": "2", "length_mm": 2000.0, "diameter_mm": 1.784,
+        "material": "copper", "installation_method": "C",
+    }
+    proc, out = run(tmp_path, case(divider(), wires=[wire]))
+    assert proc.returncode == 2
+    assert "insulation_rating_c" in proc.stderr
+    assert not out.exists() or not any(out.iterdir())
+
+
 def test_mismatched_reference_is_unvalidated_but_still_a_result(tmp_path):
     body = case(divider(), reference={
         "quantity": "node_voltage", "name": "V(2)", "value": 5.0, "relative_tolerance": 1e-9,

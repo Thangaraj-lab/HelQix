@@ -3,3 +3,5 @@ markers = [
   "nightly: slow test kept out of the fast verification run",
 ]
 testpaths = ["helqix_circuit/tests", "helqix_sensors/tests", "helqix_io/tests"]
+addopts = "--import-mode=importlib"
+pythonpath = ["."]

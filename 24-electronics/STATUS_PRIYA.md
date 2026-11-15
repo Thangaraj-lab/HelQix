@@ -5,8 +5,12 @@ in the phase sections below the five-line reports.
 
 ## Final sweep — all seven phases
 
-Status: **DONE**, nothing BLOCKED. Work is on branches `priya/e1-circuit` …
-`priya/e7-io`, committed locally, not pushed.
+Status: **DONE**, nothing BLOCKED. All seven branches were pushed. The three
+round-2 PRs were merged into `main` in order: #8 `priya/e5-interface` →
+`32ad1a1`, #10 `priya/e6-automation` → `8ad404e`, #9 `priya/e7-io` →
+`19200e2`. Each branch was synced with `main` before merging, so every PR diff
+carried only its own commits, and each merge was gated on an OVERALL PASS run
+of `python 24-electronics/verify.py` pasted into the PR description.
 
 | phase | status | commit(s) | tests now | main targets, measured | UNKNOWNs |
 |-------|--------|-----------|-----------|------------------------|----------|
@@ -19,9 +23,18 @@ Status: **DONE**, nothing BLOCKED. Work is on branches `priya/e1-circuit` …
 | E6 Automation | DONE | ced94ef | 46/46 mutations | fast 123.41 s, nightly 120.51 s (limit 180 s); workflow YAML parsed once with PyYAML 6.0.3 | Actions runtime, hook install |
 | E7 Virtual I/O | DONE | 3b00e4d | 19 fast + 20 nightly | 10000 frames 0.049 s, 10000 messages 0.080 s, 11/11 mutations, amqtt 49/49 topic decisions | wire-level MQTT |
 
-Verification runs after E7 (MEASURED): verify.py three times green, 127.96 s,
-136.85 s and 142.48 s; nightly verify green at 132.05 s; every run reports
-57/57 mutations caught, key scan clean and CONFIG clean. Current totals:
+Verification on merged `main` after the third merge (MEASURED): 97 circuit +
+59 sensors + 19 io = 175 fast tests (235 including nightly), 57/57 mutations
+caught, key scan clean, CONFIG clean, 121.61 s, OVERALL PASS. That is higher
+than the snapshot quoted at the start of round 2 (circuit 69 / sensors 35 /
+io 1) and the rise is the merged work itself: +28 circuit and +24 sensor tests
+are E5's CLI contract suites (`test_cli_circuit.py`, `test_cli_sensors.py`),
+and io 1 → 19 is the new `helqix_io` package (E7). Nothing was removed or
+deselected.
+
+Verification runs before the merges (MEASURED): verify.py three times green,
+127.96 s, 136.85 s and 142.48 s; nightly verify green at 132.05 s; every run
+reports 57/57 mutations caught, key scan clean and CONFIG clean. Totals:
 175 fast tests (97 circuit + 59 sensors + 19 io) and 235 in nightly mode
 (117 + 79 + 39).
 
@@ -49,6 +62,46 @@ UNKNOWNs, in one place:
    matching was compared with a real broker.
 6. E5 downsampling: rounded-even-spacing indices, not a min/max envelope;
    kept as a documented limitation, not a lowered target.
+
+## Round 2 — merge and hardening (started 2026-11-15)
+
+Phase 1 (merge): the three PRs #8 → #10 → #9 were merged into `main` as
+`32ad1a1`, `8ad404e` and `19200e2`, in that order; every branch was synced
+with `main` first and its PR body carried a green verify table. Verify on
+merged `main`: 175 fast tests, 57/57 mutations, 121.61 s, OVERALL PASS
+(MEASURED); the comparison with the pre-merge snapshot is in the section
+above.
+
+Phase 2 (hardening) on branch `priya/r2-hardening`:
+
+- Root-level pytest collision: `addopts = "--import-mode=importlib"` and
+  `pythonpath = ["."]` in `24-electronics/pyproject.toml`. A bare
+  `pytest 24-electronics` from the repo root now collects 239 tests with zero
+  errors and 239 pass in 12.19 s (MEASURED). The same command on `main` (temp
+  worktree) stopped with 4 basename collisions and only 193 collected.
+- Empty circuit: `load_circuit` refuses an empty component list with
+  `circuit has no components ...`, which surfaces as exit 2 and a plain
+  message (`test_empty_circuit_is_refused`).
+- Transient step cap: before the solver starts, `stop_s / step_s` above
+  2,000,000 requested steps is exit 2 and the message states the computed
+  count and the cap (`test_transient_step_count_cap_is_refused` uses a
+  100,000,000-step case). The cap, its reason and the interaction with
+  `max_steps` (still the run-time guard, exit 3) are documented in
+  `docs/priya/INTERFACE_ELECTRONICS.md`.
+- `insulation_rating_c`: the doc said "informational" while the code required
+  it. The doc now says required and a missing value is exit 2 naming the
+  field (`test_wire_insulation_rating_is_required`); the rating is echoed as
+  `GIVEN` in the wire report.
+- Quantizer grid: documented as zero-anchored with a worked example (range
+  -1..4 V, 2 bits, step 1.25 V, so -0.6 V reads 0 V), and
+  `test_quantizer_grid_is_zero_anchored` pins it.
+- Mutations: four new checks (empty circuit accepted, step cap removed,
+  insulation defaulted, quantizer anchored at the range minimum), 61/61
+  caught. The harness now reports a hung mutated test as a survivor instead
+  of crashing with `subprocess.TimeoutExpired` (the Phase 1 E5 hang).
+- verify.py fast (MEASURED): 100 circuit + 60 sensors + 19 io = 179 tests,
+  0 failed, 0 skipped, 61/61 mutations, key scan clean, CONFIG clean,
+  127.79 s, OVERALL PASS. Predictions and outcomes are in `predictions.txt`.
 
 ## E7 — Virtual I/O
 

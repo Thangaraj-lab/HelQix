@@ -32,6 +32,7 @@ from . import (
 CASE_VERSION = "case/0.1"
 CASE_KEYS = ("circuit", "limits", "reference", "version", "wires")
 MAX_PROBE_POINTS = 2000
+MAX_REQUESTED_STEPS = 2_000_000
 DEFAULT_LIMITS = {"timeout_s": 30.0, "max_nodes": 10000, "max_steps": 200000}
 OUTPUT_FILES = ("results.json", "series.csv", "values.csv")
 REFERENCE_QUANTITIES = ("node_voltage", "branch_current", "probe_final", "metric")
@@ -58,6 +59,25 @@ def main(argv=None) -> int:
         return 2
 
 
+def _check_step_budget(circuit, kind: str) -> None:
+    if kind != "transient":
+        return
+    analysis = circuit.analysis
+    try:
+        stop = float(analysis.get("stop_s", 0.0))
+        step = float(analysis.get("step_s", stop / 100.0 if stop > 0 else 0.0))
+    except (TypeError, ValueError):
+        return
+    if not (math.isfinite(stop) and math.isfinite(step)) or stop <= 0 or step <= 0:
+        return
+    requested = stop / step
+    if requested > MAX_REQUESTED_STEPS:
+        raise InputError(
+            f"transient requests {requested:,.0f} steps from stop_s / step_s; the cap is "
+            f"{MAX_REQUESTED_STEPS:,}. Increase step_s or shorten stop_s."
+        )
+
+
 def _run(case_path: str, out_text: str) -> int:
     body = _load_case(case_path)
     limits = _limits(body.get("limits"))
@@ -65,6 +85,7 @@ def _run(case_path: str, out_text: str) -> int:
     wires = _wires(body.get("wires"))
     circuit = load_circuit(body["circuit"])
     kind = _analysis_kind(circuit)
+    _check_step_budget(circuit, kind)
     node_count = len([name for name in circuit.node_names if name != "0"])
     if node_count > limits["max_nodes"]:
         raise InputError(f"case needs {node_count} nodes; max_nodes is {limits['max_nodes']}")
