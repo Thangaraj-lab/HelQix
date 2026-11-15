@@ -199,7 +199,9 @@ def test_limits_max_steps_is_enforced(tmp_path):
 
 
 def test_timeout_is_enforced(tmp_path):
-    body = case(rc_transient(stop_s=0.05), limits={"timeout_s": 0.005, "max_steps": 5000000})
+    # max_steps is small so a build with the deadline check disabled fails in
+    # milliseconds instead of running until the test harness kills it.
+    body = case(rc_transient(stop_s=0.05), limits={"timeout_s": 0.0005, "max_steps": 2000})
     proc, out = run(tmp_path, body)
     assert proc.returncode == 3
     assert "timeout" in results(out)["message"].lower()
