@@ -173,6 +173,48 @@ Phase 3 item 1 (ngspice cross-check, separate process):
   linked or used as a separate process (ngspice: separate process, modified
   BSD per its FAQ; numpy/scipy BSD-3, pytest MIT, Python PSF-2.0).
 
+Phase 3 item 4 (E7 live probe), same branch:
+
+- The virtual I/O now injects duplicates and reordering as well: a duplicate
+  (probability per delivered frame) waits in a small queue and is returned on
+  the next read before any newer frame, skipping drop and corrupt; a reorder
+  (probability per read that has a second frame already ready) swaps the two
+  oldest ready frames. `stats` gained `duplicated` and `reordered`, and
+  `sent == received - duplicated + dropped + corrupted` holds.
+- `scripts/live_probe.py` sends a seeded sensor trace (`synthesize_signal` then
+  `simulate`) through the serial pair and through the broker into a consumer
+  that checks the record magic, sensor tag, index range and the exact reported
+  value. Seven scenarios run on each transport: clean, drop 0.5, corrupt 0.5,
+  delay 0.05 s, reorder 1.0, duplicate 1.0, and a combined run with all four
+  probabilistic faults. Counters are compared with a separate
+  `random.Random(seed)` stream mirroring the documented draw order; the
+  combined scenario asserts conservation (unique + dropped + corrupted = sent,
+  received = unique + duplicates) because the draws interleave.
+- MEASURED, seed 11, 120 readings, serial and bus counters identical: clean
+  120 in order; drop 55 received / 65 dropped; corrupt 55 / 65; the 0.01 s
+  probe read on the delayed run timed out and all 120 then arrived in order;
+  reorder delivered 1..119,0 with 119 swaps; duplicate delivered 240 with 120
+  unique; combined 106 deliveries = 96 unique + 10 duplicates, 12 dropped and
+  12 corrupted. Seed 29 differs (combined 108 = 99 + 9, 13 dropped,
+  8 corrupted); seed 11 repeated byte-identically (json compare).
+- Tests: 16 new (4 serial, 3 bus, 9 probe), one mutation per new rule
+  (4 transport, 3 probe). Fast suite: 113 circuit + 60 sensors + 35 io = 208
+  tests, 72/72 mutations, key scan clean, CONFIG clean, 123.64 s, OVERALL
+  PASS (MEASURED locally).
+- CI run https://github.com/Thangaraj-lab/HelQix/actions/runs/43704952550
+  completed success for 078d2a3: ubuntu 113/60/35 = 208 tests, 72/72
+  mutations, OVERALL PASS in 80.21 s; windows green in 94.06 s (same counts);
+  ngspice 18/18 (MEASURED from the job logs). The push run for the same
+  commit (runs/43704947832) also completed success.
+- Attack on my own work: the first probe run failed three times for my own
+  reasons, all recorded in `predictions.txt` — the scenario faults omitted the
+  seed (transport used 0), the probe passed a synthesis spec where `simulate`
+  expects a series, and the combined scenario's 5 ms delay made its reorder
+  draws depend on wall-clock readiness, so the same seed produced different
+  counters. The delay was removed from combined (the delay scenario covers
+  it); a full-suite flake seen before that fix did not reproduce afterwards,
+  and three consecutive full I/O suite runs passed.
+
 ## E7 — Virtual I/O
 
 - Done: new `helqix_io` package, standard library only: `serial_pair` with length + CRC32 framing, bounded FIFO queues, read/write timeouts, write back-pressure, disconnect/reconnect, seeded drop/corrupt/delay faults and counters; in-process MQTT-style `Broker`/`Client` with `+`/`#` topics, QoS 0/1, ack plus `retry_unacked()` after a reconnect, whole-publish back-pressure refusal; documented as a reusable building block in `docs/priya/INTERFACE_IO.md`.
