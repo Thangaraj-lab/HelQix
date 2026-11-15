@@ -438,3 +438,200 @@ R2 Phase 3 item 4 - E7 live probe (outcome)
   full I/O suite runs passed (MEASURED).
 - Fast suite: 113 circuit + 60 sensors + 35 io = 208 tests, 72/72 mutations,
   key scan clean, CONFIG clean, 123.64 s, OVERALL PASS (MEASURED locally).
+
+R2 Phase 4a - deterministic routing helper (written before writing it)
+---------------------------------------------------------------------
+All lengths in millimetres in a 2D plane; obstacles are axis-aligned boxes.
+The route is a polyline of axis-aligned segments with every turn replaced by
+a circular arc of the wire's bend radius R.
+- Straight case: start (0,0), end (100,0), no obstacle. Expect 2 points,
+  0 bends, cut length exactly 100, equal to the straight-line distance.
+- One right-angle: start (0,0), end (100,60), a wall across the direct
+  diagonal that forces a single corner at (100,0) or (0,60). R = 5. Sharp
+  polyline length 160; with the corner arc the cut length is
+  160 - 2*5 + pi*5/2 = 157.854 (CALCULATED). Bends = 1.
+- Around a central obstacle: start (0,0), end (100,0), box (40,-10)-(60,10),
+  R = 5, clearance 0. The route must pass at y = +-15 (box edge plus R).
+  Expect 4 points, 2 bends, sharp length 130, cut length
+  130 - 4*5 + 2*(pi*5/2) = 125.708.
+- Blocked direct path: an obstacle spanning the whole gap between the
+  endpoints, e.g. a box that reaches beyond both endpoints on every side,
+  must give blocked = True with a plain-word reason, not an exception and not
+  a route through the box.
+- A corner needs at least R mm of leg on each side; a route whose only
+  available turn is closer than R to an endpoint must be reported blocked
+  rather than drawn with a sharper bend.
+- Property: for every routed-case in the nightly property test the cut length
+  is at least the straight-line distance, and the same input gives the same
+  points twice.
+- Risk: the visibility grid uses coordinates start, end and box edges +- R,
+  so a path can be forced through a coordinate where the arc touches a box
+  corner exactly; the arc is sampled and any sample strictly inside a
+  clearance-inflated box rejects the route as blocked.
+
+R2 Phase 4a - routing outcome (recorded after the run)
+------------------------------------------------------
+- MEASURED all seven unit expectations above: straight 100.0 with 2 points;
+  diagonal (30,40) direct 50.0; one right-angle 157.854 with 1 bend; central
+  obstacle 125.708 with 4 points; sealed frame blocked with reason starting
+  "no clear path"; corner closer than R blocked with reason containing
+  "bend radius"; bad input refused with InputError.
+- The nightly 20-seed property set passed (deterministic repeat, cut length
+  at least the straight distance, axis-aligned segments, start/end kept).
+- Two hand predictions were corrected before the first green run: the
+  symmetric central-obstacle case has two equal-cost detours (y=+15 and
+  y=-15), and the grid picked the +15 one; equal-cost paths now resolve
+  toward the lower y then lower x, which makes the predicted -15 route the
+  one found. The direct clear shot is a diagonal segment when the endpoints
+  do not share a coordinate, so the property test now allows a bend-free
+  route to be that single segment; the earlier "every segment axis-aligned"
+  wording contradicted the diagonal test.
+- Correction to the "Risk" line above: the arc sample check was dropped after
+  the first green run because it is unreachable.  A corner arc lies inside the
+  R x R square bounded by its two legs, and every obstacle box inflated by
+  radius + clearance is at least 2R wide on both axes, so any box that could
+  touch the arc would first cross one of the two legs, which is already
+  rejected.  A mutation that disabled the sampling survived, confirming it
+  guarded nothing; the module docstring and tests no longer claim an arc test.
+  The extra case with a box one millimetre from a candidate corner stays as a
+  leg-clearance test (the route takes the other corner), and six routing
+  mutations are caught.
+
+R2 Phase 4b - harness/0.1 document model (written before writing it)
+-------------------------------------------------------------------
+A harness document is mechanical data only: connectors with pin positions,
+wires that name their circuit nodes and the two pins they run between, bundles,
+and axis-aligned obstacles.  The route polyline is COMPUTED by the router from
+the two pin positions and the obstacles; a polyline supplied in the input is
+refused as an unknown key, and this is stated in the output note.
+- Gauge to size: AWG 20 is 0.127 * 92 ** ((36 - 20) / 39) = 0.8118 mm diameter
+  and 0.5178 mm^2 area (CALCULATED); the existing awg formula and material
+  table are reused from harness.py, not duplicated.
+- Colour table: IEC 60757 letters (BK, BN, RD, OG, YE, GN, BU, VT, GY, WH, PK,
+  TQ, GNYE) and IEC 60445 roles (L1 brown, L2 black, L3 grey, neutral blue,
+  protective earth green-yellow).  Not consulted online here, so REPORTED, and
+  an unknown colour name or code is refused listing the known names.
+- Route example: pins (0,0) and (500,0), obstacle (200,-40)-(300,40), bend
+  radius 6 mm.  Expect the detour at y = -46 (box edge plus radius, lower side
+  by the equal-cost rule): legs 46 + 500 + 46 = 592 sharp; cut length
+  592 - 4*6 + 2*(pi*6/2) = 586.8496 mm.  Declared length 600 mm gives a
+  positive margin of 13.15 mm and route_fits True; declared 500 mm gives
+  route_fits False as a reported fact, not an input error.
+- Blocked route: a wire whose destination pin is sealed by boxes is reported
+  with blocked True, cut length value null and label UNKNOWN; the document
+  itself still loads.
+- Refusals: wrong version, unknown keys (top level, wire, connector, bundle,
+  obstacle), duplicate ids, an unknown pin reference, an unknown bundle, both
+  gauge_awg and diameter_mm, gauge outside -20..60, non-positive length or
+  bend radius, negative slack, a dot in a connector or pin id (pin references
+  use "connector.pin"), obstacle box with x0 >= x1 or y0 >= y1.
+- Determinism: the same document produces the same JSON twice.
+
+R2 Phase 4c - link-harness and fault injection (written before writing it)
+-------------------------------------------------------------------------
+Fixture: case circuit V1 = 12 V ideal from node p to node 0, load R1 = 10 ohm
+from a to b; harness wires W1 from p to a and W2 from b to 0, both copper,
+diameter_mm = 1.0, length_mm = 10000, insulation rating 105 degC, bend radius
+6 mm, route between pins 100 mm apart.  Wire resistance is NOT taken from the
+route: R = rho20 * L / A with rho20 = 1.724e-8 ohm m and A = pi*(0.5 mm)^2,
+so R = 1.724e-8 * 10 / 7.85398e-7 = 0.219506 ohm each (CALCULATED by hand
+here, independent of the module).
+- As built: I = 12 / (0.219506 + 10 + 0.219506) = 1.149534 A; per wire drop
+  0.252330 V = 2.1028 % of 12 V -> PASS; loss 0.290062 W; colour hint OK.
+  Ampacity for 0.7854 mm^2 copper has no cited Table B.52.2 row (the table
+  starts at 1.5 mm^2), so ampacity and its verdict are UNKNOWN, and the wire
+  verdict comes from the drop alone (PASS).  Temperature rise has no cited
+  thermal method, so it is null with label UNKNOWN, not an assumed number.
+- joint:W1:0.5 adds 0.5 ohm in series inside W1: I = 12 / 10.939016 =
+  1.096991 A; W1 effective resistance 0.719506 ohm, drop 0.789292 V =
+  6.5774 % -> FAIL (above the 5 % fail line); W2 drop 0.240797 V = 2.0066 %
+  -> PASS; loss in W1 0.865704 W.
+- open:W2 removes W2: node b then hangs on R1 alone, so the DC matrix is
+  singular and the scenario is reported status "no_solution" with the solver
+  message in plain words; the document and other scenarios still report.
+- short:W1,W2 joins the far end of W1 (a) to the far end of W2 (0) through
+  0.01 ohm.  Solution: a = 0.522372 V, b = 0.011220 V, short branch 52.2372 A,
+  W1 current 52.2883 A with a 95.6469 % drop -> FAIL; W2 current 0.051115 A,
+  0.0935 % -> PASS.  This model (joining the two "to" nodes) is stated in the
+  output so nobody mistakes it for a mid-run short.
+- intermittent:W1:0.5, seed 7, 20 checks: one random.Random(7) draw per check
+  in order, wire open when draw < 0.5.  Mirrored prediction: 13 opened,
+  7 solved, 13 no_solution (every open check leaves node a floating); the
+  wire verdict is FAIL with "opened in 13 of 20 seeded checks".  The same
+  seed must give the same JSON twice.
+- CLI: python -m helqix_circuit link-harness CASE HARNESS --out DIR
+  [--fault TEXT ...] [--seed N]; exit 0 with results.json (even when verdicts
+  are FAIL), 2 on bad input (unknown fault, unknown wire, case carrying its own
+  wires list), 3 if the as-built solve has no solution.  Routes come from the
+  harness document model and are computed; the link table adds currents.
+- Refusals: fault text forms are open:W, joint:W:OHM (OHM > 0),
+  short:W1,W2 (two distinct known wires), intermittent:W:P with 0 < P < 1.
+
+R2 Phase 4c - outcome corrections and test-run predictions
+-----------------------------------------------------------
+- CORRECTION to the block above (found while designing the tests, before any
+  test ran): open:W2 does NOT make the DC matrix singular.  With W2 removed,
+  node b hangs on R1 alone but node a is still held at 12 V through W1, so
+  R1 carries no current, b settles at 12 V and every node has a DC path.  The
+  scenario therefore reports status "ok", W2 current 0 A and verdict FAIL
+  ("the wire is open as injected"), with W1 also at 0 A (the load is
+  unpowered); the as-built numbers and every other scenario are unchanged.
+  A genuine no_solution scenario needs a node that loses its only conductive
+  path, e.g. a current source I1 from 0 to x with wire W3 from x to p: opening
+  W3 leaves x fed by I1 alone, which is not a DC path, so the solver reports
+  floating node "x" with code "floating_node".
+- CORRECTION to the joint loss: W1 power is I^2 * (R + 0.5) =
+  1.096991^2 * 0.719506 = 0.865847 W (the earlier 0.865704 W was the wire
+  resistance only, without the joint).
+- intermittent corrections: each open check still reaches a DC solution
+  (node a falls through R1 and W2 to ground, b = 0), so the checks counter is
+  20 solved and 0 no_solution whichever seed is used; only the opened count
+  changes with the seed (13 of 20 at seed 7).  Wire entries report the max
+  current over the solved checks (1.149534 A for W1) and the min (0 A), both
+  labelled MEASURED.
+- Test-run prediction for test_link.py: 9 tests, all pass on the first run;
+  the CLI test needs the new link-harness subcommand, which is written next.
+- Shipped example pairing (predicted before running): the divider harness gave
+  W1/W2 nodes that no shipped circuit had, so the example now names p -> a and
+  b -> 0 and a paired case examples/harness/cases/feed_case.json holds
+  V1 = 12 V from p to 0 and R1 = 10 ohm from a to b.  AWG20 is
+  d = 0.127 * 92^((36-20)/39) = 0.811821 mm, area = 0.517619 mm^2,
+  R = 1.724e-8 * 10 / 5.17619e-7 = 0.333063 ohm per wire; I =
+  12 / (10 + 2*0.333063) = 1.125057 A; drop 0.374715 V = 3.122627 % -> WARN;
+  colour hint WARN.  Joint W1 0.5 ohm -> R_total 11.166126 ohm, I = 1.074686 A,
+  W1 drop 0.895198 V = 7.459985 % -> FAIL.  Both routes cut 726.8496 mm
+  (66 mm up or down to the inflated box edge, 600 mm across, two bends).
+- CORRECTION to the example pairing: the harness example wires are 760 mm and
+  820 mm, not 10 m (R = 0.025313 and 0.027311 ohm).  As built I =
+  12 / 10.052624 = 1.193718 A, W1 drop 0.251803 % -> PASS.  A 0.5 ohm joint
+  gives W1 1.137160 A and 4.978 % -> WARN, still not FAIL, so the example
+  fault is joint:W1:1.0: I = 12 / 11.052624 = 1.085715 A, W1 drop
+  1.113195 V = 9.276625 % -> FAIL.
+
+R2 Phase 4d - electronics-result/0.1 bundle (noted after the first build_bundle run)
+-------------------------------------------------------------------------------------
+Honest ordering note: the bundle tests were written and run before this block
+was added; the numbers below were hand-checked against the fixture after the
+first run rather than predicted beforehand.
+- Fixture result: status ok, solver helqix_circuit 0.1.0, two values
+  (6.666666666666667 V and -0.003333 A, both CALCULATED) and one wire entry
+  whose ampacity bit is UNKNOWN.  The recursive unit/label scan therefore
+  finds units [A, V] and entry labels [CALCULATED, UNKNOWN], sorted.
+- Payload file order is results.json first, then the CSVs alphabetically, so
+  [results.json, values.csv] and [results.json, series.csv, values.csv].
+- The manifest carries size and SHA-256 of each copied file; the README adds
+  the label legend and lists the units; no timestamp, so two bundles of the
+  same source are byte-identical.
+- The builder refuses a missing source folder ("does not exist"), a folder
+  without results.json, bad JSON, a status outside ok/solver_error, a solver
+  without name or version, a NaN anywhere, a declared CSV that is missing, an
+  out folder holding foreign files, and OUT_DIR == RUN_DIR.
+- Real integration: dc_divider.json output bundles with labels [CALCULATED],
+  units [A, V], files [results.json, values.csv].
+- Predictions for the runs still to come: mutation check R2-4d catches 9 of 9
+  (107/107 overall) and verify.py fast mode is OVERALL PASS with suites
+  circuit 141, sensors 60, io 45.
+- Outcome: mutation check ran 107/107 caught; one interim run reported the E2
+  op-amp mutation as "test hung for 120 s", and running that mutation alone
+  took 1.5 s and failed the named test, so it was a loaded-machine flake, not
+  a survivor.  verify.py fast mode: OVERALL PASS, suites 141/60/45.

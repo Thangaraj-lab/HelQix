@@ -11,12 +11,16 @@ wall-clock value in an output is `seconds`, which measures how long the run took
 
 ```text
 python -m helqix_circuit run CASE.json --out DIR
+python -m helqix_circuit link-harness CASE.json HARNESS.json --out DIR [--fault TEXT ...] [--seed N]
 python -m helqix_sensors run CASE.json --out DIR
 ```
 
 Both packages must be importable from the working directory (or installed into
 the environment). `CASE.json` is read but never modified. `DIR` is created if it
 does not exist.
+
+Exit codes, the out-folder rule and the case version are the same for all three
+commands. `link-harness` writes only `results.json`.
 
 ## Exit codes
 
@@ -149,6 +153,138 @@ Optional. Compares one produced number against a value the case author trusts:
 The check is `abs(actual - value) / max(abs(value), 1e-300) <= relative_tolerance`.
 A matching reference gives `validation_label` `VALIDATED`; a mismatch gives
 `UNVALIDATED` (exit code is still 0). No reference gives `CHECKED`.
+
+## Harness document (`harness/0.1`)
+
+A separate JSON file that describes the physical harness: connectors, wires,
+bundles and obstacles. It carries no route polyline — routes are **computed**
+by `helqix_circuit.routing` from the two pin positions, the wire bend radius
+and the obstacle boxes, and a wire that supplies a `polyline` (or any other
+unknown wire key) is refused with exit 2. Colours are transcribed from IEC
+60757 / IEC 60445 and labelled `REPORTED`; they are hints, not a safety claim.
+
+```json
+{
+  "version": "harness/0.1",
+  "connectors": [{"id": "J1", "at_mm": [0, 0], "pins": {"1": [0, 0], "2": [0, 30]}}],
+  "wires": [{
+    "id": "W1", "from": "n1", "to": "n2", "from_pin": "J1.1", "to_pin": "J2.1",
+    "gauge_awg": 20, "material": "copper",
+    "insulation": {"colour": "red", "rating_c": 105},
+    "length_mm": 760, "slack_mm": 20, "bend_radius_mm": 6, "bundle": "B1"
+  }],
+  "bundles": [{"id": "B1", "diameter_mm": 9}],
+  "obstacles": [{"id": "fan", "box_mm": [250, -60, 350, 90]}]
+}
+```
+
+| field | meaning |
+|-------|---------|
+| `version` | must be `"harness/0.1"` |
+| `connectors` | list of `{id, at_mm, pins}`; `pins` maps a pin id to `[x, y]` in mm; ids must not contain a dot because pin references are `"connector.pin"` |
+| `wires` | non-empty list, see below |
+| `bundles` | optional list of `{id, diameter_mm > 0}`; a wire may name one |
+| `obstacles` | optional list of `{id, box_mm: [x0, y0, x1, y1]}` with `x0 < x1` and `y0 < y1` |
+
+Each wire requires `id`, `from`, `to` (circuit node names), `from_pin`,
+`to_pin`, exactly one of `gauge_awg` (between -20 and 60 exclusive) or
+`diameter_mm` (> 0), `material` (`copper` or `aluminium`), `insulation`
+(`{colour, rating_c}` with `rating_c > 0`), `length_mm` (> 0) and
+`bend_radius_mm` (> 0); `slack_mm` (>= 0, default 0) and `bundle` are
+optional. An unknown colour name or code is refused listing the known ones.
+The loader refuses unknown top-level and wire keys; the schema also closes the
+connector, bundle and obstacle objects, and a document should keep to the
+fields above.
+
+Loading a document produces, per wire: the given pins with their `at_mm`
+points, `diameter_mm` and `area_mm2` derived from `gauge_awg` when that was
+given, the insulation echoed as `GIVEN`, the `route` object, and
+`length_margin_mm` = `length_mm - route.cut_length_mm` with `route_fits` =
+whether the declared length plus slack covers the cut length. A blocked route
+is reported with `blocked: true`, null lengths labelled `UNKNOWN` and a
+plain-word reason; the document still loads.
+
+### Routes
+
+`helqix_circuit.routing.route(start, end, boxes, bend_radius_mm=..., clearance_mm=...)`
+returns axis-aligned polylines with quarter-circle corners. It tries a clear
+direct segment first (diagonal is allowed when nothing is in the way), then the
+two L corners, then a shortest path on a visibility grid built from the
+endpoints and the box edges. Boxes are inflated by `bend_radius_mm +
+clearance_mm`; each straight section must be at least the radius at an end and
+`2 * radius` between two bends. `cut_length_mm = polyline - 2*R*bends +
+bends*pi*R/2` is the length to cut, shorter than the sharp polyline. Equal-cost
+routes resolve toward lower y then lower x, so the same input always gives the
+same polyline. Anything that cannot be routed within the radius is returned as
+blocked with a plain-word reason, never drawn sharp.
+
+## link-harness
+
+```text
+python -m helqix_circuit link-harness CASE.json HARNESS.json --out DIR \
+  [--fault open:W2] [--fault joint:W1:0.5] [--fault short:W1,W2] \
+  [--fault intermittent:W1:0.15] [--seed 11]
+```
+
+The case must be a circuit case with a `"dc"` analysis; a case that carries
+its own `wires` list is exit 2 (the harness document supplies the wires).
+Each harness wire becomes a series resistor between its two circuit nodes,
+and the DC operating point gives every wire its current, drop, loss and
+verdict. Routes are taken from the harness document model; the wire length in
+the resistance comes from `length_mm`, not from the route.
+
+`limits` applies `max_nodes` only; the report is one DC solve per scenario.
+
+### Wire labels and verdicts
+
+| number | label | source |
+|--------|-------|--------|
+| `supply` | `GIVEN` | the largest non-zero voltage source, or the `argument` overload |
+| `resistance_ohm`, `current_a`, `drop_v`, `drop_percent`, `power_w` | `CALCULATED` | resistance `rho20 * L / A` at 20 degC plus any injected joint, then Ohm's law on the solved voltages |
+| `temperature_rise_c` | `UNKNOWN` | no cited thermal method; the value is `null` with a reason, never an assumed number |
+| `ampacity_a` | `TABLE` / `UNKNOWN` | the IEC 60364-5-52 Table B.52.2 row for copper method C; aluminium or a size without a row is `UNKNOWN` |
+| intermittent maxima/minima | `MEASURED` | across the 20 seeded checks |
+
+The drop verdict is PASS to 3 % of the supply, WARN to 5 %, FAIL above. When
+the ampacity is known it is judged too (PASS to 80 % of the row, WARN up to
+the row, FAIL above) and the worse verdict wins; an UNKNOWN ampacity does not
+block a verdict, the drop decides. `colour_hint` maps PASS→`OK`, WARN→`WARN`,
+FAIL→`FAIL`, UNKNOWN→`UNKNOWN`.
+
+### Faults
+
+Faults are one scenario each and fully deterministic; they are reported, not
+raised as case errors. The scenario list always starts with `as_built`.
+
+| fault | model |
+|-------|-------|
+| `open:W` | the wire is removed; its current is 0 A and its verdict 'FAIL'. If the remaining circuit still has a DC solution the scenario reports those numbers; if a node loses its only conductive path the scenario reports `status: "no_solution"` with the solver message and verdict `FAIL` |
+| `joint:W:OHM` | `OHM` (> 0) is added in series inside that wire, in the stamp and in the drop |
+| `short:W1,W2` | a `0.01` ohm branch joins the two wires' `to` nodes; the scenario adds `fault_current_a` and states the model so it is not mistaken for a mid-run short |
+| `intermittent:W:P` | 20 checks, one `random.Random(seed)` draw each; the wire is open when the draw is below `P` (0 < P < 1). The scenario reports `checks` `{trials, seed, opened, solved, no_solution}`, the max current over solved checks with label `MEASURED`, the min current, and the wire verdict `FAIL` with "opens in N of 20 seeded checks" |
+
+The same seed and document give the same JSON twice. An unknown fault kind,
+an unknown wire name, an unknown field or a bad value is exit 2.
+
+### link results.json
+
+| field | meaning |
+|-------|---------|
+| `status` | `"ok"`, or `"solver_error"` when the as-built solve itself has no solution (exit 3) |
+| `command` | `"link-harness"` |
+| `analysis` | `"dc"` |
+| `supply` | `{value, unit: "V", label: "GIVEN", source}` |
+| `labels` | the label used for each family of numbers |
+| `notes` | plain-word temperature, ampacity, short-model and verdict notes |
+| `wires` | the as-built per-wire table (fields in the next table) |
+| `verdict` | worst as-built wire verdict; exit code stays 0 for a FAIL verdict |
+| `fault_verdict` | worst scenario verdict, or `null` when no fault was given |
+| `scenarios` | `as_built` then one entry per fault, each with `id`, `fault`, `description`, and the same `wires`/`verdict` fields (a `no_solution` scenario has `message` and an empty `wires` list) |
+
+Each wire entry has `id`, `from`, `to`, `resistance_ohm`, `joint_ohm`
+(`null` unless injected), `current_a`, `drop_v`, `drop_percent`, `power_w`,
+`temperature_rise_c`, `ampacity_a`, `drop_verdict`, `verdict`, `colour_hint`,
+`reason`, `insulation` and the harness `route`.
 
 ## Sensor case
 
@@ -321,6 +457,19 @@ gets the same float64 value back.
 `time_s,truth,analog,reported,clipped`. Only written when `probes` is
 non-empty.
 
+## Result bundle (`electronics-result/0.1`)
+
+`python 24-electronics/scripts/result_bundle.py RUN_DIR BUNDLE_DIR` copies one
+finished result folder into the hand-off bundle: `results.json` and the CSVs
+byte for byte, `manifest.json` (version, source package and version, status,
+analysis, validation label, the labels and units the payload used, and a
+size plus SHA-256 per payload file) and a plain-word `README.md` with the
+label legend. The builder refuses a missing or malformed `results.json`, an
+unknown `status`, a missing `solver` identity, a non-finite number, a missing
+payload file and a non-fresh output folder; the same source gives
+byte-identical bundles. `docs/priya/INTERFACE_GATEWAY.md` is the consumer
+contract; no gateway code is in this repository.
+
 ## Pipelines
 
 A transient circuit result feeds a sensor case directly: take the whole
@@ -340,6 +489,13 @@ not valid sensor input.
   `verdict`, `reason`. Color `PASS` green, `WARN` amber, `FAIL` red, `UNKNOWN`
   grey. Show `ampacity_a.source` and the `temperature_note`; do not present the
   temperature rise as a safety claim.
+- **Harness layout and link table** — draw the harness `route.points_mm`
+  polyline per wire from the link report (or the harness document model) and
+  the `obstacles` boxes behind it; a blocked route has no cut length, so show
+  its `reason` instead of a line. For link runs, show `colour_hint` next to
+  each row and the `scenarios[]` list: `as_built` first, then one row per
+  fault with its `fault` text, `description` and verdict. A `no_solution`
+  scenario has no wire rows; show its `message`, not an empty table.
 - **Sensor reality gap** — big number `reality_gap_rms` in the model unit,
   the decomposition (`noise_error_rms`, `quantization_error_rms`,
   `delay_error_rms`) and `dominant_error`. Plot `truth` against `reported` from
@@ -354,10 +510,15 @@ not valid sensor input.
 ## Examples
 
 `24-electronics/examples/circuit/` and `24-electronics/examples/sensors/` each
-hold ten complete cases. Run any of them with:
+hold ten complete cases. `24-electronics/examples/harness/divider_harness.json`
+is the harness document, paired for a link run with
+`24-electronics/examples/harness/cases/feed_case.json` (V1 12 V from `p` to
+`0`, load R1 10 ohm from `a` to `b`, wires W1 `p`-`a` and W2 `b`-`0`). Run any
+of them with:
 
 ```text
 python -m helqix_circuit run 24-electronics/examples/circuit/dc_divider.json --out out/divider
+python -m helqix_circuit link-harness 24-electronics/examples/harness/cases/feed_case.json 24-electronics/examples/harness/divider_harness.json --out out/link --fault joint:W1:1.0
 python -m helqix_sensors run 24-electronics/examples/sensors/voltage_reference.json --out out/voltage
 ```
 
@@ -365,6 +526,8 @@ python -m helqix_sensors run 24-electronics/examples/sensors/voltage_reference.j
 
 - `docs/priya/schemas/case_circuit.schema.json`
 - `docs/priya/schemas/case_sensor.schema.json`
+- `docs/priya/schemas/harness.schema.json`
+- `docs/priya/schemas/bundle_manifest.schema.json`
 - `docs/priya/schemas/results.schema.json`
 
 They follow JSON Schema draft 2020-12 and are stricter than the loader about
