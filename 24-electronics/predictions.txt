@@ -324,3 +324,24 @@ R2 Phase 3 item 3 - first real Actions runs
 - The nightly job previously had no manual trigger, so it could only be
   exercised by waiting for 00:00 IST; workflow_dispatch was added and the
   condition widened to schedule OR workflow_dispatch. check_ci stays clean.
+
+R2 Phase 3 item 1 - ngspice cross-check (written before the run)
+---------------------------------------------------------------
+- New helqix_circuit/spice.py exports R, V, I, E, G, switch (as a 1 mOhm
+  closed / 1 TOhm open resistor), C, L and diode to a deck with a .control
+  block; other kinds and non-zero capacitor/inductor initial conditions are
+  refused. A parser reads "name = number" print/meas lines.
+- 18 circuits: 11 DC (divider, ladder, bridge, current source, two sources,
+  VCVS, VCCS, switch closed/open, diode forward/reverse), 4 AC (RC low-pass,
+  RL high-pass, RLC series, RC ladder at 2-3 frequencies each) and 3 transient
+  (RC step, RL step, RLC step at 3 times each). Tolerance: 1e-5 relative for
+  linear DC/AC, 1e-3 for diodes and 1e-3/5e-3 for transients.
+- 8 new fast circuit tests (deck text, switch, AC phasor, measures, refusals,
+  parser, case list builds). Circuit fast 104 -> 112, verify 191 tests.
+- 2 new mutations (unexportable kind skipped, non-zero initial exported),
+  63 -> 65, both caught on the first run.
+- Locally ngspice is absent, so the script must print "skipped" and exit 0.
+- First CI ngspice run: predicted PASS, but the riskiest points are (a) a
+  single-point "ac lin 1 f f" sweep, (b) the exact meas line format, (c) the
+  1 mOhm closed switch vs the ideal short in our solver, (d) diode
+  temperature handling. If one fails the log will name the deck and value.

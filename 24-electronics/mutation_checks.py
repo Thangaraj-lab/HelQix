@@ -202,6 +202,22 @@ MUTATIONS = [
         "test": "helqix_circuit/tests/test_harness.py::test_unknown_ampacity_row_is_reported_as_unverified",
     },
     {
+        "phase": "R2",
+        "name": "unexportable component silently skipped",
+        "file": "helqix_circuit/spice.py",
+        "old": '            raise InputError(f"cannot export component {component.id!r} of kind {kind!r} to SPICE")',
+        "new": "            continue",
+        "test": "helqix_circuit/tests/test_spice.py::test_unknown_kind_and_nonzero_initial_are_refused",
+    },
+    {
+        "phase": "R2",
+        "name": "non-zero initial condition exported silently",
+        "file": "helqix_circuit/spice.py",
+        "old": '        if kind in {"capacitor", "inductor"} and (component.initial or 0.0) != 0.0:',
+        "new": '        if kind in {"capacitor", "inductor"} and False:',
+        "test": "helqix_circuit/tests/test_spice.py::test_unknown_kind_and_nonzero_initial_are_refused",
+    },
+    {
         "phase": "E3",
         "name": "size match widened so 0.75 mm2 matches a row",
         "file": "helqix_circuit/ampacity_table.py",
