@@ -1,4 +1,5 @@
-"""The platform contract: python -m helqix_circuit run CASE --out DIR.
+"""The platform contracts: ``run CASE --out DIR`` and
+``link-harness CASE HARNESS --out DIR``.
 
 Exit 0 on a result, 2 on bad input, 3 on solver failure. Only the output
 folder is written. No network, no clock-dependent results.
@@ -28,10 +29,13 @@ from . import (
     solve_dc,
     transient,
 )
+from .harness_doc import load_harness
+from .link import DEFAULT_SEED, link_harness, parse_fault
 
 CASE_VERSION = "case/0.1"
 CASE_KEYS = ("circuit", "limits", "reference", "version", "wires")
 MAX_PROBE_POINTS = 2000
+MAX_REQUESTED_STEPS = 2_000_000
 DEFAULT_LIMITS = {"timeout_s": 30.0, "max_nodes": 10000, "max_steps": 200000}
 OUTPUT_FILES = ("results.json", "series.csv", "values.csv")
 REFERENCE_QUANTITIES = ("node_voltage", "branch_current", "probe_final", "metric")
@@ -47,15 +51,56 @@ def main(argv=None) -> int:
     run_parser = sub.add_parser("run", help="run one case JSON file")
     run_parser.add_argument("case", help="path to the case JSON file")
     run_parser.add_argument("--out", required=True, help="fresh folder for results and CSVs")
+    link_parser = sub.add_parser(
+        "link-harness",
+        help="link a harness/0.1 document to a DC circuit and check every wire",
+    )
+    link_parser.add_argument("case", help="path to the case JSON file; it must not carry a wires list")
+    link_parser.add_argument("harness", help="path to the harness/0.1 JSON document")
+    link_parser.add_argument("--out", required=True, help="fresh folder for the link report")
+    link_parser.add_argument(
+        "--fault",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="inject a fault (repeatable): open:W, joint:W:OHM, short:W1,W2 or intermittent:W:P",
+    )
+    link_parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=f"seed for intermittent faults (default {DEFAULT_SEED})",
+    )
     args = parser.parse_args(argv)
-    if args.command != "run":
-        parser.print_help()
-        return 2
     try:
-        return _run(args.case, args.out)
+        if args.command == "run":
+            return _run(args.case, args.out)
+        if args.command == "link-harness":
+            return _link(args.case, args.harness, args.out, args.fault, args.seed)
     except InputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    parser.print_help()
+    return 2
+
+
+def _check_step_budget(circuit, kind: str) -> None:
+    if kind != "transient":
+        return
+    analysis = circuit.analysis
+    try:
+        stop = float(analysis.get("stop_s", 0.0))
+        step = float(analysis.get("step_s", stop / 100.0 if stop > 0 else 0.0))
+    except (TypeError, ValueError):
+        return
+    if not (math.isfinite(stop) and math.isfinite(step)) or stop <= 0 or step <= 0:
+        return
+    requested = stop / step
+    if requested > MAX_REQUESTED_STEPS:
+        raise InputError(
+            f"transient requests {requested:,.0f} steps from stop_s / step_s; the cap is "
+            f"{MAX_REQUESTED_STEPS:,}. Increase step_s or shorten stop_s."
+        )
 
 
 def _run(case_path: str, out_text: str) -> int:
@@ -65,6 +110,7 @@ def _run(case_path: str, out_text: str) -> int:
     wires = _wires(body.get("wires"))
     circuit = load_circuit(body["circuit"])
     kind = _analysis_kind(circuit)
+    _check_step_budget(circuit, kind)
     node_count = len([name for name in circuit.node_names if name != "0"])
     if node_count > limits["max_nodes"]:
         raise InputError(f"case needs {node_count} nodes; max_nodes is {limits['max_nodes']}")
@@ -123,6 +169,57 @@ def _run(case_path: str, out_text: str) -> int:
 
 def _seconds(started: float) -> float:
     return round(time.perf_counter() - started, 6)
+
+
+def _read_harness(path_text: str):
+    try:
+        text = Path(path_text).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise InputError(f"cannot read harness file {path_text}: {exc.strerror or exc}") from exc
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise InputError(f"harness file is not valid JSON: {exc}") from exc
+    return load_harness(body)
+
+
+def _link(case_path: str, harness_path: str, out_text: str, fault_texts, seed: int) -> int:
+    body = _load_case(case_path)
+    if body.get("wires") is not None:
+        raise InputError("the harness document supplies the wires; remove the 'wires' list from the case")
+    circuit = load_circuit(body["circuit"])
+    if _analysis_kind(circuit) != "dc":
+        raise InputError("link-harness uses a DC analysis; set the circuit analysis type to 'dc'")
+    limits = _limits(body.get("limits"))
+    node_count = len([name for name in circuit.node_names if name != "0"])
+    if node_count > limits["max_nodes"]:
+        raise InputError(f"case needs {node_count} nodes; max_nodes is {limits['max_nodes']}")
+    doc = _read_harness(harness_path)
+    fault_ids = {wire.id for wire in doc.wires}
+    faults = [parse_fault(text, fault_ids) for text in fault_texts]
+
+    out = _prepare_out(out_text)
+    started = time.perf_counter()
+    try:
+        payload = link_harness(circuit, doc, faults=faults, seed=seed)
+    except SolverError as exc:
+        _write_json(
+            out / "results.json",
+            {
+                "status": "solver_error",
+                "command": "link-harness",
+                "message": str(exc),
+                "code": getattr(exc, "code", None),
+                "analysis": "dc",
+                "solver": {"name": "helqix_circuit", "version": __version__},
+                "seconds": _seconds(started),
+            },
+        )
+        return 3
+    payload["solver"] = {"name": "helqix_circuit", "version": __version__}
+    payload["seconds"] = _seconds(started)
+    _write_json(out / "results.json", payload)
+    return 0
 
 
 def _load_case(path_text: str) -> dict:

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helqix/harness.schema.json",
+  "title": "HELQIX harness document",
+  "$comment": "Mechanical harness data only. The route polyline is COMPUTED by the router from the two pin positions, the wire bend radius and the obstacles; it is not an input field and a supplied polyline is refused. Insulation colours use the IEC 60757 code letters and the IEC 60445 roles transcribed in helqix_circuit/harness_doc.py; the transcription is REPORTED, not verified online.",
+  "type": "object",
+  "required": ["version", "connectors", "wires"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": "harness/0.1"},
+    "connectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "at_mm", "pins"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1, "pattern": "^[^.]+$"},
+          "at_mm": {"$ref": "#/$defs/point"},
+          "pins": {
+            "type": "object",
+            "minProperties": 1,
+            "patternProperties": {"^[^.]+$": {"$ref": "#/$defs/point"}},
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "wires": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "from", "to", "from_pin", "to_pin", "material", "insulation", "length_mm", "bend_radius_mm"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "from": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "minLength": 1},
+          "from_pin": {"$ref": "#/$defs/pin_ref"},
+          "to_pin": {"$ref": "#/$defs/pin_ref"},
+          "gauge_awg": {"type": "number", "exclusiveMinimum": -20, "exclusiveMaximum": 60},
+          "diameter_mm": {"type": "number", "exclusiveMinimum": 0},
+          "material": {"enum": ["copper", "aluminium"]},
+          "insulation": {
+            "type": "object",
+            "required": ["colour", "rating_c"],
+            "additionalProperties": false,
+            "properties": {
+              "colour": {"type": "string", "minLength": 1},
+              "rating_c": {"type": "number", "exclusiveMinimum": 0}
+            }
+          },
+          "length_mm": {"type": "number", "exclusiveMinimum": 0},
+          "slack_mm": {"type": "number", "minimum": 0},
+          "bend_radius_mm": {"type": "number", "exclusiveMinimum": 0},
+          "bundle": {"type": "string", "minLength": 1}
+        },
+        "oneOf": [{"required": ["gauge_awg"]}, {"required": ["diameter_mm"]}]
+      }
+    },
+    "bundles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "diameter_mm": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    },
+    "obstacles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "box_mm"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "box_mm": {
+            "type": "array",
+            "prefixItems": [
+              {"type": "number"},
+              {"type": "number"},
+              {"type": "number"},
+              {"type": "number"}
+            ],
+            "minItems": 4,
+            "maxItems": 4,
+            "$comment": "x0, y0, x1, y1 with x0 < x1 and y0 < y1"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "pin_ref": {"type": "string", "pattern": "^[^.]+\\.[^.]+$"}
+  }
+}

@@ -123,6 +123,7 @@ class Client:
         self.faults = FaultProfile()
         self.stats = PortStats()
         self._incoming: Deque[Message] = deque()
+        self._duplicates: Deque[Message] = deque()
         self._pending: dict[int, _Pending] = {}
         self._closed = False
         self._rng: random.Random = self.faults.rng()
@@ -133,8 +134,11 @@ class Client:
         return not self._closed
 
     def configure_faults(self, *, seed: int = 0, drop: float = 0.0, corrupt: float = 0.0,
-                         delay_s: float = 0.0) -> None:
-        self.faults = FaultProfile(seed=seed, drop=drop, corrupt=corrupt, delay_s=delay_s)
+                         delay_s: float = 0.0, duplicate: float = 0.0, reorder: float = 0.0) -> None:
+        self.faults = FaultProfile(
+            seed=seed, drop=drop, corrupt=corrupt, delay_s=delay_s,
+            duplicate=duplicate, reorder=reorder,
+        )
         self._rng = self.faults.rng()
 
     def subscribe(self, subscription: str) -> None:
@@ -167,8 +171,19 @@ class Client:
         deadline = time.monotonic() + timeout_s
         while True:
             now = time.monotonic()
+            if self._duplicates:
+                self.stats.duplicated += 1
+                self.stats.received += 1
+                return self._duplicates.popleft()
             while self._incoming and self._incoming[0].available_at <= now:
                 message = self._incoming.popleft()
+                if (self.faults.reorder and self._incoming
+                        and self._incoming[0].available_at <= now
+                        and self._rng.random() < self.faults.reorder):
+                    other = self._incoming.popleft()
+                    self._incoming.appendleft(message)
+                    message = other
+                    self.stats.reordered += 1
                 if self.faults.drop and self._rng.random() < self.faults.drop:
                     self.stats.dropped += 1
                     continue
@@ -178,6 +193,8 @@ class Client:
                 if self.faults.corrupt and self._rng.random() < self.faults.corrupt:
                     self.stats.corrupted += 1
                     continue
+                if self.faults.duplicate and self._rng.random() < self.faults.duplicate:
+                    self._duplicates.append(message)
                 self.stats.received += 1
                 return message
             remaining = deadline - time.monotonic()
@@ -212,7 +229,9 @@ class Client:
     def disconnect(self) -> None:
         self._closed = True
         self._incoming.clear()
+        self._duplicates.clear()
 
     def reconnect(self) -> None:
         self._closed = False
         self._incoming.clear()
+        self._duplicates.clear()

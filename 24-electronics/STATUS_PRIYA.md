@@ -5,8 +5,12 @@ in the phase sections below the five-line reports.
 
 ## Final sweep — all seven phases
 
-Status: **DONE**, nothing BLOCKED. Work is on branches `priya/e1-circuit` …
-`priya/e7-io`, committed locally, not pushed.
+Status: **DONE**, nothing BLOCKED. All seven branches were pushed. The three
+round-2 PRs were merged into `main` in order: #8 `priya/e5-interface` →
+`32ad1a1`, #10 `priya/e6-automation` → `8ad404e`, #9 `priya/e7-io` →
+`19200e2`. Each branch was synced with `main` before merging, so every PR diff
+carried only its own commits, and each merge was gated on an OVERALL PASS run
+of `python 24-electronics/verify.py` pasted into the PR description.
 
 | phase | status | commit(s) | tests now | main targets, measured | UNKNOWNs |
 |-------|--------|-----------|-----------|------------------------|----------|
@@ -19,9 +23,18 @@ Status: **DONE**, nothing BLOCKED. Work is on branches `priya/e1-circuit` …
 | E6 Automation | DONE | ced94ef | 46/46 mutations | fast 123.41 s, nightly 120.51 s (limit 180 s); workflow YAML parsed once with PyYAML 6.0.3 | Actions runtime, hook install |
 | E7 Virtual I/O | DONE | 3b00e4d | 19 fast + 20 nightly | 10000 frames 0.049 s, 10000 messages 0.080 s, 11/11 mutations, amqtt 49/49 topic decisions | wire-level MQTT |
 
-Verification runs after E7 (MEASURED): verify.py three times green, 127.96 s,
-136.85 s and 142.48 s; nightly verify green at 132.05 s; every run reports
-57/57 mutations caught, key scan clean and CONFIG clean. Current totals:
+Verification on merged `main` after the third merge (MEASURED): 97 circuit +
+59 sensors + 19 io = 175 fast tests (235 including nightly), 57/57 mutations
+caught, key scan clean, CONFIG clean, 121.61 s, OVERALL PASS. That is higher
+than the snapshot quoted at the start of round 2 (circuit 69 / sensors 35 /
+io 1) and the rise is the merged work itself: +28 circuit and +24 sensor tests
+are E5's CLI contract suites (`test_cli_circuit.py`, `test_cli_sensors.py`),
+and io 1 → 19 is the new `helqix_io` package (E7). Nothing was removed or
+deselected.
+
+Verification runs before the merges (MEASURED): verify.py three times green,
+127.96 s, 136.85 s and 142.48 s; nightly verify green at 132.05 s; every run
+reports 57/57 mutations caught, key scan clean and CONFIG clean. Totals:
 175 fast tests (97 circuit + 59 sensors + 19 io) and 235 in nightly mode
 (117 + 79 + 39).
 
@@ -49,6 +62,158 @@ UNKNOWNs, in one place:
    matching was compared with a real broker.
 6. E5 downsampling: rounded-even-spacing indices, not a min/max envelope;
    kept as a documented limitation, not a lowered target.
+
+## Round 2 — merge and hardening (started 2026-11-15)
+
+Phase 1 (merge): the three PRs #8 → #10 → #9 were merged into `main` as
+`32ad1a1`, `8ad404e` and `19200e2`, in that order; every branch was synced
+with `main` first and its PR body carried a green verify table. Verify on
+merged `main`: 175 fast tests, 57/57 mutations, 121.61 s, OVERALL PASS
+(MEASURED); the comparison with the pre-merge snapshot is in the section
+above.
+
+Phase 2 (hardening) on branch `priya/r2-hardening`:
+
+- Root-level pytest collision: `addopts = "--import-mode=importlib"` and
+  `pythonpath = ["."]` in `24-electronics/pyproject.toml`. A bare
+  `pytest 24-electronics` from the repo root now collects 239 tests with zero
+  errors and 239 pass in 12.19 s (MEASURED). The same command on `main` (temp
+  worktree) stopped with 4 basename collisions and only 193 collected.
+- Empty circuit: `load_circuit` refuses an empty component list with
+  `circuit has no components ...`, which surfaces as exit 2 and a plain
+  message (`test_empty_circuit_is_refused`).
+- Transient step cap: before the solver starts, `stop_s / step_s` above
+  2,000,000 requested steps is exit 2 and the message states the computed
+  count and the cap (`test_transient_step_count_cap_is_refused` uses a
+  100,000,000-step case). The cap, its reason and the interaction with
+  `max_steps` (still the run-time guard, exit 3) are documented in
+  `docs/priya/INTERFACE_ELECTRONICS.md`.
+- `insulation_rating_c`: the doc said "informational" while the code required
+  it. The doc now says required and a missing value is exit 2 naming the
+  field (`test_wire_insulation_rating_is_required`); the rating is echoed as
+  `GIVEN` in the wire report.
+- Quantizer grid: documented as zero-anchored with a worked example (range
+  -1..4 V, 2 bits, step 1.25 V, so -0.6 V reads 0 V), and
+  `test_quantizer_grid_is_zero_anchored` pins it.
+- Mutations: four new checks (empty circuit accepted, step cap removed,
+  insulation defaulted, quantizer anchored at the range minimum), 61/61
+  caught. The harness now reports a hung mutated test as a survivor instead
+  of crashing with `subprocess.TimeoutExpired` (the Phase 1 E5 hang).
+- verify.py fast (MEASURED): 100 circuit + 60 sensors + 19 io = 179 tests,
+  0 failed, 0 skipped, 61/61 mutations, key scan clean, CONFIG clean,
+  127.79 s, OVERALL PASS. Predictions and outcomes are in `predictions.txt`.
+
+Phase 3 item 2 (ampacity audit), same branch:
+
+- Every Table B.52.2 row now carries its own provenance: standard, table,
+  installation method, material, insulation, loaded conductors, conductor and
+  ambient temperature, status, source page, optional cross-check page and
+  access date (14 fields).
+- The 105 copper values (15 sizes x 7 methods) were read again from the
+  openly published ecalpro copy on 2026-11-15 and all 105 matched
+  (MEASURED). A1, A2, B1, B2 and C were additionally read from the ti-soft
+  copy and matched for every size 1.5-240 mm2. All 105 rows are therefore
+  VERIFIED; the module prints
+  `IEC 60364-5-52 B.52.2: 105 rows, 105 VERIFIED, 0 UNKNOWN`.
+- A row that cannot be checked is tagged UNKNOWN in data and
+  `report_text()` prints it as `unverified table row: ...`; `row_problems()`
+  flags a missing field, an unknown status, or a VERIFIED row without a
+  source or access date. No interpolation: 3.3 mm2 matches no row and gets no
+  verdict (`test_ampacity_never_interpolates_between_sizes`).
+- Tests: four new harness tests (provenance on every row, UNKNOWN report
+  path, bad-row reporting, no interpolation). Two new mutations (VERIFIED row
+  without source accepted, unverified rows not reported), 63/63 caught. The
+  first run left one mutation alive because the bad-row test set two faults
+  in one row; the test was split into single-fault rows and the second run
+  was green (MEASURED 183 tests, 63/63, 102.48 s, OVERALL PASS).
+
+Phase 3 item 3 (first real Actions runs):
+
+- `priya-electronics` push run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43699300222 completed
+  success on ubuntu-latest and windows-latest; the ubuntu log shows
+  104/60/19, 63/63 mutations, key scan clean, CONFIG clean, OVERALL PASS in
+  46.79 s (MEASURED). The pull_request run for the same commit
+  (runs/43699306186) also completed success.
+- The nightly job had no manual trigger; `workflow_dispatch` was added and
+  its condition widened to schedule OR workflow_dispatch. A manual run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43699592152 completed
+  success: ubuntu nightly mode ran 124/80/39 = 243 tests, 63/63 mutations,
+  OVERALL PASS in 71.03 s; windows green (MEASURED from the job log).
+
+Phase 3 item 1 (ngspice cross-check, separate process):
+
+- `helqix_circuit/spice.py` exports resistor, vsource, isource, vcvs, vccs,
+  switch, capacitor, inductor and diode to a deck with a `.control` block
+  (switch = 1 mOhm closed / 1 TOhm open; printed precision raised with
+  `.options numdgt=15`). Other kinds, non-zero capacitor/inductor initial
+  conditions and diodes at different temperatures are refused, so a deck can
+  never silently omit or approximate a component. A parser reads ngspice's
+  `name = number` print/measure lines.
+- `scripts/ngspice_crosscheck.py` runs 18 circuits (11 DC, 4 AC at 2–3
+  frequencies, 3 transient at 3 times) through ngspice in batch mode in a
+  temporary directory. ngspice is never imported or linked. A missing
+  executable prints `skipped` and exits 0.
+- CI: a dedicated ubuntu job installs ngspice with apt and runs the check.
+  MEASURED on run 43703077659 (job log): ngspice-42, 18/18 circuits within
+  tolerance, OVERALL PASS. Error / circuit scale, largest first: RLC step
+  1.97e-5, switch closed 1.0e-5, RL step 4.78e-6, RC step 3.49e-7, diode
+  forward 2.49e-7, RC ladder 1.22e-7, RC low-pass 9.6e-8, ladder 8.6e-8,
+  RLC series 4.6e-8, divider 3.3e-8, two sources 3.0e-8, RL high-pass
+  2.3e-8, bridge 1.2e-8, switch open / diode reverse / current source /
+  vcvs / vccs at 1e-9 or 0. The RLC step is the expected integration-method
+  difference; every other case is at print/rounding level.
+- Fast suite on the same commit (MEASURED locally): 113 circuit + 60 sensors
+  + 19 io = 192 tests, 0 failed, 65/65 mutations caught, key scan clean,
+  CONFIG clean, 109.35 s, OVERALL PASS. Predictions and outcomes, including
+  the first run's confusing near-zero relative error and its fix, are in
+  `predictions.txt`.
+- `docs/priya/LICENCES.md` records every third-party tool, the licence as
+  read from the project's own site/metadata/repository, and whether it is
+  linked or used as a separate process (ngspice: separate process, modified
+  BSD per its FAQ; numpy/scipy BSD-3, pytest MIT, Python PSF-2.0).
+
+Phase 3 item 4 (E7 live probe), same branch:
+
+- The virtual I/O now injects duplicates and reordering as well: a duplicate
+  (probability per delivered frame) waits in a small queue and is returned on
+  the next read before any newer frame, skipping drop and corrupt; a reorder
+  (probability per read that has a second frame already ready) swaps the two
+  oldest ready frames. `stats` gained `duplicated` and `reordered`, and
+  `sent == received - duplicated + dropped + corrupted` holds.
+- `scripts/live_probe.py` sends a seeded sensor trace (`synthesize_signal` then
+  `simulate`) through the serial pair and through the broker into a consumer
+  that checks the record magic, sensor tag, index range and the exact reported
+  value. Seven scenarios run on each transport: clean, drop 0.5, corrupt 0.5,
+  delay 0.05 s, reorder 1.0, duplicate 1.0, and a combined run with all four
+  probabilistic faults. Counters are compared with a separate
+  `random.Random(seed)` stream mirroring the documented draw order; the
+  combined scenario asserts conservation (unique + dropped + corrupted = sent,
+  received = unique + duplicates) because the draws interleave.
+- MEASURED, seed 11, 120 readings, serial and bus counters identical: clean
+  120 in order; drop 55 received / 65 dropped; corrupt 55 / 65; the 0.01 s
+  probe read on the delayed run timed out and all 120 then arrived in order;
+  reorder delivered 1..119,0 with 119 swaps; duplicate delivered 240 with 120
+  unique; combined 106 deliveries = 96 unique + 10 duplicates, 12 dropped and
+  12 corrupted. Seed 29 differs (combined 108 = 99 + 9, 13 dropped,
+  8 corrupted); seed 11 repeated byte-identically (json compare).
+- Tests: 16 new (4 serial, 3 bus, 9 probe), one mutation per new rule
+  (4 transport, 3 probe). Fast suite: 113 circuit + 60 sensors + 35 io = 208
+  tests, 72/72 mutations, key scan clean, CONFIG clean, 123.64 s, OVERALL
+  PASS (MEASURED locally).
+- CI run https://github.com/Thangaraj-lab/HelQix/actions/runs/43704952550
+  completed success for 078d2a3: ubuntu 113/60/35 = 208 tests, 72/72
+  mutations, OVERALL PASS in 80.21 s; windows green in 94.06 s (same counts);
+  ngspice 18/18 (MEASURED from the job logs). The push run for the same
+  commit (runs/43704947832) also completed success.
+- Attack on my own work: the first probe run failed three times for my own
+  reasons, all recorded in `predictions.txt` — the scenario faults omitted the
+  seed (transport used 0), the probe passed a synthesis spec where `simulate`
+  expects a series, and the combined scenario's 5 ms delay made its reorder
+  draws depend on wall-clock readiness, so the same seed produced different
+  counters. The delay was removed from combined (the delay scenario covers
+  it); a full-suite flake seen before that fix did not reproduce afterwards,
+  and three consecutive full I/O suite runs passed.
 
 ## E7 — Virtual I/O
 
@@ -260,3 +425,122 @@ Only the copper rows were transcribed, so an aluminium wire or a size outside
 1.5-240 mm^2 gets ampacity UNKNOWN with no verdict and the reason says why.
 The steady temperature rise uses h = 10 W/(m^2 K) and is labelled
 ASSUMPTION; it is informational and is never used to claim safety.
+
+## Round 2 Phase 4 and Phase 5 — harness link, bundles, reproduction (2026-11-16)
+
+Phase 4 delivered, all in `24-electronics/**` and `docs/priya/**`:
+
+- `harness/0.1` document model (`helqix_circuit/harness_doc.py`,
+  `docs/priya/schemas/harness.schema.json`): connectors with pins and
+  positions, wires naming two circuit nodes and two pins, gauge or diameter,
+  material, insulation colour and rating, length, slack, bend radius and
+  bundle; bundles and obstacle boxes. The route polyline is **computed**, never
+  input, and a supplied polyline is refused as an unknown wire key. Colours
+  come from a transcribed IEC 60757 / IEC 60445 table and are labelled
+  REPORTED.
+- Deterministic routing (`helqix_circuit/routing.py`): direct shot, then the
+  two L corners, then a visibility-grid shortest path over boxes inflated by
+  bend radius + clearance; three directions per node charge one bend penalty;
+  equal-cost paths resolve toward lower y then lower x. Cut length is
+  `polyline - 2*R*bends + bends*pi*R/2`. Blocked routes carry a reason and
+  UNKNOWN lengths, never a sharp line. The module docstring records why no
+  separate corner-arc check is needed.
+- `python -m helqix_circuit link-harness CASE HARNESS --out DIR [--fault ...]
+  [--seed N]`: every wire becomes a series resistor in a copy of the circuit,
+  one DC solve per scenario. Per wire: resistance at 20 degC, current, drop
+  in V and %, loss, temperature rise UNKNOWN with a reason (no cited thermal
+  method), ampacity TABLE or UNKNOWN, drop and overall verdicts, colour hint,
+  insulation echo and computed route. Faults: `open:W`, `joint:W:OHM`,
+  `short:W1,W2` (0.01 ohm between the two "to" nodes, stated in the output),
+  `intermittent:W:P` (20 checks, one `random.Random(seed)` draw each).
+  Selected by hand and reproduced by tests: as built 1.149534 A and
+  2.102751 % drop; 0.5 ohm joint 1.096991 A, W1 6.577435 % FAIL and
+  0.865847 W; short 52.237213 A through the fault branch; seed 7 opens W1 in
+  13 of 20 checks with 20 solved.
+- Two predictions were wrong and are corrected in `predictions.txt`, not
+  edited away: (1) opening W2 does not make the fixture singular, because the
+  load node still reaches ground through R1 and W1, so the scenario reports
+  opened current 0 A and FAIL while the rest solves; a real no_solution needs
+  a node whose only path is the opened wire, which the current-source test
+  covers with code `floating_node`. (2) the joint loss was first written as
+  the wire resistance alone (0.865704 W); the joint is in series, so it is
+  0.865847 W.
+- `electronics-result/0.1` bundles (`helqix_io/bundle.py`,
+  `scripts/result_bundle.py`, `docs/priya/schemas/bundle_manifest.schema.json`):
+  payload copied byte for byte, manifest with source package and version,
+  status, analysis, validation label, the labels and units actually used and
+  a size plus SHA-256 per file, and a README label legend. No timestamps, so
+  the same source gives byte-identical bundles; missing files, a bad status,
+  a non-finite number, a foreign out folder and OUT_DIR == RUN_DIR are
+  refused.
+- `docs/priya/INTERFACE_GATEWAY.md` is the consumer contract (hash check,
+  label rendering, verdict order, UNKNOWN never shown as zero or pass); no
+  gateway code was added. `docs/priya/QUALITY_GATES.md` lists the gates and
+  what each protects. `INTERFACE_ELECTRONICS.md` gained the harness, routing,
+  link and bundle sections and the shipped pairing
+  `examples/harness/cases/feed_case.json` + `examples/harness/divider_harness.json`
+  (as built 1.193718 A, 0.251803 % PASS; `joint:W1:1.0` 9.276625 % FAIL).
+
+Evidence (MEASURED locally, fast mode):
+
+- `python 24-electronics/verify.py`: circuit 141, sensors 60, io 48 = 249
+  tests, 0 failed, 0 skipped; mutations 109/109 caught; key scan clean;
+  CONFIG clean; 206.10 s; OVERALL PASS.
+- Mutation phases: R2-4a routing 6, R2-4b harness document 10, R2-4c link 10,
+  R2-4d bundle 11, all caught. Two interim runs reported a mutation as hung
+  for 120 s under load (E2 op-amp, then R2-4a routing cut length); the same
+  mutations failed their named tests alone in about 1.5 s, so those were
+  timing flakes, not survivors. The per-mutation timeout is now 240 s and the
+  final run is 109/109.
+- One real gap was found while writing the reproduction commands: a
+  link-harness result has no `values` list, so the first bundler refused the
+  very report the gateway is meant to receive. `build_bundle` now requires
+  `values.csv` only when the result has a values list; a link bundle is
+  `results.json` alone. Two tests and two mutations cover it (the parser
+  test would have caught a regression, the mutation check proves it).
+- CI for `a229767` (pushed to `priya/r2-hardening`): four runs completed
+  success — priya-electronics push run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43713521937 (ngspice,
+  ubuntu verify and windows verify jobs all success; the nightly property job
+  is skipped on push by design), pull_request run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43713517211, and the
+  repository CI runs https://github.com/Thangaraj-lab/HelQix/actions/runs/43713521836
+  and https://github.com/Thangaraj-lab/HelQix/actions/runs/43713517226.
+  CI for `fb20716` (the link-bundle fix and this report): four runs completed
+  success — priya-electronics push run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43915291868 (ngspice,
+  ubuntu verify and windows verify jobs all success; nightly property skipped
+  by design), pull_request run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43915303071, and the
+  repository CI runs https://github.com/Thangaraj-lab/HelQix/actions/runs/43915291578
+  and https://github.com/Thangaraj-lab/HelQix/actions/runs/43915303096.
+  Per-job conclusions were read from the API; job-log counts were not quoted
+  here because the log download was refused by the tool policy.
+- Limitation, unchanged: `jsonschema` is not installed in this offline
+  environment, so schemas are checked as valid JSON with matching `const`
+  values and required keys, not used to validate documents. The loader
+  remains the authority.
+
+Reproduction from a fresh clone (Windows PowerShell/cmd and POSIX):
+
+```text
+git clone https://github.com/Thangaraj-lab/HelQix.git
+cd HelQix
+git checkout priya/r2-hardening
+python -m venv 24-electronics/.venv
+24-electronics/.venv/Scripts/python.exe -m pip install numpy scipy pytest   (Windows)
+24-electronics/.venv/bin/python -m pip install numpy scipy pytest            (POSIX)
+python 24-electronics/verify.py
+```
+
+Then, from `24-electronics/`:
+
+```text
+.venv/Scripts/python.exe -m helqix_circuit run examples/circuit/dc_divider.json --out out/divider
+.venv/Scripts/python.exe -m helqix_circuit link-harness examples/harness/cases/feed_case.json examples/harness/divider_harness.json --out out/link --fault joint:W1:1.0
+.venv/Scripts/python.exe scripts/result_bundle.py out/link out/bundle
+```
+
+The same commands with `.venv/bin/python` on POSIX; `verify.py --nightly`
+adds the seeded sweeps. ngspice is optional for the fast suite; the dedicated
+CI job installs it and runs `scripts/ngspice_crosscheck.py` (18/18 in Phase 3).

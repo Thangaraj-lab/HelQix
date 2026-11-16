@@ -1,0 +1,92 @@
+{
+  "version": "harness/0.1",
+  "connectors": [
+    {
+      "id": "J1",
+      "at_mm": [
+        0.0,
+        0.0
+      ],
+      "pins": {
+        "1": [
+          0.0,
+          0.0
+        ],
+        "2": [
+          0.0,
+          30.0
+        ]
+      }
+    },
+    {
+      "id": "J2",
+      "at_mm": [
+        600.0,
+        0.0
+      ],
+      "pins": {
+        "1": [
+          600.0,
+          0.0
+        ],
+        "2": [
+          600.0,
+          30.0
+        ]
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "W1",
+      "from": "p",
+      "to": "a",
+      "from_pin": "J1.1",
+      "to_pin": "J2.1",
+      "gauge_awg": 20,
+      "material": "copper",
+      "insulation": {
+        "colour": "red",
+        "rating_c": 105
+      },
+      "length_mm": 760.0,
+      "slack_mm": 20.0,
+      "bend_radius_mm": 6.0,
+      "bundle": "B1"
+    },
+    {
+      "id": "W2",
+      "from": "b",
+      "to": "0",
+      "from_pin": "J1.2",
+      "to_pin": "J2.2",
+      "gauge_awg": 20,
+      "material": "copper",
+      "insulation": {
+        "colour": "black",
+        "rating_c": 105
+      },
+      "length_mm": 820.0,
+      "slack_mm": 20.0,
+      "bend_radius_mm": 6.0,
+      "bundle": "B1"
+    }
+  ],
+  "bundles": [
+    {
+      "id": "B1",
+      "diameter_mm": 9.0
+    }
+  ],
+  "obstacles": [
+    {
+      "id": "fan",
+      "box_mm": [
+        250.0,
+        -60.0,
+        350.0,
+        90.0
+      ]
+    }
+  ]
+}

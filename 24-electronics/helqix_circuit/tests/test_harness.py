@@ -11,6 +11,7 @@ import math
 import pytest
 
 from helqix_circuit import InputError, load_circuit
+from helqix_circuit import ampacity_table
 from helqix_circuit.harness import (
     AMBIENT_C,
     H_W_M2K,
@@ -165,6 +166,64 @@ def test_ampacity_row_is_cited_and_not_invented():
     assert "B.52.2" in result.ampacity_source
     assert "method C" in result.ampacity_source
     assert result.labels["ampacity_a"] == "TABLE"
+
+
+def test_every_ampacity_row_carries_provenance():
+    # 15 nominal sizes x 7 installation methods, each row with its own citation.
+    assert len(ampacity_table.ROWS) == 15 * 7
+    assert ampacity_table.row_problems() == []
+    for row in ampacity_table.ROWS:
+        assert row["status"] == "VERIFIED"
+        assert row["source"].startswith("https://")
+        assert row["accessed"] == "2026-11-15"
+        for field in ampacity_table.ROW_FIELDS:
+            assert field in row
+    assert ampacity_table.unverified_rows() == []
+
+
+def test_unknown_ampacity_row_is_reported_as_unverified():
+    invented = {
+        "size_mm2": 4.0,
+        "installation_method": "C",
+        "value_a": None,
+        "standard": ampacity_table.STANDARD,
+        "table": ampacity_table.TABLE,
+        "material": "copper",
+        "insulation": "PVC",
+        "loaded_conductors": 2,
+        "conductor_temp_c": 70.0,
+        "ambient_temp_c": 30.0,
+        "status": "UNKNOWN",
+        "source": None,
+        "cross_check": None,
+        "accessed": None,
+    }
+    text = ampacity_table.report_text([invented])
+    assert "unverified table row" in text
+    assert "4.0 mm2 copper PVC method C = UNKNOWN" in text
+    assert ampacity_table.row_problems([invented]) == []
+    assert ampacity_table.unverified_rows([invented]) == [invented]
+
+
+def test_ampacity_row_problems_name_bad_rows():
+    no_source = dict(ampacity_table.ROWS[0])
+    del no_source["source"]
+    no_accessed = dict(ampacity_table.ROWS[0], accessed=None)
+    bad_status = dict(ampacity_table.ROWS[0], status="GUESSED")
+    problems = ampacity_table.row_problems([no_source, no_accessed, bad_status])
+    assert any("missing ['source']" in problem for problem in problems)
+    assert any("VERIFIED without a source page" in problem for problem in problems)
+    assert any("VERIFIED without an access date" in problem for problem in problems)
+    assert any("status 'GUESSED'" in problem for problem in problems)
+
+
+def test_ampacity_never_interpolates_between_sizes():
+    # 3.3 mm^2 is between 2.5 and 4.0; no row within 1 %, so no verdict.
+    area = 3.3e-6
+    assert ampacity_table.nominal_size_mm2(area) is None
+    assert ampacity_table.copper_ampacity(area, "C") == (None, None)
+    # 2.5 mm^2 matches only because it is within 1 % of the nominal size.
+    assert ampacity_table.nominal_size_mm2(2.5e-6) == 2.5
 
 
 def test_ampacity_verdict_on_both_sides_of_each_limit():

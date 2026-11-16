@@ -297,6 +297,8 @@ def load_circuit(source) -> Circuit:
     components_body = body.get("components")
     if not isinstance(components_body, list):
         raise InputError("netlist needs a components list")
+    if not components_body:
+        raise InputError("circuit has no components; add at least one component or give the case something to solve")
     components: list[Component] = []
     seen: set[str] = set()
     for index, item in enumerate(components_body):
