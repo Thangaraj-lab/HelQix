@@ -506,6 +506,14 @@ Evidence (MEASURED locally, fast mode):
   https://github.com/Thangaraj-lab/HelQix/actions/runs/43713517211, and the
   repository CI runs https://github.com/Thangaraj-lab/HelQix/actions/runs/43713521836
   and https://github.com/Thangaraj-lab/HelQix/actions/runs/43713517226.
+  CI for `fb20716` (the link-bundle fix and this report): four runs completed
+  success — priya-electronics push run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43915291868 (ngspice,
+  ubuntu verify and windows verify jobs all success; nightly property skipped
+  by design), pull_request run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43915303071, and the
+  repository CI runs https://github.com/Thangaraj-lab/HelQix/actions/runs/43915291578
+  and https://github.com/Thangaraj-lab/HelQix/actions/runs/43915303096.
   Per-job conclusions were read from the API; job-log counts were not quoted
   here because the log download was refused by the tool policy.
 - Limitation, unchanged: `jsonschema` is not installed in this offline
