@@ -68,23 +68,23 @@ def _load_results(source: Path) -> dict:
     ):
         raise BundleError("results.json needs a solver object with non-empty name and version")
     _reject_non_finite(body)
-    if status == "ok" and not isinstance(body.get("values"), list):
-        raise BundleError("results.json has no values list")
+    if status == "ok" and "values" in body and not isinstance(body["values"], list):
+        raise BundleError("results.json values must be a list")
     return body
 
 
 def _payload(body: dict) -> list[str]:
-    names = []
-    if body["status"] == "ok":
-        names.append("values.csv")
-        probes = body.get("probes")
-        series = body.get("series_csv")
-        if probes and not series:
-            raise BundleError("results.json has probes but no series_csv")
-        if series:
-            if series != "series.csv":
-                raise BundleError(f"results.json names {series!r}; the bundle only carries 'series.csv'")
-            names.append("series.csv")
+    if body["status"] != "ok" or "values" not in body:
+        return ["results.json"]
+    names = ["values.csv"]
+    probes = body.get("probes")
+    series = body.get("series_csv")
+    if probes and not series:
+        raise BundleError("results.json has probes but no series_csv")
+    if series:
+        if series != "series.csv":
+            raise BundleError(f"results.json names {series!r}; the bundle only carries 'series.csv'")
+        names.append("series.csv")
     return ["results.json"] + sorted(names)
 
 

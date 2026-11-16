@@ -45,7 +45,7 @@ def source_dir(tmp_path, body=None, *, series=False, name="source"):
         body = dict(body, probes=[{"id": "V(2)", "unit": "V", "x_name": "time_s", "time_s": [0.0, 1.0], "value": [0.0, 1.0], "label": "CALCULATED"}], series_csv="series.csv")
         (src / "series.csv").write_text("time_s,V(2)\n0.0,0.0\n1.0,1.0\n", encoding="utf-8")
     (src / "results.json").write_text(json.dumps(body, indent=2), encoding="utf-8")
-    if body["status"] == "ok":
+    if body["status"] == "ok" and "values" in body:
         (src / "values.csv").write_text(
             "name,quantity,value,unit,label\nV(2),node_voltage,6.666666666666667,V,CALCULATED\n",
             encoding="utf-8",
@@ -213,6 +213,52 @@ def test_a_real_circuit_result_bundles(tmp_path):
     assert manifest["labels"] == ["CALCULATED"]
     assert manifest["units"] == ["A", "V"]
     assert [entry["name"] for entry in manifest["files"]] == ["results.json", "values.csv"]
+
+
+def test_a_result_without_a_values_table_bundles(tmp_path):
+    body = dict(results_ok())
+    del body["values"]
+    manifest = build_bundle(source_dir(tmp_path, body), tmp_path / "bundle")
+    assert [entry["name"] for entry in manifest["files"]] == ["results.json"]
+    assert not (tmp_path / "bundle" / "values.csv").exists()
+    assert "CALCULATED" in manifest["labels"] and "UNKNOWN" in manifest["labels"]
+    assert manifest["units"] == ["A", "V"]
+
+
+def test_values_of_the_wrong_type_are_refused(tmp_path):
+    body = dict(results_ok(), values=5)
+    with pytest.raises(BundleError, match="values"):
+        build_bundle(source_dir(tmp_path, body), tmp_path / "bundle")
+
+
+def test_a_link_report_bundles_without_a_values_table(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    repo = Path(__file__).resolve().parents[2]
+    out = tmp_path / "run"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(repo) + os.pathsep + env.get("PYTHONPATH", "")
+    proc = subprocess.run(
+        [
+            sys.executable, "-m", "helqix_circuit", "link-harness",
+            str(repo / "examples" / "harness" / "cases" / "feed_case.json"),
+            str(repo / "examples" / "harness" / "divider_harness.json"),
+            "--out", str(out), "--fault", "joint:W1:1.0",
+        ],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    manifest = build_bundle(out, tmp_path / "bundle")
+    assert [entry["name"] for entry in manifest["files"]] == ["results.json"]
+    assert manifest["analysis"] == "dc"
+    assert {"CALCULATED", "GIVEN", "UNKNOWN"} <= set(manifest["labels"])
+    assert "V" in manifest["units"] and "mm" in manifest["units"]
 
 
 def test_manifest_schema_matches_this_version(tmp_path):

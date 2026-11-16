@@ -635,3 +635,19 @@ first run rather than predicted beforehand.
   op-amp mutation as "test hung for 120 s", and running that mutation alone
   took 1.5 s and failed the named test, so it was a loaded-machine flake, not
   a survivor.  verify.py fast mode: OVERALL PASS, suites 141/60/45.
+- Gap found while writing the Phase 5 reproduction commands (after the first
+  bundle commit): a link-harness result.json has no "values" list, so
+  build_bundle's unconditional "ok needs values" rule refused the very
+  hand-off the gateway is meant to receive.  Relaxed to require values.csv
+  only when the result has a values list; a link bundle is results.json
+  alone.  Predicted before the rerun: two new tests (link report bundles;
+  non-list values refused) pass, and two new mutations are caught
+  (109/109), giving io 48 tests and 249 overall.
+- Outcome: bundle suite 13 tests pass (io 48). The two timing flakes happened
+  under load, not in isolation; per-mutation timeout raised to 240 s. Final
+  mutation run 109/109 caught and verify fast OVERALL PASS: 141/60/48 = 249
+  tests, key scan clean, CONFIG clean, 206.10 s. The three documented
+  reproduction commands ran from 24-electronics into a temp folder: divider
+  run, link run with joint:W1:1.0, and result_bundle; the bundle carried
+  results.json, manifest.json, README.md with labels CALCULATED, GIVEN,
+  REPORTED, UNKNOWN.

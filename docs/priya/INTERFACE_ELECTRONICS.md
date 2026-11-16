@@ -467,8 +467,10 @@ size plus SHA-256 per payload file) and a plain-word `README.md` with the
 label legend. The builder refuses a missing or malformed `results.json`, an
 unknown `status`, a missing `solver` identity, a non-finite number, a missing
 payload file and a non-fresh output folder; the same source gives
-byte-identical bundles. `docs/priya/INTERFACE_GATEWAY.md` is the consumer
-contract; no gateway code is in this repository.
+byte-identical bundles. A link-harness result has no scalar table, so its
+bundle is `results.json`, `manifest.json` and `README.md`.
+`docs/priya/INTERFACE_GATEWAY.md` is the consumer contract; no gateway code is
+in this repository.
 
 ## Pipelines
 

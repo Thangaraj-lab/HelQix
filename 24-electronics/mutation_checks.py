@@ -861,8 +861,8 @@ MUTATIONS = [
         "phase": "R2-4d",
         "name": "bundle copies a series nobody declared",
         "file": "helqix_io/bundle.py",
-        "old": "        if series:\n            if series != \"series.csv\":",
-        "new": "        if True:\n            if series != \"series.csv\":",
+        "old": '    if series:\n        if series != "series.csv":',
+        "new": '    if True:\n        if series != "series.csv":',
         "test": "helqix_io/tests/test_bundle.py::test_bundle_copies_the_payload_and_records_hashes",
     },
     {
@@ -872,6 +872,22 @@ MUTATIONS = [
         "old": "    if src.resolve() == dst.resolve():",
         "new": "    if False:",
         "test": "helqix_io/tests/test_bundle.py::test_out_folder_must_be_fresh_and_separate_from_the_source",
+    },
+    {
+        "phase": "R2-4d",
+        "name": "bundle demands a values table from a link report",
+        "file": "helqix_io/bundle.py",
+        "old": '    if body["status"] != "ok" or "values" not in body:',
+        "new": '    if body["status"] != "ok":',
+        "test": "helqix_io/tests/test_bundle.py::test_a_link_report_bundles_without_a_values_table",
+    },
+    {
+        "phase": "R2-4d",
+        "name": "bundle accepts a non-list values field",
+        "file": "helqix_io/bundle.py",
+        "old": '    if status == "ok" and "values" in body and not isinstance(body["values"], list):',
+        "new": "    if False:",
+        "test": "helqix_io/tests/test_bundle.py::test_values_of_the_wrong_type_are_refused",
     },
 ]
 
@@ -889,10 +905,10 @@ def _run_test(root: Path, node: str) -> tuple[int, str]:
             capture_output=True,
             text=True,
             env=env,
-            timeout=120,
+            timeout=240,
         )
     except subprocess.TimeoutExpired:
-        return 124, "test hung for 120 s"
+        return 124, "test hung for 240 s"
     return proc.returncode, (proc.stdout + proc.stderr).strip().splitlines()[-1] if (proc.stdout or proc.stderr) else ""
 
 

@@ -425,3 +425,114 @@ Only the copper rows were transcribed, so an aluminium wire or a size outside
 1.5-240 mm^2 gets ampacity UNKNOWN with no verdict and the reason says why.
 The steady temperature rise uses h = 10 W/(m^2 K) and is labelled
 ASSUMPTION; it is informational and is never used to claim safety.
+
+## Round 2 Phase 4 and Phase 5 — harness link, bundles, reproduction (2026-11-16)
+
+Phase 4 delivered, all in `24-electronics/**` and `docs/priya/**`:
+
+- `harness/0.1` document model (`helqix_circuit/harness_doc.py`,
+  `docs/priya/schemas/harness.schema.json`): connectors with pins and
+  positions, wires naming two circuit nodes and two pins, gauge or diameter,
+  material, insulation colour and rating, length, slack, bend radius and
+  bundle; bundles and obstacle boxes. The route polyline is **computed**, never
+  input, and a supplied polyline is refused as an unknown wire key. Colours
+  come from a transcribed IEC 60757 / IEC 60445 table and are labelled
+  REPORTED.
+- Deterministic routing (`helqix_circuit/routing.py`): direct shot, then the
+  two L corners, then a visibility-grid shortest path over boxes inflated by
+  bend radius + clearance; three directions per node charge one bend penalty;
+  equal-cost paths resolve toward lower y then lower x. Cut length is
+  `polyline - 2*R*bends + bends*pi*R/2`. Blocked routes carry a reason and
+  UNKNOWN lengths, never a sharp line. The module docstring records why no
+  separate corner-arc check is needed.
+- `python -m helqix_circuit link-harness CASE HARNESS --out DIR [--fault ...]
+  [--seed N]`: every wire becomes a series resistor in a copy of the circuit,
+  one DC solve per scenario. Per wire: resistance at 20 degC, current, drop
+  in V and %, loss, temperature rise UNKNOWN with a reason (no cited thermal
+  method), ampacity TABLE or UNKNOWN, drop and overall verdicts, colour hint,
+  insulation echo and computed route. Faults: `open:W`, `joint:W:OHM`,
+  `short:W1,W2` (0.01 ohm between the two "to" nodes, stated in the output),
+  `intermittent:W:P` (20 checks, one `random.Random(seed)` draw each).
+  Selected by hand and reproduced by tests: as built 1.149534 A and
+  2.102751 % drop; 0.5 ohm joint 1.096991 A, W1 6.577435 % FAIL and
+  0.865847 W; short 52.237213 A through the fault branch; seed 7 opens W1 in
+  13 of 20 checks with 20 solved.
+- Two predictions were wrong and are corrected in `predictions.txt`, not
+  edited away: (1) opening W2 does not make the fixture singular, because the
+  load node still reaches ground through R1 and W1, so the scenario reports
+  opened current 0 A and FAIL while the rest solves; a real no_solution needs
+  a node whose only path is the opened wire, which the current-source test
+  covers with code `floating_node`. (2) the joint loss was first written as
+  the wire resistance alone (0.865704 W); the joint is in series, so it is
+  0.865847 W.
+- `electronics-result/0.1` bundles (`helqix_io/bundle.py`,
+  `scripts/result_bundle.py`, `docs/priya/schemas/bundle_manifest.schema.json`):
+  payload copied byte for byte, manifest with source package and version,
+  status, analysis, validation label, the labels and units actually used and
+  a size plus SHA-256 per file, and a README label legend. No timestamps, so
+  the same source gives byte-identical bundles; missing files, a bad status,
+  a non-finite number, a foreign out folder and OUT_DIR == RUN_DIR are
+  refused.
+- `docs/priya/INTERFACE_GATEWAY.md` is the consumer contract (hash check,
+  label rendering, verdict order, UNKNOWN never shown as zero or pass); no
+  gateway code was added. `docs/priya/QUALITY_GATES.md` lists the gates and
+  what each protects. `INTERFACE_ELECTRONICS.md` gained the harness, routing,
+  link and bundle sections and the shipped pairing
+  `examples/harness/cases/feed_case.json` + `examples/harness/divider_harness.json`
+  (as built 1.193718 A, 0.251803 % PASS; `joint:W1:1.0` 9.276625 % FAIL).
+
+Evidence (MEASURED locally, fast mode):
+
+- `python 24-electronics/verify.py`: circuit 141, sensors 60, io 48 = 249
+  tests, 0 failed, 0 skipped; mutations 109/109 caught; key scan clean;
+  CONFIG clean; 206.10 s; OVERALL PASS.
+- Mutation phases: R2-4a routing 6, R2-4b harness document 10, R2-4c link 10,
+  R2-4d bundle 11, all caught. Two interim runs reported a mutation as hung
+  for 120 s under load (E2 op-amp, then R2-4a routing cut length); the same
+  mutations failed their named tests alone in about 1.5 s, so those were
+  timing flakes, not survivors. The per-mutation timeout is now 240 s and the
+  final run is 109/109.
+- One real gap was found while writing the reproduction commands: a
+  link-harness result has no `values` list, so the first bundler refused the
+  very report the gateway is meant to receive. `build_bundle` now requires
+  `values.csv` only when the result has a values list; a link bundle is
+  `results.json` alone. Two tests and two mutations cover it (the parser
+  test would have caught a regression, the mutation check proves it).
+- CI for `a229767` (pushed to `priya/r2-hardening`): four runs completed
+  success — priya-electronics push run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43713521937 (ngspice,
+  ubuntu verify and windows verify jobs all success; the nightly property job
+  is skipped on push by design), pull_request run
+  https://github.com/Thangaraj-lab/HelQix/actions/runs/43713517211, and the
+  repository CI runs https://github.com/Thangaraj-lab/HelQix/actions/runs/43713521836
+  and https://github.com/Thangaraj-lab/HelQix/actions/runs/43713517226.
+  Per-job conclusions were read from the API; job-log counts were not quoted
+  here because the log download was refused by the tool policy.
+- Limitation, unchanged: `jsonschema` is not installed in this offline
+  environment, so schemas are checked as valid JSON with matching `const`
+  values and required keys, not used to validate documents. The loader
+  remains the authority.
+
+Reproduction from a fresh clone (Windows PowerShell/cmd and POSIX):
+
+```text
+git clone https://github.com/Thangaraj-lab/HelQix.git
+cd HelQix
+git checkout priya/r2-hardening
+python -m venv 24-electronics/.venv
+24-electronics/.venv/Scripts/python.exe -m pip install numpy scipy pytest   (Windows)
+24-electronics/.venv/bin/python -m pip install numpy scipy pytest            (POSIX)
+python 24-electronics/verify.py
+```
+
+Then, from `24-electronics/`:
+
+```text
+.venv/Scripts/python.exe -m helqix_circuit run examples/circuit/dc_divider.json --out out/divider
+.venv/Scripts/python.exe -m helqix_circuit link-harness examples/harness/cases/feed_case.json examples/harness/divider_harness.json --out out/link --fault joint:W1:1.0
+.venv/Scripts/python.exe scripts/result_bundle.py out/link out/bundle
+```
+
+The same commands with `.venv/bin/python` on POSIX; `verify.py --nightly`
+adds the seeded sweeps. ngspice is optional for the fast suite; the dedicated
+CI job installs it and runs `scripts/ngspice_crosscheck.py` (18/18 in Phase 3).

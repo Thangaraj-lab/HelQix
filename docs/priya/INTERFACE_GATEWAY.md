@@ -34,7 +34,7 @@ gateway should report it as a crash and keep the inputs for a bug report.
 | file | meaning |
 |------|---------|
 | `results.json` | the package output, byte-for-byte unchanged |
-| `values.csv` | the scalar table, unchanged (`name,quantity,value,unit,label`) |
+| `values.csv` | the scalar table, unchanged (`name,quantity,value,unit,label`); absent in a link-harness bundle, which has no scalar table |
 | `series.csv` | the series table when the result has one |
 | `manifest.json` | version, source package and version, status, analysis, validation label, the labels and units actually used, and a size plus SHA-256 for every payload file |
 | `README.md` | the same facts in plain words, including the label legend |
